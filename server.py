@@ -21,21 +21,54 @@ class RequestModel(BaseModel):
 
 @app.post("/compute")
 def compute(req: RequestModel):
+
+    # -----------------------------
+    # FALLBACKS TARIEVEN (SAFE MODE)
+    # -----------------------------
+
+    def to_float_or_default(value, default):
+        if value is None:
+            return default
+        if value == "":
+            return default
+        if isinstance(value, str) and value.lower().strip() == "standaardwaarden":
+            return default
+        try:
+            return float(value)
+        except:
+            return default
+
+    # Enkel tarief
+    p_enkel_imp = to_float_or_default(req.p_enkel_imp, 0.40)
+    p_enkel_exp = to_float_or_default(req.p_enkel_exp, 0.08)
+
+    # Dag/Nacht tarief
+    p_dag = to_float_or_default(req.p_dag, 0.45)
+    p_nacht = to_float_or_default(req.p_nacht, 0.23)
+    p_exp_dn = to_float_or_default(req.p_exp_dn, 0.08)
+
+    # Dynamisch tarief
+    p_export_dyn = to_float_or_default(req.p_exp_dn, 0.07)
+
+    # -----------------------------
+    # ENGINE AANROEP
+    # -----------------------------
     result = compute_scenarios(
         req.load_kwh,
         req.pv_kwh,
         req.prices_dyn,
-        req.p_enkel_imp,
-        req.p_enkel_exp,
-        req.p_dag,
-        req.p_nacht,
-        req.p_exp_dn,
+        p_enkel_imp,     # ← GEEN req.p_enkel_imp meer!
+        p_enkel_exp,
+        p_dag,
+        p_nacht,
+        p_exp_dn,
         req.E,
         req.P,
         req.DoD,
         req.eta_rt,
         req.Vastrecht
     )
+
     return {
         "S1": result[0],
         "S2_enkel": result[1],
