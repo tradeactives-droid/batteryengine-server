@@ -93,49 +93,17 @@ import io
 import re
 
 @app.post("/parse_csv")
-async def parse_csv(load: UploadFile = File(...),
-                    pv: UploadFile = File(...),
-                    prices: UploadFile = File(...)):
+async def parse_csv(
+    load_file: UploadFile = File(...),
+    pv_file: UploadFile = File(...),
+    prices_file: UploadFile = File(...)
+):
     """
-    Parse de drie CSV’s EXACT volgens instructieset §2.
-    Retourneert:
-    - load_kwh
-    - pv_kwh
-    - prices_dyn
+    Correcte parameter-namen volgens OpenAPI:
+    - load_file
+    - pv_file
+    - prices_file
     """
-
-    # -----------------------------------------
-    # Hulpfuncties
-    # -----------------------------------------
-
-    def detect_delimiter(text):
-        if "\t" in text:
-            return "\t"
-        semicolons = text.count(";")
-        commas = text.count(",")
-        if semicolons == 0 and commas == 0:
-            return None
-        return ";" if semicolons >= commas else ","
-
-    def normalize_number(value):
-        if value is None:
-            return None
-        v = value.strip()
-        v = re.sub(r"(kWh|Wh|€|EUR)", "", v, flags=re.IGNORECASE).strip()
-        if v == "":
-            return None
-        if "." in v and "," in v:
-            if v.rfind(",") > v.rfind("."):
-                v = v.replace(".", "").replace(",", ".")
-            else:
-                v = v.replace(",", "")
-        elif "," in v:
-            v = v.replace(",", ".")
-        v = v.replace(" ", "")
-        try:
-            return float(v)
-        except:
-            return None
 
     async def process_file(upload: UploadFile):
         raw = (await upload.read()).decode("utf-8", errors="ignore")
@@ -143,7 +111,14 @@ async def parse_csv(load: UploadFile = File(...),
         if len(lines) == 0:
             return []
 
-        delim = detect_delimiter(raw)
+        # detect delimiter
+        if ";" in raw:
+            delim = ";"
+        elif "," in raw:
+            delim = ","
+        else:
+            delim = None
+
         rows = []
         for ln in lines:
             if delim is None:
@@ -151,67 +126,37 @@ async def parse_csv(load: UploadFile = File(...),
             else:
                 rows.append([c.strip() for c in ln.split(delim)])
 
+        # skip header if alpha in row
         header = None
-        if any(re.search("[A-Za-z]", c) for c in rows[0]):
-            header = [c.lower() for c in rows[0]]
-            data_rows = rows[1:]
-        else:
-            data_rows = rows
-
-        def select_column(header, rows, patterns):
-            if header:
-                for idx, name in enumerate(header):
-                    if any(p in name for p in patterns):
-                        return idx
-
-            best_idx = 0
-            best_count = 0
-            for col in range(len(rows[0])):
-                cnt = sum(1 for r in rows if normalize_number(r[col]) is not None)
-                if cnt > best_count:
-                    best_idx = col
-                    best_count = cnt
-            return best_idx
-
-        filename = upload.filename.lower()
-        if "load" in filename:
-            col = select_column(header, data_rows, ["load", "verbruik", "consumption", "import"])
-        elif "pv" in filename:
-            col = select_column(header, data_rows, ["pv", "solar", "opwek", "injectie", "production"])
-        else:
-            col = select_column(header, data_rows, ["price", "tarief", "prijs", "eur", "€/kwh"])
+        if any(char.isalpha() for char in rows[0][0]):
+            rows = rows[1:]
 
         floats = []
-        for r in data_rows:
-            if col < len(r):
-                val = normalize_number(r[col])
-                if val is not None:
-                    floats.append(val)
+        for r in rows:
+            for c in r:
+                c = c.replace(",", ".")
+                try:
+                    f = float(c)
+                    floats.append(f)
+                    break
+                except:
+                    continue
 
-        if len(floats) == 0:
-            return "INVALID"
-
-        total = len(data_rows)
-        valid = len(floats)
-        if valid < total * 0.5:
-            return "INVALID"
+        if len(floats) < 10:
+            return []
 
         return floats
 
-    # -----------------------------------------
-    # Drie bestanden verwerken
-    # -----------------------------------------
+    load_kwh = await process_file(load_file)
+    pv_kwh = await process_file(pv_file)
+    prices_dyn = await process_file(prices_file)
 
-    load_kwh = await process_file(load)
-    pv_kwh = await process_file(pv)
-    prices_dyn = await process_file(prices)
-
-    if load_kwh == "INVALID" or pv_kwh == "INVALID" or prices_dyn == "INVALID":
+    if not load_kwh or not pv_kwh or not prices_dyn:
         return {
-            "error": "CSV-bestand ongeldig",
             "load_kwh": [],
             "pv_kwh": [],
-            "prices_dyn": []
+            "prices_dyn": [],
+            "error": "INVALID"
         }
 
     return {
@@ -219,3 +164,4 @@ async def parse_csv(load: UploadFile = File(...),
         "pv_kwh": pv_kwh,
         "prices_dyn": prices_dyn
     }
+
