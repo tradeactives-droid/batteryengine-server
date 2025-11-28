@@ -92,8 +92,8 @@ import csv
 import io
 import re
 
-@app.post("/parse_csv_v2")
-async def parse_csv_v2(
+@app.post("/parse_csv")
+async def parse_csv(
     load_file: UploadFile = File(...),
     pv_file: UploadFile = File(...),
     prices_file: UploadFile = File(...)
@@ -127,7 +127,6 @@ async def parse_csv_v2(
                 rows.append([c.strip() for c in ln.split(delim)])
 
         # skip header if alpha in row
-        header = None
         if any(char.isalpha() for char in rows[0][0]):
             rows = rows[1:]
 
@@ -164,5 +163,6 @@ async def parse_csv_v2(
         "pv_kwh": pv_kwh,
         "prices_dyn": prices_dyn
     }
+
 
 
