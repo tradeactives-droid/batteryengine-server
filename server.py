@@ -92,8 +92,8 @@ import csv
 import io
 import re
 
-@app.post("/parse_csv")
-async def parse_csv(
+@app.post("/parse_csv_v2")
+async def parse_csv_v2(
     load_file: UploadFile = File(...),
     pv_file: UploadFile = File(...),
     prices_file: UploadFile = File(...)
@@ -164,4 +164,5 @@ async def parse_csv(
         "pv_kwh": pv_kwh,
         "prices_dyn": prices_dyn
     }
+
 
