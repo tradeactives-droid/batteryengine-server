@@ -1,9 +1,17 @@
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from BatteryEngine_Pro import compute_scenarios
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # later kun je dit beperken
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --------------------------------------------
 # REQUESTMODEL VOOR /compute
@@ -260,6 +268,7 @@ def parse_csv(req: ParseCSVRequest):
         "pv_kwh": pv_kwh,
         "prices_dyn": prices_dyn
     }
+
 
 
 
