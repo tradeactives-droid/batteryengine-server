@@ -27,16 +27,48 @@ app.add_middleware(
 # -----------------------------
 # HELPERS
 # -----------------------------
-def parse_csv_to_floats(text):
-    reader = csv.reader(io.StringIO(text))
-    values = []
-    for row in reader:
-        if not row:
+def parse_csv_to_floats(text: str) -> list[float]:
+    """
+    Verwerkt een CSV met:
+    - meerdere kolommen
+    - komma of punt als decimaal
+    - ; of , als delimiter
+    - headers toegestaan
+    - timestamp kolommen worden genegeerd
+    """
+
+    # alle niet-lege regels
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return []
+
+    # delimiter detecteren
+    first_line = lines[0]
+    if first_line.count(";") >= first_line.count(","):
+        delim = ";"
+    else:
+        delim = ","
+
+    values: list[float] = []
+
+    for ln in lines:
+        parts = [p.strip() for p in ln.split(delim)]
+        # zoek eerste kolom die als float gelezen kan worden
+        picked = False
+        for col in parts:
+            col2 = col.replace(",", ".")
+            try:
+                f = float(col2)
+                values.append(f)
+                picked = True
+                break
+            except ValueError:
+                continue
+
+        # als geen enkele kolom numeriek was → overslaan
+        if not picked:
             continue
-        try:
-            values.append(float(row[0]))
-        except:
-            continue
+
     return values
 
 
