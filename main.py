@@ -107,7 +107,11 @@ def parse_csv(req: ParseCSVRequest):
     pv = parse_csv_to_floats(req.pv_file)
     prices = parse_csv_to_floats(req.prices_file)
 
-    if len(load) != len(pv) or len(load) != len(prices):
+    # simpele validatie
+    if len(load) == 0 or len(pv) == 0 or len(prices) == 0:
+        return {"error": "INVALID"}
+
+    if not (len(load) == len(pv) == len(prices)):
         return {"error": "INVALID"}
 
     return {
