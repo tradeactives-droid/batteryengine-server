@@ -96,6 +96,10 @@ class ComputeRequest(BaseModel):
     eta_rt: float
     Vastrecht: float
 
+    # ✅ NIEUW – voor terugverdientijd
+    capex: float
+    opex: float
+
 
 # -----------------------------
 # ENDPOINT 1 — CSV PARSEN
@@ -230,6 +234,19 @@ def compute(req: ComputeRequest):
     saving_by_battery = B1_cost - C1_cost
     future_vs_now_batt = C1_cost - A1_current_cost
 
+    ###########################
+    # 6.1 Terugverdientijd batterij
+    ###########################
+    capex = req.capex
+    opex = req.opex
+
+    net_saving = saving_by_battery - opex
+
+    if net_saving > 0:
+        payback_years = capex / net_saving
+    else:
+        payback_years = None
+    
     ###########################
     # 6. Resultaat terugsturen
     ###########################
