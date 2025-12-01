@@ -258,6 +258,7 @@ def compute(req: ComputeRequest):
         "extra_cost_when_saldering_stops": extra_cost_saldering_stops,
         "saving_by_battery": saving_by_battery,
         "future_vs_now_with_battery": future_vs_now_batt,
+        "payback_years": payback_years,
 
         "flows": {
             "B1_import": B1_import,
