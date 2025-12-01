@@ -127,20 +127,127 @@ def parse_csv(req: ParseCSVRequest):
 @app.post("/compute")
 def compute(req: ComputeRequest):
 
-    result = compute_scenarios(
-        req.load_kwh,
-        req.pv_kwh,
-        req.prices_dyn,
-        req.p_enkel_imp,
-        req.p_enkel_exp,
-        req.p_dag,
-        req.p_nacht,
-        req.p_exp_dn,
-        req.E,
-        req.P,
-        req.DoD / 100,
-        req.eta_rt / 100,
-        req.Vastrecht
-    )
+    ###########################
+    # 1. Basis inputs ophalen
+    ###########################
+    load = req.load_kwh
+    pv = req.pv_kwh
+    dyn = req.prices_dyn
+
+    p_enkel_imp = req.p_enkel_imp
+    p_enkel_exp = req.p_enkel_exp
+
+    p_dag = req.p_dag
+    p_nacht = req.p_nacht
+    p_exp_dn = req.p_exp_dn
+
+    E = req.E
+    P = req.P
+    DoD = req.DoD
+    eta = req.eta_rt
+    vastrecht = req.Vastrecht
+
+    N = len(load)
+    dt = 0.25   # kwartierdata → 15 min
+
+    ###########################
+    # 2. A1 — Huidige situatie (MET saldering)
+    ###########################
+    total_load = sum(load) * dt
+    total_pv = sum(pv) * dt
+
+    # saldering = export == waarde van import
+    A1_current_cost = (total_load - total_pv) * p_enkel_imp + vastrecht
+
+    ###########################
+    # 3. B1 — Toekomst zonder saldering, GEEN batterij
+    ###########################
+    B1_import = 0.0
+    B1_export = 0.0
+    B1_cost = 0.0
+
+    for t in range(N):
+        surplus = pv[t] - load[t]
+
+        if surplus >= 0:
+            # overschot → export voor lage vergoeding
+            B1_export += surplus * dt
+            B1_cost -= surplus * dt * p_enkel_exp
+        else:
+            # tekort → import
+            B1_import += (-surplus) * dt
+            B1_cost += (-surplus) * dt * p_enkel_imp
+
+    B1_cost += vastrecht
+
+    ###########################
+    # 4. C1 — Toekomst met batterij (zonder saldering)
+    ###########################
+    Emax = E * DoD
+    SOC = 0.5 * Emax
+
+    C1_import = 0.0
+    C1_export = 0.0
+    C1_cost = 0.0
+
+    for t in range(N):
+        surplus = pv[t] - load[t]
+
+        if surplus > 0:
+            # batterij laden
+            charge = min(surplus * eta, P)
+            energy_added = charge * dt
+            available_room = Emax - SOC
+            actual = min(energy_added, available_room)
+
+            SOC += actual
+            surplus -= actual / eta
+
+            # rest gaat naar export
+            C1_export += surplus * dt
+            C1_cost -= surplus * dt * p_enkel_exp
+
+        else:
+            # tekort → batterij ontladen
+            discharge = min(-surplus / eta, P)
+            energy_available = SOC
+            actual = min(discharge * dt, energy_available)
+
+            SOC -= actual
+            covered = actual * eta / dt
+            deficit = (-surplus) - covered
+
+            if deficit > 0:
+                C1_import += deficit * dt
+                C1_cost += deficit * dt * p_enkel_imp
+
+    C1_cost += vastrecht
+
+    ###########################
+    # 5. Verschillen
+    ###########################
+    extra_cost_saldering_stops = B1_cost - A1_current_cost
+    saving_by_battery = B1_cost - C1_cost
+    future_vs_now_batt = C1_cost - A1_current_cost
+
+    ###########################
+    # 6. Resultaat terugsturen
+    ###########################
+    return {
+        "A1_current": A1_current_cost,
+        "B1_future_no_batt": B1_cost,
+        "C1_future_with_batt": C1_cost,
+
+        "extra_cost_when_saldering_stops": extra_cost_saldering_stops,
+        "saving_by_battery": saving_by_battery,
+        "future_vs_now_with_battery": future_vs_now_batt,
+
+        "flows": {
+            "B1_import": B1_import,
+            "B1_export": B1_export,
+            "C1_import": C1_import,
+            "C1_export": C1_export
+        }
+    }
 
     return result
