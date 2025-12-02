@@ -147,15 +147,15 @@ class SimulationEngine:
                 import_profile[i] = imp
 
         # --------------------------------------------------------
-        # Kostenberekening per uur (ESSENTIEEL VOOR DYNAMISCH)
+        # Kostenberekening: uur voor uur, profiel-gebaseerd
         # --------------------------------------------------------
         cost = 0.0
-        for i in range(self.N):
-            imp_price = self.tariff.get_import_price(i)
-            exp_price = self.tariff.get_export_price(i)
-
-            cost += import_profile[i] * imp_price
-            cost -= export_profile[i] * exp_price
+for i in range(self.N):
+    imp = import_profile[i]
+    exp = export_profile[i]
+    cost += imp * self.tariff.get_import_price(i)
+    cost -= exp * self.tariff.get_export_price(i)
+ 
 
         return {
             "import": total_imp,
