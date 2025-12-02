@@ -1,21 +1,18 @@
 # ============================================================
-# BatteryEngine Pro 2 — Backend API
-# COMPLETE MAIN.PY (parse_csv + compute)
+# BatteryEngine Pro 2 — Backend API v2
 # ============================================================
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import List
 
 from BatteryEngine_Pro2 import compute_scenarios_v2
 
 
-# ============================================================
-# FASTAPI INIT
-# ============================================================
-
 app = FastAPI()
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -32,26 +29,25 @@ app.add_middleware(
 class ParseCSVRequest(BaseModel):
     load_file: str
     pv_file: str
-    prices_file: str
+    prices_file: str | None = ""
 
 
-def _process_csv_text(raw: str) -> list[float]:
-    if raw is None:
+def _process_csv_text(raw: str) -> List[float]:
+    if not raw:
         return []
 
     raw = str(raw)
     lines = [ln for ln in raw.splitlines() if ln.strip() != ""]
-    if len(lines) == 0:
+    if not lines:
         return []
 
-    delim = ";"
-    if ";" not in raw and "," in raw:
-        delim = ","
+    delim = ";" if ";" in raw else ","
 
     rows = []
     for ln in lines:
         rows.append([c.strip() for c in ln.split(delim)])
 
+    # header automatisch verwijderen
     if any(ch.isalpha() for ch in rows[0][0]):
         rows = rows[1:]
 
@@ -60,14 +56,10 @@ def _process_csv_text(raw: str) -> list[float]:
         for c in r:
             c = c.replace(",", ".")
             try:
-                f = float(c)
-                floats.append(f)
+                floats.append(float(c))
                 break
             except:
                 continue
-
-    if len(floats) < 10:
-        return []
 
     return floats
 
@@ -77,24 +69,16 @@ def parse_csv(req: ParseCSVRequest):
 
     load = _process_csv_text(req.load_file)
     pv = _process_csv_text(req.pv_file)
-    prices = _process_csv_text(req.prices_file)
+    prices = _process_csv_text(req.prices_file or "")
 
-    if not load or not pv or not prices:
-        return {
-            "load_kwh": [],
-            "pv_kwh": [],
-            "prices_dyn": [],
-            "error": "INVALID"
-        }
+    # dynamische prijzen mogen leeg zijn — afhankelijk van tarief
+    if not load or not pv:
+        return {"error": "INVALID", "load_kwh": [], "pv_kwh": [], "prices_dyn": []}
 
-    if not (len(load) == len(pv) == len(prices)):
-        return {
-            "load_kwh": [],
-            "pv_kwh": [],
-            "prices_dyn": [],
-            "error": "INVALID"
-        }
+    if len(load) != len(pv):
+        return {"error": "INVALID", "load_kwh": [], "pv_kwh": [], "prices_dyn": []}
 
+    # dynamisch mag verschillen in lengte
     return {
         "load_kwh": load,
         "pv_kwh": pv,
@@ -107,17 +91,15 @@ def parse_csv(req: ParseCSVRequest):
 # ============================================================
 
 class ComputeRequest(BaseModel):
-    load_kwh: list[float]
-    pv_kwh: list[float]
-    prices_dyn: list[float]
+    load_kwh: List[float]
+    pv_kwh: List[float]
+    prices_dyn: List[float]
 
     p_enkel_imp: float
     p_enkel_exp: float
-
     p_dag: float
     p_nacht: float
     p_exp_dn: float
-
     p_export_dyn: float
 
     E: float
@@ -135,21 +117,16 @@ def compute(req: ComputeRequest):
         load_kwh=req.load_kwh,
         pv_kwh=req.pv_kwh,
         prices_dyn=req.prices_dyn,
-
         p_enkel_imp=req.p_enkel_imp,
         p_enkel_exp=req.p_enkel_exp,
-
         p_dag=req.p_dag,
         p_nacht=req.p_nacht,
         p_exp_dn=req.p_exp_dn,
-
         p_export_dyn=req.p_export_dyn,
-
         E=req.E,
         P=req.P,
         DoD=req.DoD,
         eta_rt=req.eta_rt,
-
         vastrecht=req.Vastrecht,
         current_tariff=req.current_tariff
     )
