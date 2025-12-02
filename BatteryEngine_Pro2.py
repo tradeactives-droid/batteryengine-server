@@ -91,43 +91,47 @@ class SimulationEngine:
         }
 
     # --------------------------------------------------------
-    # Scenario met batterij — volledig gerepareerd
+    # Scenario met batterij — volledig gecorrigeerde versie
     # --------------------------------------------------------
     def simulate_with_battery(self):
         if self.battery is None:
             return self.simulate_no_battery()
 
-        E = self.battery.E_min  # start bij minimale SoC
+        E = self.battery.E_min  # start-SoC
+        total_imp = 0.0
+        total_exp = 0.0
 
-        total_import = 0.0
-        total_export = 0.0
-        cost = 0.0
+        # Nieuw: profielen voor uurkosten
+        import_profile = [0.0] * self.N
+        export_profile = [0.0] * self.N
 
         for i in range(self.N):
-            pv = self.pv[i]
             load = self.load[i]
+            pv = self.pv[i]
             net = pv - load
 
-            # PV > load → batterij laden, rest export
+            # ------------------------------------------------
+            # PV > load → eerst batterij laden
+            # ------------------------------------------------
             if net > 0:
                 max_charge = self.battery.P_max * self.dt
                 charge_space = self.battery.E_max - E
                 charge = min(net, max_charge, charge_space / self.battery.eta_c)
 
-                # laad
                 if charge > 0:
                     E += charge * self.battery.eta_c
                     net -= charge
 
-                # overblijvende net → export
+                # Rest = export
                 export = max(0, net)
-                total_export += export
-                cost -= export * self.tariff.get_export_price(i)
+                total_exp += export
+                export_profile[i] = export
 
+            # ------------------------------------------------
+            # load > PV → batterij ontladen
+            # ------------------------------------------------
             else:
-                # load > pv → batterij ontladen
-                deficit = -net
-
+                deficit = -net  # positive value
                 max_discharge = self.battery.P_max * self.dt
                 available_discharge = (E - self.battery.E_min) * self.battery.eta_d
 
@@ -137,14 +141,25 @@ class SimulationEngine:
                     E -= discharge / self.battery.eta_d
                     deficit -= discharge
 
-                # resterende tekort → import
+                # Rest = import van net
                 imp = max(0, deficit)
-                total_import += imp
-                cost += imp * self.tariff.get_import_price(i)
+                total_imp += imp
+                import_profile[i] = imp
+
+        # --------------------------------------------------------
+        # Kostenberekening per uur (ESSENTIEEL VOOR DYNAMISCH)
+        # --------------------------------------------------------
+        cost = 0.0
+        for i in range(self.N):
+            imp_price = self.tariff.get_import_price(i)
+            exp_price = self.tariff.get_export_price(i)
+
+            cost += import_profile[i] * imp_price
+            cost -= export_profile[i] * exp_price
 
         return {
-            "import": total_import,
-            "export": total_export,
+            "import": total_imp,
+            "export": total_exp,
             "total_cost": cost
         }
 
