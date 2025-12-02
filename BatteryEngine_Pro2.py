@@ -1,6 +1,5 @@
 # ============================================================
-# BATTERYENGINE PRO 2 — CLEAN CODE VERSION (DEEL 1/3)
-# Models: TariffModel + BatteryModel
+# BATTERYENGINE PRO 2 — CLEAN BACKEND ENGINE v2
 # ============================================================
 
 from dataclasses import dataclass
@@ -16,45 +15,38 @@ class TariffModel:
     name: str
     import_price: float
     export_price: float
-    dynamic_prices: List[float] = None   # alleen dynamisch import per uur
+    dynamic_prices: List[float] = None   # uurprijzen voor dynamisch import
 
     def get_import_price(self, i: int) -> float:
-        """Voor dynamische tarieven pak uurprijs, anders vast."""
+        """Dynamisch tarief gebruikt uurprijs; anders vaste prijs."""
         if self.dynamic_prices:
-            if i < len(self.dynamic_prices):
-                return self.dynamic_prices[i]
-            return self.dynamic_prices[-1]
+            return self.dynamic_prices[i] if i < len(self.dynamic_prices) else self.dynamic_prices[-1]
         return self.import_price
 
     def get_export_price(self, i: int) -> float:
-        """Exportprijs: dynamisch heeft meestal vaste export."""
         return self.export_price
 
 
 # ============================================================
-# BATTERYMODEL
+# BATTERY MODEL
 # ============================================================
 
 @dataclass
 class BatteryModel:
     E_cap: float     # kWh
     P_max: float     # kW
-    dod: float       # 0–1
+    dod: float       # DoD 0–1
     eta: float       # round-trip efficiency 0–1
 
     def __post_init__(self):
-        # minimale en maximale energie-inhoud
         self.E_min = self.E_cap * (1 - self.dod)
         self.E_max = self.E_cap
+        self.eta_c = self.eta ** 0.5
+        self.eta_d = self.eta ** 0.5
 
-        # laad- en ontlaad-efficiëntie
-        # round-trip efficiency = ηc * ηd → neem symmetrisch
-        self.eta_c = self.eta**0.5
-        self.eta_d = self.eta**0.5
 
 # ============================================================
-# BATTERYENGINE PRO 2 — DEEL 2/3
-# SimulationEngine: kwartier-simulatie
+# SIMULATIE ENGINE (ZONDER & MET BATTERIJ)
 # ============================================================
 
 class SimulationEngine:
@@ -64,11 +56,11 @@ class SimulationEngine:
         self.tariff = tariff
         self.battery = battery
         self.N = len(load)
-        self.dt = 1.0  # interval = 1 uur; kan later naar kwartier
+        self.dt = 1.0  # urenstappen
 
-    # --------------------------------------------------------
+    # -------------------------
     # Scenario zonder batterij
-    # --------------------------------------------------------
+    # -------------------------
     def simulate_no_battery(self):
         total_import = 0.0
         total_export = 0.0
@@ -93,26 +85,24 @@ class SimulationEngine:
             "total_cost": cost
         }
 
-    # --------------------------------------------------------
-    # Scenario met batterij
-    # --------------------------------------------------------
+    # -------------------------
+    # Scenario MET batterij
+    # -------------------------
     def simulate_with_battery(self):
         if self.battery is None:
             return self.simulate_no_battery()
 
-        E = self.battery.E_min  # begin op minimum-SoC
-        total_imp = 0.0
-        total_exp = 0.0
+        E = self.battery.E_min  # start SoC op minimum
+        total_import = 0.0
+        total_export = 0.0
 
         for i in range(self.N):
             load = self.load[i]
             pv = self.pv[i]
             net = pv - load
 
-            # -------------------------
-            # PV > load → eerst batterij laden
-            # -------------------------
             if net > 0:
+                # Overschot → batterij laden
                 max_charge = self.battery.P_max * self.dt
                 charge_space = self.battery.E_max - E
                 charge = min(net, max_charge, charge_space / self.battery.eta_c)
@@ -121,48 +111,41 @@ class SimulationEngine:
                     E += charge * self.battery.eta_c
                     net -= charge
 
-                # rest blijft export
-                total_exp += max(0, net)
+                total_export += max(0, net)
 
-            # -------------------------
-            # load > pv → batterij ontladen
-            # -------------------------
             else:
+                # Tekort → batterij ontladen
                 deficit = -net
                 max_discharge = self.battery.P_max * self.dt
                 available_discharge = (E - self.battery.E_min) * self.battery.eta_d
+
                 discharge = min(deficit, max_discharge, available_discharge)
 
                 if discharge > 0:
                     E -= discharge / self.battery.eta_d
                     deficit -= discharge
 
-                # restant deficit wordt import
-                total_imp += max(0, deficit)
+                total_import += max(0, deficit)
 
-        # --------------------------------------------------------
-        # Kostenberekening
-        # --------------------------------------------------------
+        # -------------------------
+        # Kostberekening — gebruik import/export van simulatie
+        # -------------------------
         cost = 0.0
         for i in range(self.N):
-            imp = 0
-            exp = 0
-            # NOTE: voor kostenberekening is volledige reconstructie mogelijk
-            # maar we gebruiken hier een benadering:
             imp = max(0, self.load[i] - self.pv[i])
             exp = max(0, self.pv[i] - self.load[i])
             cost += imp * self.tariff.get_import_price(i)
             cost -= exp * self.tariff.get_export_price(i)
 
         return {
-            "import": total_imp,
-            "export": total_exp,
+            "import": total_import,
+            "export": total_export,
             "total_cost": cost
         }
 
+
 # ============================================================
-# BATTERYENGINE PRO 2 — DEEL 3/3
-# ScenarioEngine + compute_scenarios_v2
+# SCENARIO ENGINE
 # ============================================================
 
 class ScenarioEngine:
@@ -172,29 +155,22 @@ class ScenarioEngine:
         self.tariffs = tariffs
         self.battery = battery
 
-    # --------------------------------------------------------
-    # A1 – huidige situatie MET saldering
-    # --------------------------------------------------------
+    # Huidige situatie — MET saldering
     def scenario_A1(self, current_tariff: str):
         tariff = self.tariffs[current_tariff]
         sim = SimulationEngine(self.load, self.pv, tariff)
         r = sim.simulate_no_battery()
 
-        # JAARLIJKSE SALDERING
         imp = r["import"]
         exp = r["export"]
 
         net = imp - exp
         if net >= 0:
-            cost = net * tariff.import_price
+            return net * tariff.import_price
         else:
-            cost = abs(net) * tariff.export_price * -1
+            return -abs(net) * tariff.export_price
 
-        return cost
-
-    # --------------------------------------------------------
-    # B1 – toekomst zonder batterij – per tarief
-    # --------------------------------------------------------
+    # Toekomst zonder batterij
     def scenario_B1_all(self):
         out = {}
         for key, tariff in self.tariffs.items():
@@ -202,9 +178,7 @@ class ScenarioEngine:
             out[key] = sim.simulate_no_battery()
         return out
 
-    # --------------------------------------------------------
-    # C1 – toekomst met batterij – per tarief
-    # --------------------------------------------------------
+    # Toekomst MET batterij
     def scenario_C1_all(self):
         out = {}
         for key, tariff in self.tariffs.items():
@@ -214,7 +188,7 @@ class ScenarioEngine:
 
 
 # ============================================================
-# HOOFDFUNCTIE
+# HOOFDFUNCTIE — wordt aangeroepen door main.py
 # ============================================================
 
 def compute_scenarios_v2(
