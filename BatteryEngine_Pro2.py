@@ -188,14 +188,11 @@ class ScenarioEngine:
 
         net = imp - exp
 
-        # Dynamisch gebruikt uurprijzen
-        if tariff.dynamic_prices:
-            # netto * gewogen gemiddelde importprijs (benadering)
-            avg_price = sum(tariff.dynamic_prices) / len(tariff.dynamic_prices)
-            if net >= 0:
-                return net * avg_price
-            else:
-                return net * tariff.export_price  # export negatief → geld terug
+# Dynamisch: GEEN saldering → uur voor uur rekenen
+if tariff.dynamic_prices:
+    sim = SimulationEngine(self.load, self.pv, tariff)
+    r = sim.simulate_no_battery()
+    return r["total_cost"]
 
         # Enkel / Dag-Nacht
         if net >= 0:
