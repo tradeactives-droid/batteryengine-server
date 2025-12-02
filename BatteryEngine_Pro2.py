@@ -18,7 +18,6 @@ class TariffModel:
     dynamic_prices: List[float] = None   # alleen dynamisch import per uur
 
     def get_import_price(self, i: int) -> float:
-        """Voor dynamische tarieven pak uurprijs, anders vast."""
         if self.dynamic_prices:
             if i < len(self.dynamic_prices):
                 return self.dynamic_prices[i]
@@ -26,7 +25,6 @@ class TariffModel:
         return self.import_price
 
     def get_export_price(self, i: int) -> float:
-        """Exportprijs: dynamisch heeft meestal vaste export."""
         return self.export_price
 
 
@@ -44,14 +42,12 @@ class BatteryModel:
     def __post_init__(self):
         self.E_min = self.E_cap * (1 - self.dod)
         self.E_max = self.E_cap
-
-        # laad- en ontlaad-efficiëntie (symmetrisch)
         self.eta_c = self.eta**0.5
         self.eta_d = self.eta**0.5
 
 
 # ============================================================
-# SIMULATION ENGINE — FIXED COST CALCULATION
+# SIMULATION ENGINE
 # ============================================================
 
 class SimulationEngine:
@@ -61,11 +57,11 @@ class SimulationEngine:
         self.tariff = tariff
         self.battery = battery
         self.N = len(load)
-        self.dt = 1.0  # uur
+        self.dt = 1.0
 
-    # --------------------------------------------------------
+    # -----------------------------
     # Scenario zonder batterij
-    # --------------------------------------------------------
+    # -----------------------------
     def simulate_no_battery(self):
         total_import = 0.0
         total_export = 0.0
@@ -90,18 +86,17 @@ class SimulationEngine:
             "total_cost": cost
         }
 
-    # --------------------------------------------------------
-    # Scenario met batterij — volledig gecorrigeerde versie
-    # --------------------------------------------------------
+    # -----------------------------
+    # Scenario met batterij
+    # -----------------------------
     def simulate_with_battery(self):
         if self.battery is None:
             return self.simulate_no_battery()
 
-        E = self.battery.E_min  # start-SoC
+        E = self.battery.E_min
         total_imp = 0.0
         total_exp = 0.0
 
-        # Nieuw: profielen voor uurkosten
         import_profile = [0.0] * self.N
         export_profile = [0.0] * self.N
 
@@ -110,9 +105,7 @@ class SimulationEngine:
             pv = self.pv[i]
             net = pv - load
 
-            # ------------------------------------------------
-            # PV > load → eerst batterij laden
-            # ------------------------------------------------
+            # PV > load -> laden
             if net > 0:
                 max_charge = self.battery.P_max * self.dt
                 charge_space = self.battery.E_max - E
@@ -122,16 +115,12 @@ class SimulationEngine:
                     E += charge * self.battery.eta_c
                     net -= charge
 
-                # Rest = export
                 export = max(0, net)
                 total_exp += export
                 export_profile[i] = export
 
-            # ------------------------------------------------
-            # load > PV → batterij ontladen
-            # ------------------------------------------------
             else:
-                deficit = -net  # positive value
+                deficit = -net
                 max_discharge = self.battery.P_max * self.dt
                 available_discharge = (E - self.battery.E_min) * self.battery.eta_d
 
@@ -141,21 +130,17 @@ class SimulationEngine:
                     E -= discharge / self.battery.eta_d
                     deficit -= discharge
 
-                # Rest = import van net
                 imp = max(0, deficit)
                 total_imp += imp
                 import_profile[i] = imp
 
-        # --------------------------------------------------------
-        # Kostenberekening: uur voor uur, profiel-gebaseerd
-        # --------------------------------------------------------
+        # Correcte kostenberekening
         cost = 0.0
-for i in range(self.N):
-    imp = import_profile[i]
-    exp = export_profile[i]
-    cost += imp * self.tariff.get_import_price(i)
-    cost -= exp * self.tariff.get_export_price(i)
- 
+        for i in range(self.N):
+            imp = import_profile[i]
+            exp = export_profile[i]
+            cost += imp * self.tariff.get_import_price(i)
+            cost -= exp * self.tariff.get_export_price(i)
 
         return {
             "import": total_imp,
@@ -165,7 +150,7 @@ for i in range(self.N):
 
 
 # ============================================================
-# Scenario engine
+# SCENARIO ENGINE
 # ============================================================
 
 class ScenarioEngine:
@@ -175,9 +160,9 @@ class ScenarioEngine:
         self.tariffs = tariffs
         self.battery = battery
 
-    # -------------------------------------------
-    # A1 – huidige situatie MET saldering
-    # -------------------------------------------
+    # -----------------------------
+    # A1 — huidige situatie
+    # -----------------------------
     def scenario_A1(self, current_tariff: str):
         tariff = self.tariffs[current_tariff]
         sim = SimulationEngine(self.load, self.pv, tariff)
@@ -185,14 +170,11 @@ class ScenarioEngine:
 
         imp = r["import"]
         exp = r["export"]
-
         net = imp - exp
 
-# Dynamisch: GEEN saldering → uur voor uur rekenen
-if tariff.dynamic_prices:
-    sim = SimulationEngine(self.load, self.pv, tariff)
-    r = sim.simulate_no_battery()
-    return r["total_cost"]
+        # Dynamisch: NOOIT salderen
+        if tariff.dynamic_prices:
+            return r["total_cost"]
 
         # Enkel / Dag-Nacht
         if net >= 0:
@@ -200,9 +182,9 @@ if tariff.dynamic_prices:
         else:
             return net * tariff.export_price
 
-    # -------------------------------------------
-    # B1 – toekomst zonder batterij
-    # -------------------------------------------
+    # -----------------------------
+    # B1 toekomst zonder batterij
+    # -----------------------------
     def scenario_B1_all(self):
         out = {}
         for key, tariff in self.tariffs.items():
@@ -210,9 +192,9 @@ if tariff.dynamic_prices:
             out[key] = sim.simulate_no_battery()
         return out
 
-    # -------------------------------------------
-    # C1 – toekomst MET batterij
-    # -------------------------------------------
+    # -----------------------------
+    # C1 toekomst MET batterij
+    # -----------------------------
     def scenario_C1_all(self):
         out = {}
         for key, tariff in self.tariffs.items():
