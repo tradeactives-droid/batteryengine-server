@@ -74,23 +74,33 @@ def compute(req: RequestModel):
     # ENGINE AANROEP (v2)
     # -----------------------------
     result = compute_scenarios_v2(
-        load_kwh=req.load_kwh,
-        pv_kwh=req.pv_kwh,
-        prices_dyn=req.prices_dyn,   # uurprijzen import dynamisch
+       load=req.load_kwh,
+    pv=req.pv_kwh,
+    prices_dyn=req.prices_dyn,
 
-        p_enkel_imp=p_enkel_imp,
-        p_enkel_exp=p_enkel_exp,
-        p_dag=p_dag,
-        p_nacht=p_nacht,
-        p_exp_dn=p_exp_dn,
-        p_export_dyn=p_export_dyn,
+    tariff_enkel={
+        "imp": p_enkel_imp,
+        "exp": p_enkel_exp
+    },
+    tariff_dn={
+        "dag": p_dag,
+        "nacht": p_nacht,
+        "exp": p_exp_dn
+    },
+    tariff_dyn={
+        "prices_import": req.prices_dyn,
+        "price_export": p_export_dyn
+    },
 
-        E=req.E,
-        P=req.P,
-        DoD=req.DoD,
-        eta_rt=req.eta_rt,
-        vastrecht=req.Vastrecht,
-    )
+    battery={
+        "E_cap": req.E,
+        "P_max": req.P,
+        "dod": req.DoD,
+        "eta": req.eta_rt
+    },
+
+    vastrecht=req.Vastrecht
+)
 
     # result is al een nette dict met A1_current, B1_future_no_batt, C1..., S2_enkel, S3_enkel etc.
     return result
@@ -180,3 +190,4 @@ def parse_csv(req: ParseCSVRequest):
         "pv_kwh": pv_kwh,
         "prices_dyn": prices_dyn
     }
+
