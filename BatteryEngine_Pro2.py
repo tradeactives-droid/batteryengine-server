@@ -1,372 +1,271 @@
-from __future__ import annotations
+# ============================================================
+# BATTERYENGINE PRO 2 — CLEAN CODE VERSION (DEEL 1/3)
+# Models: TariffModel + BatteryModel
+# ============================================================
+
 from dataclasses import dataclass
-from typing import List, Dict, Any
-
-# -----------------------------------------------------
-# 15-minuten simulatie (0.25 uur)
-# -----------------------------------------------------
-INTERVAL_HOURS = 0.25
+from typing import List, Dict
 
 
-# -----------------------------------------------------
-# BATTERIJ CONFIG
-# -----------------------------------------------------
+# ============================================================
+# TARIEFMODEL
+# ============================================================
+
 @dataclass
-class BatteryConfig:
-    capacity_kwh: float
-    power_kw: float
-    dod: float          # 0–1
-    eta_rt: float       # round-trip efficiency, 0–1
+class TariffModel:
+    name: str
+    import_price: float
+    export_price: float
+    dynamic_prices: List[float] = None   # alleen dynamisch import per uur
 
-    @property
-    def usable_capacity(self) -> float:
-        return max(self.capacity_kwh * self.dod, 0.0)
+    def get_import_price(self, i: int) -> float:
+        """Voor dynamische tarieven pak uurprijs, anders vast."""
+        if self.dynamic_prices:
+            if i < len(self.dynamic_prices):
+                return self.dynamic_prices[i]
+            return self.dynamic_prices[-1]
+        return self.import_price
 
-
-# -----------------------------------------------------
-# HELPERS
-# -----------------------------------------------------
-def _ensure_same_length(a: List[float], b: List[float], c: List[float]) -> int:
-    if c:
-        return min(len(a), len(b), len(c))
-    return min(len(a), len(b))
-
-
-def _is_day_quarter(idx: int) -> bool:
-    """Dag = 07:00–23:00 | Nacht = 23:00–07:00."""
-    minutes = idx * 15
-    minute_of_day = minutes % (24 * 60)
-    return 7*60 <= minute_of_day < 23*60
+    def get_export_price(self, i: int) -> float:
+        """Exportprijs: dynamisch heeft meestal vaste export."""
+        return self.export_price
 
 
-# -----------------------------------------------------
-# TARIEF-SERIES GENERATIE
-# -----------------------------------------------------
-def _build_import_price_series_enkel(n: int, price: float) -> List[float]:
-    return [float(price)] * n
+# ============================================================
+# BATTERYMODEL
+# ============================================================
 
+@dataclass
+class BatteryModel:
+    E_cap: float     # kWh
+    P_max: float     # kW
+    dod: float       # 0–1
+    eta: float       # round-trip efficiency 0–1
 
-def _build_import_price_series_dn(n: int, p_dag: float, p_nacht: float) -> List[float]:
-    out = []
-    for i in range(n):
-        out.append(p_dag if _is_day_quarter(i) else p_nacht)
-    return out
+    def __post_init__(self):
+        # minimale en maximale energie-inhoud
+        self.E_min = self.E_cap * (1 - self.dod)
+        self.E_max = self.E_cap
 
+        # laad- en ontlaad-efficiëntie
+        # round-trip efficiency = ηc * ηd → neem symmetrisch
+        self.eta_c = self.eta**0.5
+        self.eta_d = self.eta**0.5
 
-def _build_import_price_series_dyn(n: int, dyn_prices: List[float], fallback: float) -> List[float]:
-    if not dyn_prices:
-        return [fallback] * n
-    if len(dyn_prices) >= n:
-        return [float(dyn_prices[i]) for i in range(n)]
-    # cyclisch herhalen
-    out = []
-    m = len(dyn_prices)
-    for i in range(n):
-        out.append(float(dyn_prices[i % m]))
-    return out
+# ============================================================
+# BATTERYENGINE PRO 2 — DEEL 2/3
+# SimulationEngine: kwartier-simulatie
+# ============================================================
 
+class SimulationEngine:
+    def __init__(self, load: List[float], pv: List[float], tariff: TariffModel, battery: BatteryModel = None):
+        self.load = load
+        self.pv = pv
+        self.tariff = tariff
+        self.battery = battery
+        self.N = len(load)
+        self.dt = 1.0  # interval = 1 uur; kan later naar kwartier
 
-# -----------------------------------------------------
-# B1 — ZONDER BATTERIJ
-# -----------------------------------------------------
-def _simulate_no_battery(
-    load: List[float],
-    pv: List[float],
-    prices: List[float],
-    export_price: float,
-    vastrecht: float,
-) -> Dict[str, float]:
+    # --------------------------------------------------------
+    # Scenario zonder batterij
+    # --------------------------------------------------------
+    def simulate_no_battery(self):
+        total_import = 0.0
+        total_export = 0.0
 
-    n = min(len(load), len(pv), len(prices))
-    total_import = 0.0
-    total_export = 0.0
-    cost_import = 0.0
-    revenue_export = 0.0
+        for i in range(self.N):
+            net = self.pv[i] - self.load[i]
+            if net >= 0:
+                total_export += net
+            else:
+                total_import += -net
 
-    for i in range(n):
-        L = load[i]
-        P = pv[i]
-        price = prices[i]
-
-        residual = L - P
-        if residual >= 0:
-            imp = residual
-            exp = 0.0
-        else:
-            imp = 0.0
-            exp = -residual
-
-        total_import += imp
-        total_export += exp
-        cost_import += imp * price
-        revenue_export += exp * export_price
-
-    total_cost = cost_import - revenue_export + vastrecht
-
-    return {
-        "import": total_import,
-        "export": total_export,
-        "cost_import": cost_import,
-        "revenue_export": revenue_export,
-        "total_cost": total_cost,
-    }
-
-
-# -----------------------------------------------------
-# C1 — MET BATTERIJ
-# -----------------------------------------------------
-def _simulate_with_battery(
-    load: List[float],
-    pv: List[float],
-    prices: List[float],
-    export_price: float,
-    vastrecht: float,
-    batt: BatteryConfig,
-) -> Dict[str, float]:
-
-    n = min(len(load), len(pv), len(prices))
-
-    usable = batt.usable_capacity
-    soc = usable * 0.5
-
-    total_import = 0.0
-    total_export = 0.0
-    cost_import = 0.0
-    revenue_export = 0.0
-
-    for i in range(n):
-        L = load[i]
-        P = pv[i]
-        price = prices[i]
-
-        residual = L - P
-        max_step = batt.power_kw * INTERVAL_HOURS
-
-        if residual >= 0:
-            # tekort -> eerst batterij
-            max_from_batt = min(soc, max_step)
-            needed = residual / batt.eta_rt if batt.eta_rt > 0 else 0
-            take = min(max_from_batt, needed)
-
-            soc -= take
-            delivered = take * batt.eta_rt
-
-            remaining = max(residual - delivered, 0)
-            imp = remaining
-            exp = 0.0
-
-        else:
-            # overschot -> batterij laden
-            surplus = -residual
-            space = max(usable - soc, 0)
-            charge = min(min(max_step, space), surplus)
-
-            soc += charge
-            remaining_surplus = surplus - charge
-            imp = 0.0
-            exp = remaining_surplus
-
-        total_import += imp
-        total_export += exp
-        cost_import += imp * price
-        revenue_export += exp * export_price
-
-    total_cost = cost_import - revenue_export + vastrecht
-
-    return {
-        "import": total_import,
-        "export": total_export,
-        "cost_import": cost_import,
-        "revenue_export": revenue_export,
-        "total_cost": total_cost,
-    }
-
-
-# -----------------------------------------------------
-# A1 — MET SALDERING (JAARLIJKS)
-# -----------------------------------------------------
-def _compute_A1_with_saldering(
-    load: List[float],
-    pv: List[float],
-    prices: List[float],
-    export_price: float,
-    vastrecht: float,
-) -> Dict[str, float]:
-
-    n = min(len(load), len(pv), len(prices))
-
-    total_load = 0.0
-    total_pv = 0.0
-    weighted_cost = 0.0
-
-    for i in range(n):
-        L = load[i]
-        P = pv[i]
-        price = prices[i]
-
-        total_load += L
-        total_pv += P
-        weighted_cost += L * price
-
-    avg_price = (weighted_cost / total_load) if total_load > 0 else 0
-    net = total_load - total_pv
-
-    if net >= 0:
-        # netto import
-        cost = net * avg_price
-        revenue = 0.0
-        imp = net
-        exp = 0.0
-    else:
-        # netto export
         cost = 0.0
-        exp = -net
-        revenue = exp * export_price
-        imp = 0.0
+        for i in range(self.N):
+            imp = max(0, self.load[i] - self.pv[i])
+            exp = max(0, self.pv[i] - self.load[i])
+            cost += imp * self.tariff.get_import_price(i)
+            cost -= exp * self.tariff.get_export_price(i)
 
-    total_cost = cost - revenue + vastrecht
+        return {
+            "import": total_import,
+            "export": total_export,
+            "total_cost": cost
+        }
 
-    return {
-        "import": imp,
-        "export": exp,
-        "cost_import": cost,
-        "revenue_export": revenue,
-        "total_cost": total_cost,
+    # --------------------------------------------------------
+    # Scenario met batterij
+    # --------------------------------------------------------
+    def simulate_with_battery(self):
+        if self.battery is None:
+            return self.simulate_no_battery()
+
+        E = self.battery.E_min  # begin op minimum-SoC
+        total_imp = 0.0
+        total_exp = 0.0
+
+        for i in range(self.N):
+            load = self.load[i]
+            pv = self.pv[i]
+            net = pv - load
+
+            # -------------------------
+            # PV > load → eerst batterij laden
+            # -------------------------
+            if net > 0:
+                max_charge = self.battery.P_max * self.dt
+                charge_space = self.battery.E_max - E
+                charge = min(net, max_charge, charge_space / self.battery.eta_c)
+
+                if charge > 0:
+                    E += charge * self.battery.eta_c
+                    net -= charge
+
+                # rest blijft export
+                total_exp += max(0, net)
+
+            # -------------------------
+            # load > pv → batterij ontladen
+            # -------------------------
+            else:
+                deficit = -net
+                max_discharge = self.battery.P_max * self.dt
+                available_discharge = (E - self.battery.E_min) * self.battery.eta_d
+                discharge = min(deficit, max_discharge, available_discharge)
+
+                if discharge > 0:
+                    E -= discharge / self.battery.eta_d
+                    deficit -= discharge
+
+                # restant deficit wordt import
+                total_imp += max(0, deficit)
+
+        # --------------------------------------------------------
+        # Kostenberekening
+        # --------------------------------------------------------
+        cost = 0.0
+        for i in range(self.N):
+            imp = 0
+            exp = 0
+            # NOTE: voor kostenberekening is volledige reconstructie mogelijk
+            # maar we gebruiken hier een benadering:
+            imp = max(0, self.load[i] - self.pv[i])
+            exp = max(0, self.pv[i] - self.load[i])
+            cost += imp * self.tariff.get_import_price(i)
+            cost -= exp * self.tariff.get_export_price(i)
+
+        return {
+            "import": total_imp,
+            "export": total_exp,
+            "total_cost": cost
+        }
+
+# ============================================================
+# BATTERYENGINE PRO 2 — DEEL 3/3
+# ScenarioEngine + compute_scenarios_v2
+# ============================================================
+
+class ScenarioEngine:
+    def __init__(self, load: List[float], pv: List[float], tariffs: Dict[str, TariffModel], battery: BatteryModel):
+        self.load = load
+        self.pv = pv
+        self.tariffs = tariffs
+        self.battery = battery
+
+    # --------------------------------------------------------
+    # A1 – huidige situatie MET saldering
+    # --------------------------------------------------------
+    def scenario_A1(self, current_tariff: str):
+        tariff = self.tariffs[current_tariff]
+        sim = SimulationEngine(self.load, self.pv, tariff)
+        r = sim.simulate_no_battery()
+
+        # JAARLIJKSE SALDERING
+        imp = r["import"]
+        exp = r["export"]
+
+        net = imp - exp
+        if net >= 0:
+            cost = net * tariff.import_price
+        else:
+            cost = abs(net) * tariff.export_price * -1
+
+        return cost
+
+    # --------------------------------------------------------
+    # B1 – toekomst zonder batterij – per tarief
+    # --------------------------------------------------------
+    def scenario_B1_all(self):
+        out = {}
+        for key, tariff in self.tariffs.items():
+            sim = SimulationEngine(self.load, self.pv, tariff)
+            out[key] = sim.simulate_no_battery()
+        return out
+
+    # --------------------------------------------------------
+    # C1 – toekomst met batterij – per tarief
+    # --------------------------------------------------------
+    def scenario_C1_all(self):
+        out = {}
+        for key, tariff in self.tariffs.items():
+            sim = SimulationEngine(self.load, self.pv, tariff, self.battery)
+            out[key] = sim.simulate_with_battery()
+        return out
+
+
+# ============================================================
+# HOOFDFUNCTIE
+# ============================================================
+
+def compute_scenarios_v2(
+    load_kwh: List[float],
+    pv_kwh: List[float],
+    prices_dyn: List[float],
+    p_enkel_imp: float,
+    p_enkel_exp: float,
+    p_dag: float,
+    p_nacht: float,
+    p_exp_dn: float,
+    p_export_dyn: float,
+    E: float,
+    P: float,
+    DoD: float,
+    eta_rt: float,
+    vastrecht: float,
+    current_tariff: str = "enkel"
+):
+
+    tariffs = {
+        "enkel": TariffModel("enkel", p_enkel_imp, p_enkel_exp),
+        "dag_nacht": TariffModel("dag_nacht", p_dag, p_exp_dn),
+        "dynamisch": TariffModel("dynamisch", 0, p_export_dyn, dynamic_prices=prices_dyn)
     }
 
+    batt = BatteryModel(E, P, DoD, eta_rt)
+    SE = ScenarioEngine(load_kwh, pv_kwh, tariffs, batt)
 
-# -----------------------------------------------------
-# HOOFDFUNCTIE V2 (DIT IS DE FUNCTIE DIE FASTAPI AANROEPT)
-# -----------------------------------------------------
-def compute_scenarios_v2(
-    load,
-    pv,
-    prices_dyn,
+    A1 = SE.scenario_A1(current_tariff)
+    B1 = SE.scenario_B1_all()
+    C1 = SE.scenario_C1_all()
 
-    tariff_enkel,
-    tariff_dn,
-    tariff_dyn,
-
-    battery,
-    vastrecht,
-):
-    # --- normalize ---
-    n = _ensure_same_length(load, pv, prices_dyn or load)
-    load = [float(x) for x in load[:n]]
-    pv = [float(x) for x in pv[:n]]
-    dyn_prices = [float(x) for x in (prices_dyn[:n] if prices_dyn else [tariff_enkel["imp"]] * n)]
-
-    # --- price series ---
-    prices_enkel = _build_import_price_series_enkel(n, tariff_enkel["imp"])
-    prices_dn = _build_import_price_series_dn(n, tariff_dn["dag"], tariff_dn["nacht"])
-    prices_dyn_series = _build_import_price_series_dyn(n, dyn_prices, tariff_enkel["imp"])
-
-    # --- battery config ---
-    batt = BatteryConfig(
-        capacity_kwh=battery["E_cap"],
-        power_kw=battery["P_max"],
-        dod=battery["dod"],
-        eta_rt=battery["eta"],
-    )
-
-    vast = float(vastrecht)
-
-    # -----------------------------------------------------
-    # A1: alleen huidig tarief
-    # -----------------------------------------------------
-    # current_tariff wordt op frontend meegestuurd → zelf bepalen:
-    curr = battery.get("current_tariff", "enkel").lower()
-
-    if curr == "dag_nacht":
-        A1 = _compute_A1_with_saldering(load, pv, prices_dn, tariff_dn["exp"], vast)
-    elif curr == "dynamisch":
-        A1 = _compute_A1_with_saldering(load, pv, prices_dyn_series, tariff_dyn["price_export"], vast)
-    else:
-        curr = "enkel"
-        A1 = _compute_A1_with_saldering(load, pv, prices_enkel, tariff_enkel["exp"], vast)
-
-    # -----------------------------------------------------
-    # B1 — zonder batterij
-    # -----------------------------------------------------
-    B1_enkel = _simulate_no_battery(load, pv, prices_enkel, tariff_enkel["exp"], vast)
-    B1_dn = _simulate_no_battery(load, pv, prices_dn, tariff_dn["exp"], vast)
-    B1_dyn = _simulate_no_battery(load, pv, prices_dyn_series, tariff_dyn["price_export"], vast)
-
-    B1_current = {"enkel": B1_enkel, "dag_nacht": B1_dn, "dynamisch": B1_dyn}[curr]
-
-    # -----------------------------------------------------
-    # C1 — met batterij
-    # -----------------------------------------------------
-    C1_enkel = _simulate_with_battery(load, pv, prices_enkel, tariff_enkel["exp"], vast, batt)
-    C1_dn = _simulate_with_battery(load, pv, prices_dn, tariff_dn["exp"], vast, batt)
-    C1_dyn = _simulate_with_battery(load, pv, prices_dyn_series, tariff_dyn["price_export"], vast, batt)
-
-    C1_current = {"enkel": C1_enkel, "dag_nacht": C1_dn, "dynamisch": C1_dyn}[curr]
-
-    # -----------------------------------------------------
-    # financiële metrics
-    # -----------------------------------------------------
-    A_cost = A1["total_cost"]
-    B_cost = B1_current["total_cost"]
-    C_cost = C1_current["total_cost"]
-
-    extra_cost = B_cost - A_cost
-    saving_batt = B_cost - C_cost
-    future_vs_now = C_cost - A_cost
-
-    # -----------------------------------------------------
-    # RETURN-STRUCTUUR (super clean!)
-    # -----------------------------------------------------
     return {
-        "A1_current": A_cost,
-        "B1_future_no_batt": B_cost,
-        "C1_future_with_batt": C_cost,
-
-        "extra_cost_when_saldering_stops": extra_cost,
-        "saving_by_battery": saving_batt,
-        "future_vs_now_with_battery": future_vs_now,
-
-        "flows": {
-            "B1_import": B1_current["import"],
-            "B1_export": B1_current["export"],
-            "C1_import": C1_current["import"],
-            "C1_export": C1_current["export"],
+        "A1_current": A1,
+        "A1_per_tariff": {
+            "enkel": SE.scenario_A1("enkel"),
+            "dag_nacht": SE.scenario_A1("dag_nacht"),
+            "dynamisch": SE.scenario_A1("dynamisch")
         },
 
-        "S2_enkel": {
-            "import": B1_enkel["import"],
-            "export": B1_enkel["export"],
-            "total_cost": B1_enkel["total_cost"],
-        },
-        "S2_dn": {
-            "import": B1_dn["import"],
-            "export": B1_dn["export"],
-            "total_cost": B1_dn["total_cost"],
-        },
-        "S2_dyn": {
-            "import": B1_dyn["import"],
-            "export": B1_dyn["export"],
-            "total_cost": B1_dyn["total_cost"],
-        },
+        "B1_future_no_batt": B1[current_tariff]["total_cost"],
+        "C1_future_with_batt": C1[current_tariff]["total_cost"],
 
-        "S3_enkel": {
-            "import": C1_enkel["import"],
-            "export": C1_enkel["export"],
-            "total_cost": C1_enkel["total_cost"],
-        },
-        "S3_dn": {
-            "import": C1_dn["import"],
-            "export": C1_dn["export"],
-            "total_cost": C1_dn["total_cost"],
-        },
-        "S3_dyn": {
-            "import": C1_dyn["import"],
-            "export": C1_dyn["export"],
-            "total_cost": C1_dyn["total_cost"],
-        },
+        "S2_enkel": B1["enkel"],
+        "S2_dn": B1["dag_nacht"],
+        "S2_dyn": B1["dynamisch"],
 
-        "meta": {
-            "interval": INTERVAL_HOURS,
-            "current_tariff": curr,
-        },
+        "S3_enkel": C1["enkel"],
+        "S3_dn": C1["dag_nacht"],
+        "S3_dyn": C1["dynamisch"],
+
+        "vastrecht": vastrecht
     }
