@@ -1,114 +1,92 @@
+# ============================================================
+# BatteryEngine Pro 2 — Backend API
+# SERVER.PY  (definitieve versie)
+# ============================================================
+
 from fastapi import FastAPI
-from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-from BatteryEngine_Pro2 import compute_scenarios_v2  # <<< nieuwe engine
+from BatteryEngine_Pro2 import compute_scenarios_v2
 
+
+# ============================================================
+# FASTAPI APP SETUP
+# ============================================================
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # later kun je dit beperken
+    allow_origins=["*"],   # later beperken indien nodig
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
-# --------------------------------------------
-# REQUESTMODEL VOOR /compute
-# --------------------------------------------
-class RequestModel(BaseModel):
+
+# ============================================================
+# REQUESTMODEL — perfect afgestemd op de frontend
+# ============================================================
+class ComputeRequest(BaseModel):
     load_kwh: list[float]
     pv_kwh: list[float]
     prices_dyn: list[float]
 
     p_enkel_imp: float
     p_enkel_exp: float
+
     p_dag: float
     p_nacht: float
-    p_exp_dn: float       # export bij dag/nacht
-    # let op: p_export_dyn komt uit frontend maar zit niet in RequestModel;
-    # die pakken we zo uit prices_dyn of geven default in de engine
+    p_exp_dn: float
+
+    p_export_dyn: float   # frontend stuurt dit
 
     E: float
     P: float
-    DoD: float
-    eta_rt: float
+    DoD: float       # 0–1 → frontend deelt al door 100
+    eta_rt: float    # 0–1 → frontend deelt al door 100
     Vastrecht: float
 
+    current_tariff: str   # "enkel" | "dag_nacht" | "dynamisch"
 
-# --------------------------------------------
-# /compute ENDPOINT (v2)
-# --------------------------------------------
+
+# ============================================================
+# /compute (100% compatibel met BatteryEngine Pro 2)
+# ============================================================
 @app.post("/compute")
-def compute(req: RequestModel):
+def compute(req: ComputeRequest):
 
-    # -----------------------------
-    # FALLBACKS TARIEVEN (SAFE MODE)
-    # -----------------------------
-    def to_float_or_default(value, default):
-        if value is None:
-            return default
-        if value == "":
-            return default
-        if isinstance(value, str) and value.lower().strip() == "standaardwaarden":
-            return default
-        try:
-            return float(value)
-        except:
-            return default
-
-    # Enkel tarief
-    p_enkel_imp = to_float_or_default(req.p_enkel_imp, 0.40)
-    p_enkel_exp = to_float_or_default(req.p_enkel_exp, 0.08)
-
-    # Dag/Nacht tarief
-    p_dag = to_float_or_default(req.p_dag, 0.45)
-    p_nacht = to_float_or_default(req.p_nacht, 0.23)
-    p_exp_dn = to_float_or_default(req.p_exp_dn, 0.08)
-
-    # Dynamisch tarief (export) – default 0.07
-    p_export_dyn = 0.07
-
-    # -----------------------------
-    # ENGINE AANROEP (v2)
-    # -----------------------------
+    # Engine Pro 2 werkt met losse parameters, dus we geven ze los door
     result = compute_scenarios_v2(
-       load=req.load_kwh,
-    pv=req.pv_kwh,
-    prices_dyn=req.prices_dyn,
+        load_kwh=req.load_kwh,
+        pv_kwh=req.pv_kwh,
+        prices_dyn=req.prices_dyn,
 
-    tariff_enkel={
-        "imp": p_enkel_imp,
-        "exp": p_enkel_exp
-    },
-    tariff_dn={
-        "dag": p_dag,
-        "nacht": p_nacht,
-        "exp": p_exp_dn
-    },
-    tariff_dyn={
-        "prices_import": req.prices_dyn,
-        "price_export": p_export_dyn
-    },
+        p_enkel_imp=req.p_enkel_imp,
+        p_enkel_exp=req.p_enkel_exp,
 
-    battery={
-        "E_cap": req.E,
-        "P_max": req.P,
-        "dod": req.DoD,
-        "eta": req.eta_rt
-    },
+        p_dag=req.p_dag,
+        p_nacht=req.p_nacht,
+        p_exp_dn=req.p_exp_dn,
 
-    vastrecht=req.Vastrecht
-)
+        p_export_dyn=req.p_export_dyn,
 
-    # result is al een nette dict met A1_current, B1_future_no_batt, C1..., S2_enkel, S3_enkel etc.
+        E=req.E,
+        P=req.P,
+        DoD=req.DoD,
+        eta_rt=req.eta_rt,
+
+        vastrecht=req.Vastrecht,
+        current_tariff=req.current_tariff
+    )
+
     return result
 
 
-# ======================================================================
-# NIEUWE CSV-PARSER: ONTVANGT RAAKTEKST (STRING) I.P.V. BESTANDEN
-# ======================================================================
+# ============================================================
+# CSV PARSER ENDPOINT
+# (werkt perfect met jouw frontend)
+# ============================================================
 
 class ParseCSVRequest(BaseModel):
     load_file: str
@@ -117,40 +95,27 @@ class ParseCSVRequest(BaseModel):
 
 
 def _process_csv_text(raw: str) -> list[float]:
-    """
-    Verwerkt de rauwe CSV-tekst (zoals uit een bestand gelezen) tot een lijst floats.
-    - accepteert ; of , als scheidingsteken
-    - slaat eventuele header over
-    """
     if raw is None:
         return []
 
-    # zorg dat we een string hebben
     raw = str(raw)
     lines = [ln for ln in raw.splitlines() if ln.strip() != ""]
     if len(lines) == 0:
         return []
 
-    # delimiter detectie
-    if ";" in raw:
-        delim = ";"
-    elif "," in raw:
+    delim = ";"
+    if ";" not in raw and "," in raw:
         delim = ","
-    else:
-        delim = None
 
     rows = []
     for ln in lines:
-        if delim is None:
-            rows.append([ln.strip()])
-        else:
-            rows.append([c.strip() for c in ln.split(delim)])
+        rows.append([c.strip() for c in ln.split(delim)])
 
-    # header skippen als er letters in de eerste rij zitten
-    if any(char.isalpha() for char in rows[0][0]):
+    # header skippen
+    if any(ch.isalpha() for ch in rows[0][0]):
         rows = rows[1:]
 
-    floats: list[float] = []
+    floats = []
     for r in rows:
         for c in r:
             c = c.replace(",", ".")
@@ -161,7 +126,6 @@ def _process_csv_text(raw: str) -> list[float]:
             except:
                 continue
 
-    # simpele sanity-check
     if len(floats) < 10:
         return []
 
@@ -170,14 +134,20 @@ def _process_csv_text(raw: str) -> list[float]:
 
 @app.post("/parse_csv")
 def parse_csv(req: ParseCSVRequest):
-    """
-    Ontvangt drie stukken CSV-tekst (strings) en geeft drie lijsten floats terug.
-    """
-    load_kwh = _process_csv_text(req.load_file)
-    pv_kwh = _process_csv_text(req.pv_file)
-    prices_dyn = _process_csv_text(req.prices_file)
 
-    if not load_kwh or not pv_kwh or not prices_dyn:
+    load = _process_csv_text(req.load_file)
+    pv = _process_csv_text(req.pv_file)
+    prices = _process_csv_text(req.prices_file)
+
+    if not load or not pv or not prices:
+        return {
+            "load_kwh": [],
+            "pv_kwh": [],
+            "prices_dyn": [],
+            "error": "INVALID"
+        }
+
+    if not (len(load) == len(pv) == len(prices)):
         return {
             "load_kwh": [],
             "pv_kwh": [],
@@ -186,8 +156,7 @@ def parse_csv(req: ParseCSVRequest):
         }
 
     return {
-        "load_kwh": load_kwh,
-        "pv_kwh": pv_kwh,
-        "prices_dyn": prices_dyn
+        "load_kwh": load,
+        "pv_kwh": pv,
+        "prices_dyn": prices
     }
-
