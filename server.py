@@ -1,7 +1,8 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI
 from pydantic import BaseModel
-from BatteryEngine_Pro import compute_scenarios
 from fastapi.middleware.cors import CORSMiddleware
+
+from BatteryEngine_Pro2 import compute_scenarios_v2  # <<< nieuwe engine
 
 app = FastAPI()
 
@@ -20,11 +21,15 @@ class RequestModel(BaseModel):
     load_kwh: list[float]
     pv_kwh: list[float]
     prices_dyn: list[float]
+
     p_enkel_imp: float
     p_enkel_exp: float
     p_dag: float
     p_nacht: float
-    p_exp_dn: float
+    p_exp_dn: float       # export bij dag/nacht
+    # let op: p_export_dyn komt uit frontend maar zit niet in RequestModel;
+    # die pakken we zo uit prices_dyn of geven default in de engine
+
     E: float
     P: float
     DoD: float
@@ -33,7 +38,7 @@ class RequestModel(BaseModel):
 
 
 # --------------------------------------------
-# /compute ENDPOINT
+# /compute ENDPOINT (v2)
 # --------------------------------------------
 @app.post("/compute")
 def compute(req: RequestModel):
@@ -62,126 +67,33 @@ def compute(req: RequestModel):
     p_nacht = to_float_or_default(req.p_nacht, 0.23)
     p_exp_dn = to_float_or_default(req.p_exp_dn, 0.08)
 
-    # Dynamisch tarief (export)
-    p_export_dyn = to_float_or_default(req.p_exp_dn, 0.07)
+    # Dynamisch tarief (export) – default 0.07
+    p_export_dyn = 0.07
 
     # -----------------------------
-    # ENGINE AANROEP
+    # ENGINE AANROEP (v2)
     # -----------------------------
-    result = compute_scenarios(
-        req.load_kwh,
-        req.pv_kwh,
-        req.prices_dyn,
-        p_enkel_imp,
-        p_enkel_exp,
-        p_dag,
-        p_nacht,
-        p_exp_dn,
-        req.E,
-        req.P,
-        req.DoD,
-        req.eta_rt,
-        req.Vastrecht
+    result = compute_scenarios_v2(
+        load_kwh=req.load_kwh,
+        pv_kwh=req.pv_kwh,
+        prices_dyn=req.prices_dyn,   # uurprijzen import dynamisch
+
+        p_enkel_imp=p_enkel_imp,
+        p_enkel_exp=p_enkel_exp,
+        p_dag=p_dag,
+        p_nacht=p_nacht,
+        p_exp_dn=p_exp_dn,
+        p_export_dyn=p_export_dyn,
+
+        E=req.E,
+        P=req.P,
+        DoD=req.DoD,
+        eta_rt=req.eta_rt,
+        vastrecht=req.Vastrecht,
     )
 
-    return {
-        "S1": result[0],
-        "S2_enkel": result[1],
-        "S2_dn": result[2],
-        "S2_dyn": result[3],
-        "S3_enkel": result[4],
-        "S3_dn": result[5],
-        "S3_dyn": result[6]
-    }
-
-
-from fastapi import FastAPI
-from pydantic import BaseModel
-from BatteryEngine_Pro import compute_scenarios
-
-app = FastAPI()
-
-
-# --------------------------------------------
-# REQUESTMODEL VOOR /compute
-# --------------------------------------------
-class RequestModel(BaseModel):
-    load_kwh: list[float]
-    pv_kwh: list[float]
-    prices_dyn: list[float]
-    p_enkel_imp: float
-    p_enkel_exp: float
-    p_dag: float
-    p_nacht: float
-    p_exp_dn: float
-    E: float
-    P: float
-    DoD: float
-    eta_rt: float
-    Vastrecht: float
-
-
-# --------------------------------------------
-# /compute ENDPOINT
-# --------------------------------------------
-@app.post("/compute")
-def compute(req: RequestModel):
-
-    # -----------------------------
-    # FALLBACKS TARIEVEN (SAFE MODE)
-    # -----------------------------
-    def to_float_or_default(value, default):
-        if value is None:
-            return default
-        if value == "":
-            return default
-        if isinstance(value, str) and value.lower().strip() == "standaardwaarden":
-            return default
-        try:
-            return float(value)
-        except:
-            return default
-
-    # Enkel tarief
-    p_enkel_imp = to_float_or_default(req.p_enkel_imp, 0.40)
-    p_enkel_exp = to_float_or_default(req.p_enkel_exp, 0.08)
-
-    # Dag/Nacht tarief
-    p_dag = to_float_or_default(req.p_dag, 0.45)
-    p_nacht = to_float_or_default(req.p_nacht, 0.23)
-    p_exp_dn = to_float_or_default(req.p_exp_dn, 0.08)
-
-    # Dynamisch tarief (export)
-    p_export_dyn = to_float_or_default(req.p_exp_dn, 0.07)
-
-    # -----------------------------
-    # ENGINE AANROEP
-    # -----------------------------
-    result = compute_scenarios(
-        req.load_kwh,
-        req.pv_kwh,
-        req.prices_dyn,
-        p_enkel_imp,
-        p_enkel_exp,
-        p_dag,
-        p_nacht,
-        p_exp_dn,
-        req.E,
-        req.P,
-        req.DoD,
-        req.eta_rt,
-        req.Vastrecht
-    )
-
-    return {
-        "S1": result[0],
-        "S2_enkel": result[1],
-        "S2_dn": result[2],
-        "S2_dyn": result[3],
-        "S3_enkel": result[4],
-        "S3_dn": result[5],
-        "S3_dyn": result[6]
-    }
+    # result is al een nette dict met A1_current, B1_future_no_batt, C1..., S2_enkel, S3_enkel etc.
+    return result
 
 
 # ======================================================================
@@ -268,8 +180,3 @@ def parse_csv(req: ParseCSVRequest):
         "pv_kwh": pv_kwh,
         "prices_dyn": prices_dyn
     }
-
-
-
-
-
