@@ -237,6 +237,19 @@ def compute_scenarios_v2(
     B1 = SE.scenario_B1_all()
     C1 = SE.scenario_C1_all()
 
+        # --------------------------------------------------------
+    # INVESTERINGSANALYSE – besparing, payback, ROI
+    # --------------------------------------------------------
+    # Besparing per jaar = kosten zonder batterij - met batterij
+    besparing = B1[current_tariff]["total_cost"] - C1[current_tariff]["total_cost"]
+
+    if battery_cost > 0 and besparing > 0:
+        payback = battery_cost / besparing
+        roi = (besparing / battery_cost) * 100.0
+    else:
+        payback = None
+        roi = 0.0
+
     return {
         "A1_current": A1 + vastrecht,
         "A1_per_tariff": {
