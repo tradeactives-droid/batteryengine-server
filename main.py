@@ -81,23 +81,34 @@ def parse_csv(req: ParseCSVRequest):
     prices_raw = req.prices_file if req.prices_file is not None else ""
     prices = _process_csv_text(prices_raw) if prices_raw.strip() != "" else []
 
-    # load en pv zijn altijd verplicht
+    # load en pv zijn verplicht
     if not load or not pv:
         return {
             "load_kwh": [],
             "pv_kwh": [],
             "prices_dyn": [],
-            "error": "INVALID"
+            "error": "INVALID_LOAD_PV"
         }
 
-    # load en pv moeten dezelfde lengte hebben
-    if len(load) != len(pv):
-        return {
-            "load_kwh": [],
-            "pv_kwh": [],
-            "prices_dyn": [],
-            "error": "INVALID"
-        }
+    # Zorg dat load en pv even lang zijn
+    n = min(len(load), len(pv))
+    load = load[:n]
+    pv = pv[:n]
+
+    # prices (dynamisch) is optioneel
+    # Alleen gebruiken als:
+    # - er wél iets staat
+    # - en lengte exact matcht met load/pv
+    if prices and len(prices) == n:
+        prices_dyn = prices
+    else:
+        prices_dyn = []  # => fallback in backend
+
+    return {
+        "load_kwh": load,
+        "pv_kwh": pv,
+        "prices_dyn": prices_dyn
+    }
 
     # prices alleen controleren als ze er zijn
     if prices and len(prices) != len(load):
@@ -169,5 +180,6 @@ def compute(req: ComputeRequest):
         battery_cost=req.battery_cost,         # NIEUW
         current_tariff=req.current_tariff
     )
+
 
 
