@@ -80,10 +80,33 @@ class SimulationEngine:
             cost += imp * self.tariff.get_import_price(i)
             cost -= exp * self.tariff.get_export_price(i)
 
-        return {
-            "import": total_import,
-            "export": total_export,
-            "total_cost": cost
+      return {
+        "A1_current": A1 + vastrecht,
+        "A1_per_tariff": {
+            "enkel": SE.scenario_A1("enkel") + vastrecht,
+            "dag_nacht": SE.scenario_A1("dag_nacht") + vastrecht,
+            "dynamisch": SE.scenario_A1("dynamisch") + vastrecht
+        },
+
+        "B1_future_no_batt": B1[current_tariff]["total_cost"] + vastrecht,
+        "C1_future_with_batt": C1[current_tariff]["total_cost"] + vastrecht,
+
+        "S2_enkel": {**B1["enkel"], "total_cost": B1["enkel"]["total_cost"] + vastrecht},
+        "S2_dn":    {**B1["dag_nacht"], "total_cost": B1["dag_nacht"]["total_cost"] + vastrecht},
+        "S2_dyn":   {**B1["dynamisch"], "total_cost": B1["dynamisch"]["total_cost"] + vastrecht},
+
+        "S3_enkel": {**C1["enkel"], "total_cost": C1["enkel"]["total_cost"] + vastrecht},
+        "S3_dn":    {**C1["dag_nacht"], "total_cost": C1["dag_nacht"]["total_cost"] + vastrecht},
+        "S3_dyn":   {**C1["dynamisch"], "total_cost": C1["dynamisch"]["total_cost"] + vastrecht},
+
+        "vastrecht": vastrecht,
+
+        # NIEUW: investeringsanalyse
+        "besparing_per_jaar": besparing,
+        "battery_cost": battery_cost,
+        "payback_years": payback,
+        "roi_percent": roi
+    }
         }
 
     # -----------------------------
