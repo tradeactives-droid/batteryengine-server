@@ -240,6 +240,22 @@ class ScenarioEngine:
             out[key] = sim.simulate_with_battery()
         return out
 
+# ============================================================
+# FALLBACK DYNAMISCHE APX-ACHTIGE PRIJSREIHE (8760 uur)
+# ============================================================
+
+# 24-uur profiel (€/kWh): nacht laag, avond hoog
+_DAILY_APX_PROFILE = [
+    0.18, 0.17, 0.16, 0.15,  # 00–04
+    0.15, 0.16, 0.18, 0.22,  # 04–08
+    0.26, 0.29, 0.32, 0.34,  # 08–12
+    0.35, 0.33, 0.30, 0.28,  # 12–16
+    0.32, 0.36, 0.38, 0.34,  # 16–20 (piek)
+    0.30, 0.26, 0.22, 0.20   # 20–24
+]
+
+# Herhaal dit dagprofiel 365 keer → 24 * 365 = 8760 uur
+FALLBACK_DYNAMISCHE_PRIJZEN = _DAILY_APX_PROFILE * 365
 
 # ============================================================
 # HOOFDFUNCTIE (API)
