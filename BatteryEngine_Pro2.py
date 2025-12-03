@@ -70,7 +70,12 @@ class SimulationEngine:
         self.tariff = tariff
         self.battery = battery
         self.N = len(load)
-        self.dt = 1.0  # uur-resolutie
+
+        # Automatisch tijdstap bepalen:
+        # - jaar met uurdatas → 8760 punten → dt = 1.0
+        # - jaar met kwartierdata → 35040 punten → dt = 0.25
+        # in het algemeen: 8760 / N
+        self.dt = 8760.0 / self.N if self.N > 0 else 1.0
 
     # --------------------------------------------------------
     # Scenario zonder batterij
