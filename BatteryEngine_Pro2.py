@@ -241,20 +241,20 @@ class ScenarioEngine:
         return out
 
 # ============================================================
-# FALLBACK DYNAMISCHE APX-ACHTIGE PRIJSREIHE (8760 uur)
+# FALLBACK DYNAMISCHE PRIJSREIHE (8760 uur)
 # ============================================================
 
-# 24-uur profiel (€/kWh): nacht laag, avond hoog
+# 24-uurs APX-achtig prijsprofiel (€/kWh)
 _DAILY_APX_PROFILE = [
-    0.18, 0.17, 0.16, 0.15,  # 00–04
-    0.15, 0.16, 0.18, 0.22,  # 04–08
-    0.26, 0.29, 0.32, 0.34,  # 08–12
-    0.35, 0.33, 0.30, 0.28,  # 12–16
-    0.32, 0.36, 0.38, 0.34,  # 16–20 (piek)
-    0.30, 0.26, 0.22, 0.20   # 20–24
+    0.18, 0.17, 0.16, 0.15,
+    0.15, 0.16, 0.18, 0.22,
+    0.26, 0.29, 0.32, 0.34,
+    0.35, 0.33, 0.30, 0.28,
+    0.32, 0.36, 0.38, 0.34,
+    0.30, 0.26, 0.22, 0.20
 ]
 
-# Herhaal dit dagprofiel 365 keer → 24 * 365 = 8760 uur
+# 24 uur * 365 → 8760
 FALLBACK_DYNAMISCHE_PRIJZEN = _DAILY_APX_PROFILE * 365
 
 # ============================================================
