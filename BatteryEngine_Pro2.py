@@ -263,11 +263,14 @@ def compute_scenarios_v2(
     battery_cost: float,
     current_tariff: str = "enkel",
 ):
-    # Tariefdefinities
+    # Als er geen dynamische prijzen zijn, behandelen we 'dynamisch'
+    # als een enkel tarief met dezelfde importprijs als enkel.
+    dyn_prices = prices_dyn if prices_dyn else None
+
     tariffs = {
         "enkel": TariffModel("enkel", p_enkel_imp, p_enkel_exp),
         "dag_nacht": TariffModel("dag_nacht", p_dag, p_exp_dn),
-        "dynamisch": TariffModel("dynamisch", 0.0, p_export_dyn, dynamic_prices=prices_dyn),
+        "dynamisch": TariffModel("dynamisch", p_enkel_imp, p_export_dyn, dynamic_prices=dyn_prices),
     }
 
     battery = BatteryModel(E, P, DoD, eta_rt)
