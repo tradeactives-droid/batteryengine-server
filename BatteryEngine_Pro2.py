@@ -283,10 +283,19 @@ def compute_scenarios_v2(
     # als een enkel tarief met dezelfde importprijs als enkel.
     dyn_prices = prices_dyn if prices_dyn else None
 
+    # Bepaal welke dynamische prijzen we gebruiken:
+    # - als prices_dyn uit CSV komt én niet leeg is → gebruik die
+    # - anders → gebruik de fallback APX-profielreeks
+    if prices_dyn and len(prices_dyn) > 0:
+        dyn_prices = prices_dyn
+    else:
+        dyn_prices = FALLBACK_DYNAMISCHE_PRIJZEN
+
+    # Tariefdefinities
     tariffs = {
-        "enkel": TariffModel("enkel", p_enkel_imp, p_enkel_exp),
-        "dag_nacht": TariffModel("dag_nacht", p_dag, p_exp_dn),
-        "dynamisch": TariffModel("dynamisch", p_enkel_imp, p_export_dyn, dynamic_prices=dyn_prices),
+        "enkel":      TariffModel("enkel", p_enkel_imp, p_enkel_exp),
+        "dag_nacht":  TariffModel("dag_nacht", p_dag, p_exp_dn),
+        "dynamisch":  TariffModel("dynamisch", 0.0, p_export_dyn, dynamic_prices=dyn_prices),
     }
 
     battery = BatteryModel(E, P, DoD, eta_rt)
