@@ -76,9 +76,13 @@ def _process_csv_text(raw: str) -> list[float]:
 def parse_csv(req: ParseCSVRequest):
     load = _process_csv_text(req.load_file)
     pv = _process_csv_text(req.pv_file)
-    prices = _process_csv_text(req.prices_file)
 
-    if not load or not pv or not prices:
+    # prices.csv mag optioneel zijn → lege string opleveren
+    prices_raw = req.prices_file if req.prices_file is not None else ""
+    prices = _process_csv_text(prices_raw) if prices_raw.strip() != "" else []
+
+    # load en pv zijn altijd verplicht
+    if not load or not pv:
         return {
             "load_kwh": [],
             "pv_kwh": [],
@@ -86,7 +90,17 @@ def parse_csv(req: ParseCSVRequest):
             "error": "INVALID"
         }
 
-    if not (len(load) == len(pv) == len(prices)):
+    # load en pv moeten dezelfde lengte hebben
+    if len(load) != len(pv):
+        return {
+            "load_kwh": [],
+            "pv_kwh": [],
+            "prices_dyn": [],
+            "error": "INVALID"
+        }
+
+    # prices alleen controleren als ze er zijn
+    if prices and len(prices) != len(load):
         return {
             "load_kwh": [],
             "pv_kwh": [],
@@ -97,7 +111,7 @@ def parse_csv(req: ParseCSVRequest):
     return {
         "load_kwh": load,
         "pv_kwh": pv,
-        "prices_dyn": prices
+        "prices_dyn": prices  # kan leeg zijn
     }
 
 
@@ -155,4 +169,5 @@ def compute(req: ComputeRequest):
         battery_cost=req.battery_cost,         # NIEUW
         current_tariff=req.current_tariff
     )
+
 
