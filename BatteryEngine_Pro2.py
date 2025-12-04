@@ -365,31 +365,25 @@ else:
     roi = (total_savings / battery_cost) * 100.0
 
     return {
-        # Huidige situatie (incl. vastrecht)
         "A1_current": A1 + vastrecht,
         "A1_per_tariff": {
             "enkel": SE.scenario_A1("enkel") + vastrecht,
             "dag_nacht": SE.scenario_A1("dag_nacht") + vastrecht,
             "dynamisch": SE.scenario_A1("dynamisch") + vastrecht,
         },
-
-        # Toekomst (incl. vastrecht)
         "B1_future_no_batt": B1[current_tariff]["total_cost"] + vastrecht,
         "C1_future_with_batt": C1[current_tariff]["total_cost"] + vastrecht,
 
-        # Detail per tarief – toekomst zonder batterij
         "S2_enkel": {**B1["enkel"], "total_cost": B1["enkel"]["total_cost"] + vastrecht},
         "S2_dn":    {**B1["dag_nacht"], "total_cost": B1["dag_nacht"]["total_cost"] + vastrecht},
         "S2_dyn":   {**B1["dynamisch"], "total_cost": B1["dynamisch"]["total_cost"] + vastrecht},
 
-        # Detail per tarief – toekomst mét batterij
         "S3_enkel": {**C1["enkel"], "total_cost": C1["enkel"]["total_cost"] + vastrecht},
         "S3_dn":    {**C1["dag_nacht"], "total_cost": C1["dag_nacht"]["total_cost"] + vastrecht},
         "S3_dyn":   {**C1["dynamisch"], "total_cost": C1["dynamisch"]["total_cost"] + vastrecht},
 
-        # Extra informatie voor investeringsanalyse
         "vastrecht": vastrecht,
-        "besparing_per_jaar": besparing,
+        "besparing_per_jaar": besparing_year1,
         "battery_cost": battery_cost,
         "payback_years": payback,
         "roi_percent": roi,
