@@ -297,6 +297,7 @@ def compute_scenarios_v2(
     vastrecht: float,
     battery_cost: float,
     current_tariff: str = "enkel",
+    battery_degradation: float = 0.02,  # 2% per jaar standaard
 ):
     # Als er geen dynamische prijzen zijn, behandelen we 'dynamisch'
     # als een enkel tarief met dezelfde importprijs als enkel.
