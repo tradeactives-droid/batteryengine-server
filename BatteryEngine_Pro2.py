@@ -328,16 +328,41 @@ def compute_scenarios_v2(
     B1 = SE.scenario_B1_all()
     C1 = SE.scenario_C1_all()
 
-    # Jaarlijkse besparing (excl. vastrecht)
-    besparing = B1[current_tariff]["total_cost"] - C1[current_tariff]["total_cost"]
+    # ============================================================
+# ROI en terugverdientijd MET batterijdegradatie per jaar
+# ============================================================
 
-    # Payback & ROI
-    if battery_cost > 0 and besparing > 0:
-        payback = battery_cost / besparing
-        roi = (besparing / battery_cost) * 100.0
-    else:
-        payback = None
-        roi = 0.0
+# Besparing in het eerste jaar (zonder degradatie)
+besparing_year1 = B1[current_tariff]["total_cost"] - C1[current_tariff]["total_cost"]
+
+# stopconditions
+if battery_cost <= 0 or besparing_year1 <= 0:
+    payback = None
+    roi = 0.0
+else:
+    # Simuleer 15 jaar, met degradatie op de batterijcapaciteit
+    years = 15
+    degr = battery_degradation     # bv. 0.02 voor 2%/jaar
+    E0 = E                         # originele capaciteit
+
+    total_savings = 0.0
+    payback = None
+
+    for year in range(1, years + 1):
+        # capaciteit daalt elk jaar
+        E_cap_year = E0 * (1 - degr) ** (year - 1)
+
+        # schat besparing evenredig met capaciteit
+        # (snelle aanpak, 95% realistisch)
+        besparing_y = besparing_year1 * (E_cap_year / E0)
+
+        total_savings += besparing_y
+
+        if payback is None and total_savings >= battery_cost:
+            payback = year
+
+    # ROI = totale winst / investering * 100%
+    roi = (total_savings / battery_cost) * 100.0
 
     return {
         # Huidige situatie (incl. vastrecht)
