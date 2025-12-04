@@ -322,7 +322,8 @@ def compute_scenarios_v2(
     C1 = SE.scenario_C1_all()
 
     # Besparing jaar 1
-    besparing_year1 = B1[current_tariff]["total_cost"] - C1[current_tariff]["total_cost"]
+    besparing_year1 = (B1[current_tariff]["total_cost"] + vastrecht) - \
+                      (C1[current_tariff]["total_cost"] + vastrecht)
 
     # Payback & ROI met degradatie
     if battery_cost <= 0 or besparing_year1 <= 0:
