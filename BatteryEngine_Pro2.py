@@ -297,21 +297,14 @@ def compute_scenarios_v2(
     vastrecht: float,
     battery_cost: float,
     current_tariff: str = "enkel",
-    battery_degradation: float = 0.02,  # 2% per jaar standaard
+    battery_degradation: float = 0.02  # 2% per jaar
 ):
-    # Als er geen dynamische prijzen zijn, behandelen we 'dynamisch'
-    # als een enkel tarief met dezelfde importprijs als enkel.
-    dyn_prices = prices_dyn if prices_dyn else None
-
-    # Bepaal welke dynamische prijzen we gebruiken:
-    # - als prices_dyn uit CSV komt én niet leeg is → gebruik die
-    # - anders → gebruik de fallback APX-profielreeks
+    # Dynamische prijzen bepalen
     if prices_dyn and len(prices_dyn) > 0:
         dyn_prices = prices_dyn
     else:
         dyn_prices = FALLBACK_DYNAMISCHE_PRIJZEN
 
-    # Tariefdefinities
     tariffs = {
         "enkel":      TariffModel("enkel", p_enkel_imp, p_enkel_exp),
         "dag_nacht":  TariffModel("dag_nacht", p_dag, p_exp_dn),
@@ -321,56 +314,48 @@ def compute_scenarios_v2(
     battery = BatteryModel(E, P, DoD, eta_rt)
     SE = ScenarioEngine(load_kwh, pv_kwh, tariffs, battery)
 
-    # A1 – huidige situatie
+    # A1 - Huidige situatie
     A1 = SE.scenario_A1(current_tariff)
 
-    # B1 / C1 – toekomst zonder / met batterij
+    # Toekomst B1 & C1
     B1 = SE.scenario_B1_all()
     C1 = SE.scenario_C1_all()
 
-    # ============================================================
-# ROI en terugverdientijd MET batterijdegradatie per jaar
-# ============================================================
+    # Besparing jaar 1
+    besparing_year1 = B1[current_tariff]["total_cost"] - C1[current_tariff]["total_cost"]
 
-# Besparing in het eerste jaar (zonder degradatie)
-besparing_year1 = B1[current_tariff]["total_cost"] - C1[current_tariff]["total_cost"]
+    # Payback & ROI met degradatie
+    if battery_cost <= 0 or besparing_year1 <= 0:
+        payback = None
+        roi = 0.0
+    else:
+        years = 15
+        degr = battery_degradation
+        E0 = E
+        total_savings = 0.0
+        payback = None
 
-# stopconditions
-if battery_cost <= 0 or besparing_year1 <= 0:
-    payback = None
-    roi = 0.0
-else:
-    # Simuleer 15 jaar, met degradatie op de batterijcapaciteit
-    years = 15
-    degr = battery_degradation     # bv. 0.02 voor 2%/jaar
-    E0 = E                         # originele capaciteit
+        for year in range(1, years + 1):
+            E_cap_year = E0 * (1 - degr) ** (year - 1)
+            besparing_year = besparing_year1 * (E_cap_year / E0)
 
-    total_savings = 0.0
-    payback = None
+            total_savings += besparing_year
 
-    for year in range(1, years + 1):
-        # capaciteit daalt elk jaar
-        E_cap_year = E0 * (1 - degr) ** (year - 1)
+            if payback is None and total_savings >= battery_cost:
+                payback = year
 
-        # schat besparing evenredig met capaciteit
-        # (snelle aanpak, 95% realistisch)
-        besparing_y = besparing_year1 * (E_cap_year / E0)
+        roi = (total_savings / battery_cost) * 100.0
 
-        total_savings += besparing_y
-
-        if payback is None and total_savings >= battery_cost:
-            payback = year
-
-    # ROI = totale winst / investering * 100%
-    roi = (total_savings / battery_cost) * 100.0
-
+    # CORRECTE RETURN (mét juiste inspringing)
     return {
         "A1_current": A1 + vastrecht,
+
         "A1_per_tariff": {
             "enkel": SE.scenario_A1("enkel") + vastrecht,
             "dag_nacht": SE.scenario_A1("dag_nacht") + vastrecht,
             "dynamisch": SE.scenario_A1("dynamisch") + vastrecht,
         },
+
         "B1_future_no_batt": B1[current_tariff]["total_cost"] + vastrecht,
         "C1_future_with_batt": C1[current_tariff]["total_cost"] + vastrecht,
 
