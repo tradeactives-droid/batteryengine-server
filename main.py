@@ -178,9 +178,12 @@ def compute(req: ComputeRequest):
         eta_rt=req.eta_rt,
 
         vastrecht=req.vastrecht,
-        battery_cost=req.battery_cost,         # NIEUW
+        battery_cost=req.battery_cost,
+        battery_degradation=req.battery_degradation,
+        
         current_tariff=req.current_tariff
     )
+
 
 
 
