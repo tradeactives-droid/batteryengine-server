@@ -176,10 +176,11 @@ def compute(req: ComputeRequest):
         DoD=req.DoD,
         eta_rt=req.eta_rt,
 
-        vastrecht=req.Vastrecht,
+        vastrecht=req.vastrecht,
         battery_cost=req.battery_cost,         # NIEUW
         current_tariff=req.current_tariff
     )
+
 
 
 
