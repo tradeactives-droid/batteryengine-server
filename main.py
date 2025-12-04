@@ -148,7 +148,7 @@ class ComputeRequest(BaseModel):
     P: float
     DoD: float
     eta_rt: float
-    Vastrecht: float
+    vastrecht: float
 
     battery_cost: float  # NIEUW
 
@@ -180,6 +180,7 @@ def compute(req: ComputeRequest):
         battery_cost=req.battery_cost,         # NIEUW
         current_tariff=req.current_tariff
     )
+
 
 
 
