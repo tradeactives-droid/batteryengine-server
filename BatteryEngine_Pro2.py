@@ -5,6 +5,24 @@
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 
+# ============================================================
+# AUTOMATISCHE RESOLUTIE-DETECTIE (uur / kwartier)
+# ============================================================
+
+def detect_resolution(load: List[float]) -> float:
+    """
+    Detecteert grofweg of de data per uur (dt = 1.0)
+    of per kwartier (dt = 0.25) is, op basis van lengte.
+    """
+    N = len(load)
+
+    # Typische waardes:
+    # - Uurdata: 8760 (niet-schrikkeljaar)
+    # - Kwartierdata: 35040 (4 * 8760)
+    if N >= 30000:
+        return 0.25  # bijna zeker kwartierdata
+    else:
+        return 1.0   # aannemen: uurdata
 
 # ============================================================
 # TARIEFMODEL
@@ -63,7 +81,8 @@ class SimulationEngine:
         load: List[float],
         pv: List[float],
         tariff: TariffModel,
-        battery: Optional[BatteryModel] = None
+        battery: Optional[BatteryModel] = None,
+        dt: Optional[float] = None
     ):
         self.load = load
         self.pv = pv
@@ -71,11 +90,11 @@ class SimulationEngine:
         self.battery = battery
         self.N = len(load)
 
-        # Automatisch tijdstap bepalen:
-        # - jaar met uurdatas → 8760 punten → dt = 1.0
-        # - jaar met kwartierdata → 35040 punten → dt = 0.25
-        # in het algemeen: 8760 / N
-        self.dt = 8760.0 / self.N if self.N > 0 else 1.0
+        # Als dt niet is opgegeven → automatisch bepalen (uur of kwartier)
+        if dt is None:
+            self.dt = detect_resolution(load)
+        else:
+            self.dt = dt
 
     # --------------------------------------------------------
     # Scenario zonder batterij
