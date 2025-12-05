@@ -297,8 +297,10 @@ def compute_scenarios_v2(
     vastrecht: float,
     battery_cost: float,
     current_tariff: str = "enkel",
-    battery_degradation: float = 0.02  # 2% per jaar
-):
+    battery_degradation: float = 0.02,  # 2% per jaar
+    capacity_tariff_kw: float = 0.0,    
+    peak_shaving_enabled: bool = True   
+    ):
     # Dynamische prijzen bepalen
     if prices_dyn and len(prices_dyn) > 0:
         dyn_prices = prices_dyn
