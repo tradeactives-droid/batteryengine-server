@@ -198,9 +198,9 @@ class SimulationEngine:
     # --------------------------------------------------------
     def compute_peak_shaving(self):
         if self.battery is None:
-    # Zonder batterij: piek = peak_no = peak_with
-    peak = max(max(self.load[i] - self.pv[i], 0) for i in range(self.N))
-    return peak, peak
+            # Zonder batterij: piek = peak_no = peak_with
+            peak = max(max(self.load[i] - self.pv[i], 0) for i in range(self.N))
+            return peak, peak
 
         E = self.battery.E_min
         dt = self.dt
