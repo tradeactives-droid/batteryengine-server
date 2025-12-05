@@ -332,11 +332,11 @@ def compute_scenarios_v2(
     vastrecht: float,
     battery_cost: float,
     current_tariff: str = "enkel",
-    battery_degradation: float = 0.02,  # 2% per jaar
-    capacity_tariff_kw: float = 0.0,    
-    peak_shaving_enabled: bool = True   
-    ):
-    # Dynamische prijzen bepalen
+    battery_degradation: float = 0.02,
+    capacity_tariff_kw: float = 0.0,
+    peak_shaving_enabled: bool = True
+):
+    # Dynamische prijzen
     if prices_dyn and len(prices_dyn) > 0:
         dyn_prices = prices_dyn
     else:
@@ -351,19 +351,18 @@ def compute_scenarios_v2(
     battery = BatteryModel(E, P, DoD, eta_rt)
     SE = ScenarioEngine(load_kwh, pv_kwh, tariffs, battery)
 
-    # A1 - Huidige situatie
+    # A1
     A1 = SE.scenario_A1(current_tariff)
 
-    # Toekomst B1 & C1
+    # Toekomst
     B1 = SE.scenario_B1_all()
     C1 = SE.scenario_C1_all()
 
-     # Peak shaving berekenen
+    # Peak shaving
     if peak_shaving_enabled:
         sim_for_peaks = SimulationEngine(load_kwh, pv_kwh, tariffs[current_tariff], battery)
         peak_no, peak_yes = sim_for_peaks.compute_peak_shaving()
     else:
-        # Geen peak shaving → pieken blijven gelijk
         peak_no = max(max(load_kwh[i] - pv_kwh[i], 0) for i in range(len(load_kwh)))
         peak_yes = peak_no
 
@@ -371,11 +370,11 @@ def compute_scenarios_v2(
     besparing_year1 = (B1[current_tariff]["total_cost"] + vastrecht) - \
                       (C1[current_tariff]["total_cost"] + vastrecht)
 
-    # Besparing capaciteitstarief
+    # Capaciteitstarief-besparing
     peak_saving_year = (peak_no - peak_yes) * capacity_tariff_kw
     besparing_year1 += peak_saving_year
 
-    # Payback & ROI met degradatie
+    # Payback & ROI
     if battery_cost <= 0 or besparing_year1 <= 0:
         payback = None
         roi = 0.0
@@ -397,7 +396,6 @@ def compute_scenarios_v2(
 
         roi = (total_savings / battery_cost) * 100.0
 
-    # CORRECTE RETURN (mét juiste inspringing)
     return {
         "A1_current": A1 + vastrecht,
 
@@ -423,6 +421,7 @@ def compute_scenarios_v2(
         "battery_cost": battery_cost,
         "payback_years": payback,
         "roi_percent": roi,
+
         "peak_no_battery_kw": peak_no,
         "peak_with_battery_kw": peak_yes,
         "peak_saving_year_euro": peak_saving_year,
