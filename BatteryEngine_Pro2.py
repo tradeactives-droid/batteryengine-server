@@ -358,8 +358,16 @@ def compute_scenarios_v2(
     B1 = SE.scenario_B1_all()
     C1 = SE.scenario_C1_all()
 
+     # Peak shaving berekenen
+    sim_for_peaks = SimulationEngine(load_kwh, pv_kwh, tariffs[current_tariff], battery)
+    peak_no, peak_yes = sim_for_peaks.compute_peak_shaving()
+
     # Besparing jaar 1
     besparing_year1 = B1[current_tariff]["total_cost"] - C1[current_tariff]["total_cost"]
+
+    # Besparing capaciteitstarief
+    peak_saving_year = (peak_no - peak_yes) * capacity_tariff_kw
+    besparing_year1 += peak_saving_year
 
     # Payback & ROI met degradatie
     if battery_cost <= 0 or besparing_year1 <= 0:
