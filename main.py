@@ -168,11 +168,9 @@ def compute(req: ComputeRequest):
 
         p_enkel_imp=req.p_enkel_imp,
         p_enkel_exp=req.p_enkel_exp,
-
         p_dag=req.p_dag,
         p_nacht=req.p_nacht,
         p_exp_dn=req.p_exp_dn,
-
         p_export_dyn=req.p_export_dyn,
 
         E=req.E,
@@ -183,9 +181,13 @@ def compute(req: ComputeRequest):
         vastrecht=req.vastrecht,
         battery_cost=req.battery_cost,
         battery_degradation=req.battery_degradation,
+
+        capacity_tariff_kw=req.capacity_tariff_kw,       
+        peak_shaving_enabled=req.peak_shaving_enabled,   
         
         current_tariff=req.current_tariff
     )
+
 
 
 
