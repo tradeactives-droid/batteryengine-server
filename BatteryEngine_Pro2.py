@@ -417,4 +417,8 @@ def compute_scenarios_v2(
         "battery_cost": battery_cost,
         "payback_years": payback,
         "roi_percent": roi,
+        "peak_no_battery_kw": peak_no,
+        "peak_with_battery_kw": peak_yes,
+        "peak_saving_year_euro": peak_saving_year,
+        "capacity_tariff_kw": capacity_tariff_kw,
     }
