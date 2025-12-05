@@ -359,8 +359,13 @@ def compute_scenarios_v2(
     C1 = SE.scenario_C1_all()
 
      # Peak shaving berekenen
+    if peak_shaving_enabled:
     sim_for_peaks = SimulationEngine(load_kwh, pv_kwh, tariffs[current_tariff], battery)
     peak_no, peak_yes = sim_for_peaks.compute_peak_shaving()
+    else:
+    # Geen peak shaving → pieken blijven gelijk
+    peak_no = max(max(load_kwh[i] - pv_kwh[i], 0) for i in range(len(load_kwh)))
+    peak_yes = peak_no
 
     # Besparing jaar 1
     besparing_year1 = B1[current_tariff]["total_cost"] - C1[current_tariff]["total_cost"]
