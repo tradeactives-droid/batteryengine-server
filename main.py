@@ -152,7 +152,10 @@ class ComputeRequest(BaseModel):
 
     battery_cost: float
     battery_degradation: float
-
+    
+    capacity_tariff_kw: float
+    peak_shaving_enabled: bool
+    
     current_tariff: str
 
 
@@ -183,6 +186,7 @@ def compute(req: ComputeRequest):
         
         current_tariff=req.current_tariff
     )
+
 
 
 
