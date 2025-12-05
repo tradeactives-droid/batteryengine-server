@@ -368,7 +368,8 @@ def compute_scenarios_v2(
         peak_yes = peak_no
 
     # Besparing jaar 1
-    besparing_year1 = B1[current_tariff]["total_cost"] - C1[current_tariff]["total_cost"]
+    besparing_year1 = (B1[current_tariff]["total_cost"] + vastrecht) - \
+                      (C1[current_tariff]["total_cost"] + vastrecht)
 
     # Besparing capaciteitstarief
     peak_saving_year = (peak_no - peak_yes) * capacity_tariff_kw
