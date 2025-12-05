@@ -193,6 +193,41 @@ class SimulationEngine:
             "total_cost": cost,
         }
 
+    # --------------------------------------------------------
+    # Peak shaving – reduceer kwartier/uur piekvermogen
+    # --------------------------------------------------------
+    def compute_peak_shaving(self):
+        if self.battery is None:
+    # Zonder batterij: piek = peak_no = peak_with
+    peak = max(max(self.load[i] - self.pv[i], 0) for i in range(self.N))
+    return peak, peak
+
+        E = self.battery.E_min
+        dt = self.dt
+
+        peak_no_batt = 0.0
+        peak_with_batt = 0.0
+
+        for i in range(self.N):
+            load_i = self.load[i]
+            pv_i = self.pv[i]
+
+            net_load = max(load_i - pv_i, 0)
+            peak_no_batt = max(peak_no_batt, net_load)
+
+            # Batterij helpt pieken afvlakken
+            available_discharge = (E - self.battery.E_min) * self.battery.eta_d
+            max_discharge = self.battery.P_max * dt
+            discharge = min(net_load, available_discharge, max_discharge)
+
+            # update batterij
+            if discharge > 0:
+                E -= discharge / self.battery.eta_d
+                net_load -= discharge
+
+            peak_with_batt = max(peak_with_batt, net_load)
+
+        return peak_no_batt, peak_with_batt
 
 # ============================================================
 # SCENARIO ENGINE
