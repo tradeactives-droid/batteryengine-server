@@ -346,6 +346,71 @@ class SimulationEngine:
 
         return monthly_peak_no_batt, monthly_peak_with_batt
 
+    # --------------------------------------------------------
+    # Fluvius 2025 — Automatische berekening maandpiek-limieten
+    # --------------------------------------------------------
+    def compute_monthly_peak_limits(self):
+        """
+        Berekent per maand de 'peak limit' op basis van de netto-afname
+        zonder batterij, conform Fluvius 2025.
+        
+        Output: lijst van 12 waarden (kW)
+        """
+
+        dt = self.dt
+        N = self.N
+
+        # ----------------------------
+        # Stap 1: bepaal samples per maand
+        # ----------------------------
+        samples_per_day = int(round(24 / dt))
+        samples_per_month = [
+            31 * samples_per_day,
+            28 * samples_per_day,
+            31 * samples_per_day,
+            30 * samples_per_day,
+            31 * samples_per_day,
+            30 * samples_per_day,
+            31 * samples_per_day,
+            31 * samples_per_day,
+            30 * samples_per_day,
+            31 * samples_per_day,
+            30 * samples_per_day,
+            31 * samples_per_day
+        ]
+
+        month_of_index = []
+        idx = 0
+        for m in range(12):
+            for _ in range(samples_per_month[m]):
+                if idx < N:
+                    month_of_index.append(m)
+                    idx += 1
+
+        while len(month_of_index) < N:
+            month_of_index.append(11)
+        if len(month_of_index) > N:
+            month_of_index = month_of_index[:N]
+
+        # ----------------------------
+        # Stap 2: netto afname berekenen zonder batterij
+        # ----------------------------
+        net_without_batt = [max(self.load[i] - self.pv[i], 0) for i in range(N)]
+
+        # ----------------------------
+        # Stap 3: per maand — hoogste kwartierpiek
+        # (dat is EXACT de Fluvius-piekbasis)
+        # ----------------------------
+        monthly_peaks = [0.0] * 12
+
+        for i in range(N):
+            m = month_of_index[i]
+            kw_value = net_without_batt[i] / dt  # kWh per tijdstap → kW
+            if kw_value > monthly_peaks[m]:
+                monthly_peaks[m] = kw_value
+
+        return monthly_peaks
+
 # ============================================================
 # SCENARIO ENGINE
 # ============================================================
