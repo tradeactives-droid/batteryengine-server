@@ -126,60 +126,110 @@ class SimulationEngine:
     # --------------------------------------------------------
     # Scenario met batterij (uur-voor-uur, dynamiek inbegrepen)
     # --------------------------------------------------------
-    def simulate_with_battery(self):
+    def simulate_with_battery(self, monthly_peak_limits=None):
+        """
+        Simuleert batterijgedrag én past peak shaving toe.
+        - monthly_peak_limits: lijst van 12 waarden (kW) — piek per maand
+          berekend uit net-load ZONDER batterij.
+        """
+
         if self.battery is None:
             return self.simulate_no_battery()
 
-        E = self.battery.E_min  # start op minimum-SoC
+        E = self.battery.E_min
+        dt = self.dt
+
         total_import = 0.0
         total_export = 0.0
 
-        # Profielen nodig voor correcte kosten-berekening per uur
         import_profile = [0.0] * self.N
         export_profile = [0.0] * self.N
 
+        # --- Tijdmapping: bepaal minuut/uur → maand ---
+        samples_per_day = int(round(24 / dt))
+        samples_per_month = [
+            31 * samples_per_day, 28 * samples_per_day, 31 * samples_per_day,
+            30 * samples_per_day, 31 * samples_per_day, 30 * samples_per_day,
+            31 * samples_per_day, 31 * samples_per_day, 30 * samples_per_day,
+            31 * samples_per_day, 30 * samples_per_day, 31 * samples_per_day
+        ]
+
+        month_of_index = []
+        idx = 0
+        for m in range(12):
+            for _ in range(samples_per_month[m]):
+                if idx < self.N:
+                    month_of_index.append(m)
+                    idx += 1
+
+        while len(month_of_index) < self.N:
+            month_of_index.append(11)
+        if len(month_of_index) > self.N:
+            month_of_index = month_of_index[:self.N]
+
+        if monthly_peak_limits is None:
+            monthly_peak_limits = [9999.0] * 12
+
+        # ===================================================
+        # SIMULATIE MET PEAK LIMITS
+        # ===================================================
         for i in range(self.N):
+
             load_i = self.load[i]
-            pv_i = self.pv[i]
-            net = pv_i - load_i  # + = overschot, - = tekort
+            pv_i   = self.pv[i]
+            net_load = load_i - pv_i
+            month = month_of_index[i]
+            peak_limit = monthly_peak_limits[month]
 
-            if net > 0:
-                # -------------------------------
-                # Overschot → laad batterij eerst
-                # -------------------------------
-                max_charge = self.battery.P_max * self.dt
-                charge_space = self.battery.E_max - E  # kWh ruimte
-                charge = min(net, max_charge, charge_space / self.battery.eta_c)
+            # PV → laden
+            if net_load < 0:
+                surplus = -net_load
+                max_charge = self.battery.P_max * dt
+                space = self.battery.E_max - E
 
+                charge = min(surplus, max_charge, space / self.battery.eta_c)
                 if charge > 0:
                     E += charge * self.battery.eta_c
-                    net -= charge
+                    net_load += charge
 
-                # rest-overschot = export
-                export = max(0.0, net)
+                export = max(0.0, -net_load)
                 total_export += export
                 export_profile[i] = export
+                continue
 
-            else:
-                # -------------------------------
-                # Tekort → ontlaad batterij eerst
-                # -------------------------------
-                deficit = -net  # positief getal
-                max_discharge = self.battery.P_max * self.dt
-                available_discharge = (E - self.battery.E_min) * self.battery.eta_d
+            # Tekort → eerst ontladen
+            deficit = net_load
+            max_discharge = self.battery.P_max * dt
+            available = (E - self.battery.E_min) * self.battery.eta_d
 
-                discharge = min(deficit, max_discharge, available_discharge)
+            discharge = min(deficit, max_discharge, available)
 
-                if discharge > 0:
-                    E -= discharge / self.battery.eta_d
-                    deficit -= discharge
+            if discharge > 0:
+                E -= discharge / self.battery.eta_d
+                deficit -= discharge
 
-                # rest-tekort = import uit net
-                imp = max(0.0, deficit)
-                total_import += imp
-                import_profile[i] = imp
+            net_load = deficit
 
-        # Kosten: per uur, met de juiste dynamische / vaste prijzen
+            # PEAK SHAVING
+            if net_load > peak_limit:
+                extra_needed = net_load - peak_limit
+
+                max_discharge2 = self.battery.P_max * dt
+                available2 = (E - self.battery.E_min) * self.battery.eta_d
+
+                discharge2 = min(extra_needed, max_discharge2, available2)
+
+                if discharge2 > 0:
+                    E -= discharge2 / self.battery.eta_d
+                    net_load -= discharge2
+
+            imp = max(net_load, 0.0)
+            import_profile[i] = imp
+            total_import += imp
+
+        # ===================================================
+        # KOSTEN (uur/kwartier)
+        # ===================================================
         cost = 0.0
         for i in range(self.N):
             imp = import_profile[i]
