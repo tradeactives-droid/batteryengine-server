@@ -425,13 +425,13 @@ def compute_scenarios_v2(
     B1 = SE.scenario_B1_all()
     C1 = SE.scenario_C1_all()
 
-    # Peak shaving
-    if peak_shaving_enabled:
-        sim_for_peaks = SimulationEngine(load_kwh, pv_kwh, tariffs[current_tariff], battery)
-        peak_no, peak_yes = sim_for_peaks.compute_peak_shaving()
-    else:
-        peak_no = max(max(load_kwh[i] - pv_kwh[i], 0) for i in range(len(load_kwh)))
-        peak_yes = peak_no
+    # FLUVIUS-MODE — maandpieken berekenen
+    sim_for_peaks = SimulationEngine(load_kwh, pv_kwh, tariffs[current_tariff], battery)
+    monthly_no, monthly_yes = sim_for_peaks.compute_monthly_peaks()
+
+    # Som van de 12 maandpieken (kW)
+    peak_no = sum(monthly_no)
+    peak_yes = sum(monthly_yes)
 
     # Besparing jaar 1
     besparing_year1 = (B1[current_tariff]["total_cost"] + vastrecht) - \
