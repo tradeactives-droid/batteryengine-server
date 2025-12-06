@@ -229,6 +229,73 @@ class SimulationEngine:
 
         return peak_no_batt, peak_with_batt
 
+    # --------------------------------------------------------
+    # FLUVIUS 2025 — Peak shaving per MAAND
+    # --------------------------------------------------------
+    def compute_monthly_peaks(self):
+        """
+        Retourneert:
+        - monthly_peak_no_batt: lijst van 12 maandpieken zonder batterij
+        - monthly_peak_with_batt: lijst van 12 maandpieken met batterij
+        """
+
+        N = self.N
+        dt = self.dt   # 1 uur of 0.25 uur
+
+        # Aantal stappen per maand
+        if dt == 1.0:
+            steps_per_month = [31*24, 28*24, 31*24, 30*24, 31*24, 30*24,
+                               31*24, 31*24, 30*24, 31*24, 30*24, 31*24]
+        else:  # kwartierdata
+            steps_per_month = [31*96, 28*96, 31*96, 30*96, 31*96, 30*96,
+                               31*96, 31*96, 30*96, 31*96, 30*96, 31*96]
+
+        monthly_peak_no_batt = []
+        monthly_peak_with_batt = []
+
+        idx = 0
+        for m in range(12):
+            M = steps_per_month[m]
+            end = min(idx + M, N)
+
+            E = self.battery.E_min   # reset per maand
+
+            peak_no = 0.0
+            peak_yes = 0.0
+
+            for i in range(idx, end):
+
+                load_i = self.load[i]
+                pv_i   = self.pv[i]
+
+                net_load = max(load_i - pv_i, 0)
+                peak_no = max(peak_no, net_load)
+
+                # batterij
+                available_discharge = (E - self.battery.E_min) * self.battery.eta_d
+                max_discharge = self.battery.P_max * dt
+                discharge = min(net_load, available_discharge, max_discharge)
+
+                if discharge > 0:
+                    E -= discharge / self.battery.eta_d
+                    net_load -= discharge
+
+                peak_yes = max(peak_yes, net_load)
+
+            monthly_peak_no_batt.append(peak_no)
+            monthly_peak_with_batt.append(peak_yes)
+
+            idx = end
+            if idx >= N:
+                break
+
+        # Vul maanden aan als dataset korter was
+        while len(monthly_peak_no_batt) < 12:
+            monthly_peak_no_batt.append(0)
+            monthly_peak_with_batt.append(0)
+
+        return monthly_peak_no_batt, monthly_peak_with_batt
+
 # ============================================================
 # SCENARIO ENGINE
 # ============================================================
