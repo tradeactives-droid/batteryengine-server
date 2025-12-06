@@ -536,6 +536,12 @@ def compute_scenarios_v2(
     # A1
     A1 = SE.scenario_A1(current_tariff)
 
+    # ------------------------------------------------------------
+# 1) Bepaal automatische maandpiek-limieten (Fluvius 2025)
+# ------------------------------------------------------------
+sim_for_limits = SimulationEngine(load_kwh, pv_kwh, tariffs[current_tariff])
+monthly_peak_limits = sim_for_limits.compute_monthly_peak_limits()
+
     # Toekomst
     B1 = SE.scenario_B1_all()
     C1 = SE.scenario_C1_all()
