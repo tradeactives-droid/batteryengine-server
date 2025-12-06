@@ -544,7 +544,7 @@ monthly_peak_limits = sim_for_limits.compute_monthly_peak_limits()
 
     # Toekomst
     B1 = SE.scenario_B1_all()
-    C1 = SE.scenario_C1_all()
+    C1 = SE.scenario_C1_all(monthly_peak_limits)
 
     # FLUVIUS-MODE — maandpieken berekenen
     sim_for_peaks = SimulationEngine(load_kwh, pv_kwh, tariffs[current_tariff], battery)
