@@ -127,7 +127,7 @@ class SimulationEngine:
     # Scenario met batterij (uur-voor-uur, dynamiek inbegrepen)
     # --------------------------------------------------------
     def simulate_with_battery(self, monthly_peak_limits=None):
-    """
+        """
         Simuleert verbruik, injectie en batterijgedrag met
         automatische peak shaving op basis van maandlimieten.
         """
