@@ -128,9 +128,9 @@ class SimulationEngine:
     # --------------------------------------------------------
     def simulate_with_battery(self, monthly_peak_limits=None):
     """
-    Simuleert verbruik, injectie en batterijgedrag met
-    automatische peak shaving op basis van maandlimieten.
-    """
+        Simuleert verbruik, injectie en batterijgedrag met
+        automatische peak shaving op basis van maandlimieten.
+        """
 
     # -------------------------
     # 1) Setup
