@@ -479,11 +479,11 @@ class ScenarioEngine:
     # C1 – toekomst MET batterij
     # -------------------------------------------
     def scenario_C1_all(self, monthly_peak_limits=None) -> Dict[str, dict]:
-    out = {}
-    for key, tariff in self.tariffs.items():
-        sim = SimulationEngine(self.load, self.pv, tariff, self.battery)
-        out[key] = sim.simulate_with_battery(monthly_peak_limits)
-    return out
+        out = {}
+        for key, tariff in self.tariffs.items():
+            sim = SimulationEngine(self.load, self.pv, tariff, self.battery)
+            out[key] = sim.simulate_with_battery(monthly_peak_limits)
+        return out
 
 # ============================================================
 # FALLBACK DYNAMISCHE PRIJSREIHE (8760 uur)
