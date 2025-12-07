@@ -131,10 +131,12 @@ def parse_csv(req: ParseCSVRequest):
 # ============================================================
 
 class ComputeRequest(BaseModel):
+    # PROFIELEN
     load_kwh: list[float]
     pv_kwh: list[float]
     prices_dyn: list[float]
 
+    # TARIEVEN
     p_enkel_imp: float
     p_enkel_exp: float
 
@@ -144,6 +146,7 @@ class ComputeRequest(BaseModel):
 
     p_export_dyn: float
 
+    # BATTERIJ
     E: float
     P: float
     DoD: float
@@ -152,10 +155,12 @@ class ComputeRequest(BaseModel):
 
     battery_cost: float
     battery_degradation: float
-    
+
+    # PEAK SHAVING / CAPACITEIT
     capacity_tariff_kw: float
     peak_shaving_enabled: bool
-    
+
+    # HUIDIG TARIEF
     current_tariff: str
 
 
@@ -187,6 +192,7 @@ def compute(req: ComputeRequest):
         
         current_tariff=req.current_tariff
     )
+
 
 
 
