@@ -178,6 +178,42 @@ class ComputeRequest(BaseModel):
     # HUIDIG TARIEF
     current_tariff: str
 
+class ComputeRequest(BaseModel):
+    # PROFIELEN
+    load_kwh: list[float]
+    pv_kwh: list[float]
+    prices_dyn: list[float]
+
+    # TARIEVEN
+    p_enkel_imp: float
+    p_enkel_exp: float
+
+    p_dag: float
+    p_nacht: float
+    p_exp_dn: float
+
+    p_export_dyn: float
+
+    # BATTERIJ
+    E: float
+    P: float
+    DoD: float
+    eta_rt: float
+    vastrecht: float
+
+    battery_cost: float
+    battery_degradation: float
+
+    # PEAK SHAVING / CAPACITEIT
+    capacity_tariff_kw: float
+    peak_shaving_enabled: bool
+
+    # HUIDIG TARIEF
+    current_tariff: str
+
+    # LAND (NL of BE)
+    country: str
+
 
 @app.post("/compute")
 def compute(req: ComputeRequest):
@@ -207,6 +243,7 @@ def compute(req: ComputeRequest):
         
         current_tariff=req.current_tariff
     )
+
 
 
 
