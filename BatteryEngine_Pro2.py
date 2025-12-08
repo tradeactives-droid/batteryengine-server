@@ -238,6 +238,116 @@ class SimulationEngine:
         }
 
     # --------------------------------------------------------
+    # SIMPLE BATTERY SIMULATION (NL mode, no peak limits)
+    # --------------------------------------------------------
+    def simulate_with_battery_simple(self):
+        """
+        NL-modus: batterij laadt bij overschot, ontlaadt bij tekort.
+        Geen maandpieken, geen Fluvius-limieten, geen capaciteitstarief.
+        """
+        if self.battery is None:
+            return self.simulate_no_battery()
+
+        E = self.battery.E_min
+        dt = self.dt
+        N = self.N
+
+        total_import = 0.0
+        total_export = 0.0
+
+        for i in range(N):
+            load_i = self.load[i]
+            pv_i = self.pv[i]
+            net = pv_i - load_i  # + = overschot, - = tekort
+
+            # PV-overschot → eerst batterij laden, rest exporteren
+            if net >= 0:
+                max_charge = self.battery.P_max * dt
+                space = self.battery.E_max - E
+
+                charge = min(net, max_charge, space / self.battery.eta_c)
+
+                if charge > 0:
+                    E += charge * self.battery.eta_c
+                    net -= charge
+
+                export = max(0, net)
+                total_export += export
+
+            else:
+                # Tekort → eerst batterij ontladen, rest importeren
+                deficit = -net
+
+                max_discharge = self.battery.P_max * dt
+                available = (E - self.battery.E_min) * self.battery.eta_d
+
+                discharge = min(deficit, max_discharge, available)
+
+                if discharge > 0:
+                    E -= discharge / self.battery.eta_d
+                    deficit -= discharge
+
+                imp = max(0, deficit)
+                total_import += imp
+
+        # Kosten berekenen met import/export-profielen uit totalen
+        cost = 0.0
+        # Let op: hier geen profiellogging, alleen totale kWh
+        # Voor NL is dit voldoende.
+        # Voor dynamisch NL kun je later uitbreiden naar timestep-based.
+
+        # Eenvoud: gemiddelde prijs benaderen via simulate_no_battery
+        # (voor nu laten we kostensimulatie consistent via timestep)
+        # → daarom herhalen we de loop met expliciete profils:
+
+        total_import = 0.0
+        total_export = 0.0
+        E = self.battery.E_min
+
+        for i in range(N):
+            load_i = self.load[i]
+            pv_i = self.pv[i]
+            net = pv_i - load_i
+
+            if net >= 0:
+                max_charge = self.battery.P_max * dt
+                space = self.battery.E_max - E
+
+                charge = min(net, max_charge, space / self.battery.eta_c)
+
+                if charge > 0:
+                    E += charge * self.battery.eta_c
+                    net -= charge
+
+                export = max(0, net)
+                total_export += export
+                imp = 0.0
+
+            else:
+                deficit = -net
+                max_discharge = self.battery.P_max * dt
+                available = (E - self.battery.E_min) * self.battery.eta_d
+
+                discharge = min(deficit, max_discharge, available)
+
+                if discharge > 0:
+                    E -= discharge / self.battery.eta_d
+                    deficit -= discharge
+
+                imp = max(0, deficit)
+                total_import += imp
+                export = 0.0
+
+            cost += imp * self.tariff.get_import_price(i)
+            cost -= export * self.tariff.get_export_price(i)
+
+        return {
+            "import": total_import,
+            "export": total_export,
+            "total_cost": cost
+        }    
+
+    # --------------------------------------------------------
     # Compute monthly peaks for UI (baseline vs battery)
     # --------------------------------------------------------
     def compute_monthly_peaks_after_sim(self, monthly_peak_limits):
