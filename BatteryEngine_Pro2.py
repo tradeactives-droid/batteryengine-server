@@ -418,28 +418,39 @@ def compute_scenarios_v2(
         roi = (total_savings / battery_cost) * 100
 
     return {
-        "A1_current": A1 + vastrecht,
+    "A1_current": A1 + vastrecht,
 
-        "A1_per_tariff": {
-            "enkel": SE.scenario_A1("enkel") + vastrecht,
-            "dag_nacht": SE.scenario_A1("dag_nacht") + vastrecht,
-            "dynamisch": SE.scenario_A1("dynamisch") + vastrecht,
-        },
+    "A1_per_tariff": {
+        "enkel": SE.scenario_A1("enkel") + vastrecht,
+        "dag_nacht": SE.scenario_A1("dag_nacht") + vastrecht,
+        "dynamisch": SE.scenario_A1("dynamisch") + vastrecht,
+    },
 
-        "B1_future_no_batt": baseline + vastrecht,
-        "C1_future_with_batt": with_batt + vastrecht,
+    "B1_future_no_batt": baseline + vastrecht,
+    "C1_future_with_batt": with_batt + vastrecht,
 
-        "monthly_peak_no": monthly_no,
-        "monthly_peak_yes": monthly_yes,
-        "capacity_saving_year_eur": cap_save,
+    # 🔥 ESSENTIEEL VOOR DE FRONTEND — TERUGGEPLAATST
+    "S2_enkel": B1["enkel"],
+    "S2_dn":    B1["dag_nacht"],
+    "S2_dyn":   B1["dynamisch"],
 
-        "peak_no_battery_kw": max(monthly_no),
-        "peak_with_battery_kw": max(monthly_yes),
-        "peak_saving_year_euro": cap_save,
+    "S3_enkel": C1["enkel"],
+    "S3_dn":    C1["dag_nacht"],
+    "S3_dyn":   C1["dynamisch"],
 
-        "besparing_per_jaar": besparing,
-        "battery_cost": battery_cost,
-        "payback_years": payback,
-        "roi_percent": roi,
-        "capacity_tariff_kw": capacity_tariff_kw,
-    }
+    "monthly_peak_no": monthly_no,
+    "monthly_peak_yes": monthly_yes,
+    "capacity_saving_year_eur": cap_save,
+
+    "peak_no_battery_kw": max(monthly_no),
+    "peak_with_battery_kw": max(monthly_yes),
+
+    # ⚠️ OOK DIT WAS FOUT
+    "peak_saving_year_euro": cap_save,
+
+    "besparing_per_jaar": besparing,
+    "battery_cost": battery_cost,
+    "payback_years": payback,
+    "roi_percent": roi,
+    "capacity_tariff_kw": capacity_tariff_kw,
+}
