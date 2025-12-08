@@ -81,6 +81,17 @@ def parse_csv(req: ParseCSVRequest):
     load = _process_csv_text(req.load_file)
     pv = _process_csv_text(req.pv_file)
 
+    # --- FLUVIUS-CHECK: voldoende datapunten (minimaal ~half jaar) ---
+    MIN_POINTS = 20000  # hard minimum; jaarprofiel is ~35.000 punten
+
+    if len(load) < MIN_POINTS or len(pv) < MIN_POINTS:
+        return {
+            "load_kwh": [],
+            "pv_kwh": [],
+            "prices_dyn": [],
+            "error": "NOT_ENOUGH_DATA_FOR_FLUVIUS"
+        }
+
     # prices.csv mag optioneel zijn → lege string opleveren
     prices_raw = req.prices_file if req.prices_file is not None else ""
     prices = _process_csv_text(prices_raw) if prices_raw.strip() != "" else []
@@ -196,6 +207,7 @@ def compute(req: ComputeRequest):
         
         current_tariff=req.current_tariff
     )
+
 
 
 
