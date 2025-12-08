@@ -435,7 +435,7 @@ def compute_scenarios_v2(
 
         "peak_no_battery_kw": max(monthly_no),
         "peak_with_battery_kw": max(monthly_yes),
-        "peak_saving_year_euro": yearly_capacity_saving,
+        "peak_saving_year_euro": cap_save,
 
         "besparing_per_jaar": besparing,
         "battery_cost": battery_cost,
