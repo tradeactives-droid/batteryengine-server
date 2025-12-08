@@ -24,6 +24,10 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+@app.options("/{rest_of_path:path}")
+async def preflight_handler():
+    return {}
+
 
 # ============================================================
 # CSV PARSER
@@ -192,6 +196,7 @@ def compute(req: ComputeRequest):
         
         current_tariff=req.current_tariff
     )
+
 
 
 
