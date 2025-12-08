@@ -238,11 +238,13 @@ def compute(req: ComputeRequest):
         battery_cost=req.battery_cost,
         battery_degradation=req.battery_degradation,
 
-        capacity_tariff_kw=req.capacity_tariff_kw,       
-        peak_shaving_enabled=req.peak_shaving_enabled,   
-        
-        current_tariff=req.current_tariff
+        capacity_tariff_kw=req.capacity_tariff_kw,
+        peak_shaving_enabled=req.peak_shaving_enabled,
+
+        current_tariff=req.current_tariff,
+        country=req.country
     )
+
 
 
 
