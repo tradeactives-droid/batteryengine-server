@@ -256,17 +256,68 @@ def compute(req: ComputeRequest):
 
 
 
+@app.post("/generate_advice")
+def generate_advice(req: AdviceRequest):
+    """
+    Genereert een professioneel adviesrapport gebaseerd op berekende data.
+    Dit gebruikt GPT-5.1 (via OpenAI) voor premium aanbevelingen.
+    """
 
+    # Bouw een duidelijke prompt voor het model
+    prompt = f"""
+Je bent een professionele energieconsultant gespecialiseerd in thuisbatterijen.
 
+Genereer een helder, volledig en zakelijk adviesrapport op basis van de volgende gegevens:
 
+Land: {req.country}
 
+Batterijconfiguratie (zoals gekozen in de tool):
+{req.battery}
 
+Berekende resultaten uit de simulatie:
+{req.results}
 
+SCHRIJFSTRUCTUUR:
+1. Executive summary
+2. Financiële analyse (incl. ROI en terugverdientijd interpreteren)
+3. Energetische analyse (zelfverbruik, import, export, rol van de batterij)
+4. Land-specifiek advies:
+   - NL → focus op eigen verbruik, vermijden lage terugleververgoeding, dynamische prijzen
+   - BE → focus op peak-shaving en besparing op capaciteitstarief
+5. Concreet aankoopadvies:
+   - aanbevolen batterijcapaciteit (range, geen merk)
+   - aanbevolen laad/ontlaadvermogen (range, geen merk)
+   - risico’s / aandachtspunten
+6. Samenvatting voor gebruik in een offerte.
 
+STIJL:
+- Professioneel, helder, concreet
+- Geen overdreven marketingtaal
+- Schrijf als mens, niet als AI
+- Tekst in het Nederlands.
+Lever alleen de adviestekst terug, zonder extra uitleg of meta-commentaar.
+"""
 
+    try:
+        response = client.chat.completions.create(
+            model="gpt-5.1",
+            messages=[
+                {"role": "system", "content": "Je bent een gecertificeerde energieconsultant gespecialiseerd in thuisbatterijen in Nederland en België."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1200,
+            temperature=0.3,
+        )
 
+        advice_text = response.choices[0].message.content
 
+        return {
+            "advice": advice_text
+        }
 
-
-
-
+    except Exception as e:
+        # Bij fout: een simpele boodschap terug
+        return {
+            "error": str(e),
+            "advice": "Er is een fout opgetreden bij het genereren van het advies. Probeer het later opnieuw."
+        }
