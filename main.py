@@ -26,6 +26,8 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+client = OpenAI()
+
 @app.options("/{rest_of_path:path}")
 async def preflight_handler():
     return {}
@@ -246,6 +248,7 @@ def compute(req: ComputeRequest):
         current_tariff=req.current_tariff,
         country=req.country
     )
+
 
 
 
