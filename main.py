@@ -182,6 +182,11 @@ class ComputeRequest(BaseModel):
     # HUIDIG TARIEF
     current_tariff: str
 
+class AdviceRequest(BaseModel):
+    country: str          # "NL" of "BE"
+    battery: dict         # batterijconfig en eventueel extra metadata
+    results: dict         # alle scenario-resultaten (A1, B1, C1, ROI, etc.)
+
 class ComputeRequest(BaseModel):
     # PROFIELEN
     load_kwh: list[float]
@@ -248,6 +253,7 @@ def compute(req: ComputeRequest):
         current_tariff=req.current_tariff,
         country=req.country
     )
+
 
 
 
