@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from openai import OpenAI
+
 from BatteryEngine_Pro2 import compute_scenarios_v2
 
 
@@ -244,6 +246,7 @@ def compute(req: ComputeRequest):
         current_tariff=req.current_tariff,
         country=req.country
     )
+
 
 
 
