@@ -596,7 +596,11 @@ def compute_scenarios_v2(
         "C1_future_with_batt": with_batt + vastrecht,
 
         # S2 / S3 per tarief (voor tabellen & PDF)
-        "S2_enkel": S2_enkel,
+        "S2_enkel": {
+           "total_cost": baseline,
+           "import": S2_enkel["import"],
+           "export": S2_enkel["export"]
+        },
         "S2_dn":    S2_dn,
         "S2_dyn":   S2_dyn,
 
