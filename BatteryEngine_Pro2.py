@@ -463,12 +463,23 @@ def compute_scenarios_v2(
     E, P, DoD, eta_rt, vastrecht,
 
     battery_cost,
+
+    # 👉 NIEUW — terugleverkosten
+    feedin_monthly_cost=0.0,        # € per maand
+    feedin_cost_per_kwh=0.0,        # € per kWh export
+    feedin_free_kwh=0.0,            # X kWh gratis
+    feedin_price_after_free=0.0,    # prijs per kWh boven staffel
+
+    inverter_power_kw=0.0,          # kosten per kW omvormer
+    inverter_cost_per_kw=0.0,       # € per kW / jaar
+
     current_tariff="enkel",
     battery_degradation=0.02,
     capacity_tariff_kw=0.0,
     peak_shaving_enabled=True,
     country="BE"
 ):
+    
     # -----------------------------
     # 1) Tarieven & batterij
     # -----------------------------
