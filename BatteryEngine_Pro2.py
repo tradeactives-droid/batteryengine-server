@@ -665,10 +665,30 @@ def compute_scenarios_v2(
         "A1_current": A1 + vastrecht,
 
         "A1_per_tariff": {
-            "enkel": SE.scenario_A1("enkel") + vastrecht,
-            "dag_nacht": SE.scenario_A1("dag_nacht") + vastrecht,
-            "dynamisch": SE.scenario_A1("dynamisch") + vastrecht,
-        },
+    "enkel": (
+        SE.scenario_A1("enkel")
+        + vastrecht
+        + feedin_month_year
+        + apply_staffel(B1["enkel"]["export"])
+        + inverter_cost_year
+    ),
+
+    "dag_nacht": (
+        SE.scenario_A1("dag_nacht")
+        + vastrecht
+        + feedin_month_year
+        + apply_staffel(B1["dag_nacht"]["export"])
+        + inverter_cost_year
+    ),
+
+    "dynamisch": (
+        SE.scenario_A1("dynamisch")
+        + vastrecht
+        + feedin_month_year
+        + apply_staffel(B1["dynamisch"]["export"])
+        + inverter_cost_year
+    ),
+},
 
         "B1_future_no_batt": baseline + vastrecht,
         "C1_future_with_batt": with_batt + vastrecht,
