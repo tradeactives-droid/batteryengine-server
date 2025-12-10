@@ -584,27 +584,13 @@ def compute_scenarios_v2(
     # Tiles moeten overeenkomen met gekozen tarief
     # --------------------------------------
 
-    # Maak kopieën zodat we ze kunnen aanpassen
-    S2_enkel_out = S2_enkel.copy()
-    S2_dn_out    = S2_dn.copy()
-    S2_dyn_out   = S2_dyn.copy()
+    S2_enkel_out = S2_enkel
+S2_dn_out    = S2_dn
+S2_dyn_out   = S2_dyn
 
-    S3_enkel_out = S3_enkel.copy()
-    S3_dn_out    = S3_dn.copy()
-    S3_dyn_out   = S3_dyn.copy()
-
-    # Vul de juiste kolom met baseline / with_batt
-    if current_tariff == "enkel":
-        S2_enkel_out["total_cost"] = baseline
-        S3_enkel_out["total_cost"] = with_batt
-
-    elif current_tariff == "dag_nacht":
-        S2_dn_out["total_cost"] = baseline
-        S3_dn_out["total_cost"] = with_batt
-
-    elif current_tariff == "dynamisch":
-        S2_dyn_out["total_cost"] = baseline
-        S3_dyn_out["total_cost"] = with_batt
+S3_enkel_out = S3_enkel
+S3_dn_out    = S3_dn
+S3_dyn_out   = S3_dyn
 
     # --------------------------------------
     # 5) Resultaat terug naar frontend
