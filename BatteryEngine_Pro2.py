@@ -597,7 +597,6 @@ S3_dyn_out   = S3_dyn
     # --------------------------------------
     return {
         "A1_current": A1 + vastrecht,
-
         "A1_per_tariff": {
             "enkel": SE.scenario_A1("enkel") + vastrecht,
             "dag_nacht": SE.scenario_A1("dag_nacht") + vastrecht,
@@ -607,14 +606,13 @@ S3_dyn_out   = S3_dyn
         "B1_future_no_batt": baseline + vastrecht,
         "C1_future_with_batt": with_batt + vastrecht,
 
-        # S2 / S3 per tarief (voor tabellen & PDF)
-        "S2_enkel": S2_enkel_out,
-"S2_dn":    S2_dn_out,
-"S2_dyn":   S2_dyn_out,
+        "S2_enkel": S2_enkel,
+        "S2_dn":    S2_dn,
+        "S2_dyn":   S2_dyn,
 
-"S3_enkel": S3_enkel_out,
-"S3_dn":    S3_dn_out,
-"S3_dyn":   S3_dyn_out,
+        "S3_enkel": S3_enkel,
+        "S3_dn":    S3_dn,
+        "S3_dyn":   S3_dyn,
 
         "monthly_peak_no": monthly_no,
         "monthly_peak_yes": monthly_yes,
