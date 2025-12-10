@@ -604,7 +604,11 @@ def compute_scenarios_v2(
         "S2_dn":    S2_dn,
         "S2_dyn":   S2_dyn,
 
-        "S3_enkel": S3_enkel,
+        "S3_enkel": {
+            "total_cost": with_batt,
+            "import": S3_enkel["import"],
+            "export": S3_enkel["export"]
+         },
         "S3_dn":    S3_dn,
         "S3_dyn":   S3_dyn,
 
