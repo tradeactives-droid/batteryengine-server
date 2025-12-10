@@ -515,6 +515,17 @@ def compute_scenarios_v2(
         with_batt = C1[current_tariff]["total_cost"]
         besparing = baseline - with_batt
 
+        # ==================================================
+        # 🔵 OMVORMERKOSTEN — BE
+        # ==================================================
+        inverter_cost_year = inverter_power_kw * inverter_cost_per_kw
+
+        A1 += inverter_cost_year
+        baseline += inverter_cost_year
+        with_batt += inverter_cost_year
+
+        besparing = baseline - with_batt
+
         cap_save = sum(
             (monthly_no[i] - monthly_yes[i]) * capacity_tariff_kw
             for i in range(12)
