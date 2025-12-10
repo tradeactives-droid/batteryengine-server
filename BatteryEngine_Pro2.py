@@ -582,6 +582,39 @@ def compute_scenarios_v2(
         with_batt = C1[current_tariff]["total_cost"]
         besparing = baseline - with_batt
 
+    # ==================================================
+    # 🔵 TERUGLEVERKOSTEN — NL (NIEUW)
+    # ==================================================
+
+    A1_export_kwh = B1[current_tariff]["export"]
+    B1_export_kwh = B1[current_tariff]["export"]
+    C1_export_kwh = C1[current_tariff]["export"]
+
+    feedin_month_year = feedin_monthly_cost * 12
+    inverter_cost_year = inverter_power_kw * inverter_cost_per_kw
+
+    def apply_staffel(export_kwh):
+        if export_kwh <= feedin_free_kwh:
+            return 0.0
+        return (export_kwh - feedin_free_kwh) * feedin_price_after_free
+
+    # A1 adjustments
+    A1 += feedin_month_year
+    A1 += apply_staffel(A1_export_kwh)
+    A1 += inverter_cost_year
+
+    # B1 adjustments
+    baseline += feedin_month_year
+    baseline += apply_staffel(B1_export_kwh)
+    baseline += inverter_cost_year
+
+    # C1 adjustments
+    with_batt += feedin_month_year
+    with_batt += apply_staffel(C1_export_kwh)
+    with_batt += inverter_cost_year
+
+    besparing = baseline - with_batt
+
     # --------------------------------------
     # 3) ROI / Payback
     # --------------------------------------
