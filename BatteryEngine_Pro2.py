@@ -489,27 +489,21 @@ def compute_scenarios_v2(
     # 2) Scenario's per land
     # --------------------------------------
     if country == "BE":
-        # A1 — huidige situatie
         A1 = SE.scenario_A1(current_tariff)
 
-        # Maandpieklimieten (Fluvius)
         sim_for_limits = SimulationEngine(load_kwh, pv_kwh, tariffs[current_tariff])
         monthly_peak_limits = sim_for_limits.compute_monthly_peak_limits()
 
-        # B1 & C1
         B1 = SE.scenario_B1_all()
         C1 = SE.scenario_C1_all(monthly_peak_limits)
 
-        # Maandpieken voor UI
         sim_for_peaks = SimulationEngine(load_kwh, pv_kwh, tariffs[current_tariff], battery)
         monthly_no, monthly_yes = sim_for_peaks.compute_monthly_peaks_after_sim(monthly_peak_limits)
 
-        # Jaarlijkse kosten basis vs batterij
         baseline = B1[current_tariff]["total_cost"]
         with_batt = C1[current_tariff]["total_cost"]
         besparing = baseline - with_batt
 
-        # Capaciteitstarief-besparing
         cap_save = sum(
             (monthly_no[i] - monthly_yes[i]) * capacity_tariff_kw
             for i in range(12)
@@ -517,37 +511,28 @@ def compute_scenarios_v2(
         besparing += cap_save
 
     else:
-        # -----------------------------
-        # NL-modus: GEEN peak-shaving,
-        # GEEN capaciteitstarief,
-        # GEEN Fluvius-maandpieken.
-        # -----------------------------
         A1 = SE.scenario_A1(current_tariff)
 
-        # B1 — zonder batterij
-        B1 = {}
-        for key, tariff in tariffs.items():
-            sim = SimulationEngine(load_kwh, pv_kwh, tariff)
-            B1[key] = sim.simulate_no_battery()
+        B1 = {
+            key: SimulationEngine(load_kwh, pv_kwh, tariff).simulate_no_battery()
+            for key, tariff in tariffs.items()
+        }
 
-        # C1 — met eenvoudige batterij (geen peaken)
-        C1 = {}
-        for key, tariff in tariffs.items():
-            sim = SimulationEngine(load_kwh, pv_kwh, tariff, battery)
-            C1[key] = sim.simulate_with_battery_simple()
+        C1 = {
+            key: SimulationEngine(load_kwh, pv_kwh, tariff, battery).simulate_with_battery_simple()
+            for key, tariff in tariffs.items()
+        }
 
-        # Geen capaciteitstarief en geen maandpieken in NL
         monthly_no = [0.0] * 12
         monthly_yes = [0.0] * 12
         cap_save = 0.0
-        capacity_tariff_kw = 0.0  # negeren in NL
 
         baseline = B1[current_tariff]["total_cost"]
         with_batt = C1[current_tariff]["total_cost"]
         besparing = baseline - with_batt
 
     # --------------------------------------
-    # 3) ROI / Payback (gedeeld voor NL & BE)
+    # 3) ROI / Payback
     # --------------------------------------
     if battery_cost <= 0 or besparing <= 0:
         payback = None
@@ -556,7 +541,6 @@ def compute_scenarios_v2(
         years = 15
         degr = battery_degradation
         E0 = E
-
         total_savings = 0.0
         payback = None
 
@@ -570,7 +554,7 @@ def compute_scenarios_v2(
         roi = (total_savings / battery_cost) * 100
 
     # --------------------------------------
-    # 4) S2 / S3 per tarief voor UI & PDF
+    # 4) S2 / S3 per tarief voor UI
     # --------------------------------------
     S2_enkel = B1.get("enkel", {"import": 0.0, "export": 0.0, "total_cost": 0.0})
     S2_dn    = B1.get("dag_nacht", {"import": 0.0, "export": 0.0, "total_cost": 0.0})
@@ -581,22 +565,11 @@ def compute_scenarios_v2(
     S3_dyn   = C1.get("dynamisch", {"import": 0.0, "export": 0.0, "total_cost": 0.0})
 
     # --------------------------------------
-    # Tiles moeten overeenkomen met gekozen tarief
-    # --------------------------------------
-
-    S2_enkel_out = S2_enkel
-S2_dn_out    = S2_dn
-S2_dyn_out   = S2_dyn
-
-S3_enkel_out = S3_enkel
-S3_dn_out    = S3_dn
-S3_dyn_out   = S3_dyn
-
-    # --------------------------------------
     # 5) Resultaat terug naar frontend
     # --------------------------------------
     return {
         "A1_current": A1 + vastrecht,
+
         "A1_per_tariff": {
             "enkel": SE.scenario_A1("enkel") + vastrecht,
             "dag_nacht": SE.scenario_A1("dag_nacht") + vastrecht,
