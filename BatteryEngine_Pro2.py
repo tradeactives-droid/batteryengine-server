@@ -554,23 +554,23 @@ def compute_scenarios_v2(
     # → Kosten per omvormer kW
     inverter_cost_year = inverter_power_kw * inverter_cost_per_kw
 
-    # === A1 corrigeren ===
-    A1 += feedin_month_year
-    A1 += export_charge := apply_staffel(A1_export_kwh)
-    A1 += inverter_cost_year
+A1 += feedin_month_year
 
-    # === B1 corrigeren ===
-    baseline += feedin_month_year
-    baseline += apply_staffel(B1_export_kwh)
-    baseline += inverter_cost_year
+export_charge = apply_staffel(A1_export_kwh)
+A1 += export_charge
 
-    # === C1 corrigeren ===
-    with_batt += feedin_month_year
-    with_batt += apply_staffel(C1_export_kwh)
-    with_batt += inverter_cost_year
+A1 += inverter_cost_year
 
-    # Herbereken besparing
-    besparing = baseline - with_batt
+baseline += feedin_month_year
+baseline += apply_staffel(B1_export_kwh)
+baseline += inverter_cost_year
+
+with_batt += feedin_month_year
+with_batt += apply_staffel(C1_export_kwh)
+with_batt += inverter_cost_year
+
+# Herbereken besparing
+besparing = baseline - with_batt
 
     else:
         A1 = SE.scenario_A1(current_tariff)
