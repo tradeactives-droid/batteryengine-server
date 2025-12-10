@@ -535,42 +535,44 @@ def compute_scenarios_v2(
     # ==================================================
     # 🔵 TERUGLEVERKOSTEN — BE (NIEUW)
     # ==================================================
+    if country == "BE":
 
-    # Export-kWh ophalen
-    A1_export_kwh = B1[current_tariff]["export"]   # A1 gebruikt zelfde export
-    B1_export_kwh = B1[current_tariff]["export"]
-    C1_export_kwh = C1[current_tariff]["export"]
+        # Export-kWh ophalen
+        A1_export_kwh = B1[current_tariff]["export"]   # A1 gebruikt zelfde export
+        B1_export_kwh = B1[current_tariff]["export"]
+        C1_export_kwh = C1[current_tariff]["export"]
 
-    # Vaste terugleverkosten (per maand × 12)
-    feedin_month_year = feedin_monthly_cost * 12
+        # Vaste terugleverkosten (per maand × 12)
+        feedin_month_year = feedin_monthly_cost * 12
 
-    # Staffelfunctie
-    def apply_staffel(export_kwh):
-        if export_kwh <= feedin_free_kwh:
-            return 0.0
-        chargeable = export_kwh - feedin_free_kwh
-        return chargeable * feedin_price_after_free
+        # Staffelfunctie
+        def apply_staffel(export_kwh):
+            if export_kwh <= feedin_free_kwh:
+                return 0.0
+            chargeable = export_kwh - feedin_free_kwh
+            return chargeable * feedin_price_after_free
 
-    # → Kosten per omvormer kW
-    inverter_cost_year = inverter_power_kw * inverter_cost_per_kw
+        # → Kosten per omvormer kW
+        inverter_cost_year = inverter_power_kw * inverter_cost_per_kw
 
-A1 += feedin_month_year
+        # === A1 corrigeren ===
+        A1 += feedin_month_year
+        export_charge = apply_staffel(A1_export_kwh)
+        A1 += export_charge
+        A1 += inverter_cost_year
 
-export_charge = apply_staffel(A1_export_kwh)
-A1 += export_charge
+        # === B1 corrigeren ===
+        baseline += feedin_month_year
+        baseline += apply_staffel(B1_export_kwh)
+        baseline += inverter_cost_year
 
-A1 += inverter_cost_year
+        # === C1 corrigeren ===
+        with_batt += feedin_month_year
+        with_batt += apply_staffel(C1_export_kwh)
+        with_batt += inverter_cost_year
 
-baseline += feedin_month_year
-baseline += apply_staffel(B1_export_kwh)
-baseline += inverter_cost_year
-
-with_batt += feedin_month_year
-with_batt += apply_staffel(C1_export_kwh)
-with_batt += inverter_cost_year
-
-# Herbereken besparing
-besparing = baseline - with_batt
+        # Herbereken besparing
+        besparing = baseline - with_batt
 
     else:
         A1 = SE.scenario_A1(current_tariff)
