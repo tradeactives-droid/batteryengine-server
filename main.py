@@ -1,19 +1,20 @@
 # ============================================================
-# BatteryEngine Pro 2 — Backend API
-# COMPLETE MAIN.PY (parse_csv + compute)
+# BatteryEngine Pro — Backend API
+# COMPLETE MAIN.PY (parse_csv + compute + compute_v3 + advice)
 # ============================================================
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from datetime import datetime, timedelta
 
 from openai import OpenAI
 
+# Engine imports
 from BatteryEngine_Pro2 import compute_scenarios_v2
-from datetime import datetime, timedelta
-
 from battery_engine_pro3.scenario_runner import ScenarioRunner
 from battery_engine_pro3.types import TimeSeries, TariffConfig, BatteryConfig
+
 
 # ============================================================
 # FASTAPI INIT
@@ -30,6 +31,7 @@ app.add_middleware(
 )
 
 client = OpenAI()
+
 
 @app.options("/{rest_of_path:path}")
 async def preflight_handler():
@@ -63,6 +65,7 @@ def _process_csv_text(raw: str) -> list[float]:
     for ln in lines:
         rows.append([c.strip() for c in ln.split(delim)])
 
+    # Header verwijderen indien nodig
     if any(ch.isalpha() for ch in rows[0][0]):
         rows = rows[1:]
 
@@ -82,25 +85,26 @@ def _process_csv_text(raw: str) -> list[float]:
 
     return floats
 
+
 def detect_resolution(load: list[float]) -> float:
     """
-    Simpele resolutiedetectie:
+    Detecteert resolutie:
     - >= 30.000 punten → kwartierwaarden (0.25 uur)
-    - anders → 1 uur
+    - anders → uurwaarden (1 uur)
     """
     n = len(load)
     if n >= 30000:
         return 0.25
     return 1.0
 
+
 @app.post("/parse_csv")
 def parse_csv(req: ParseCSVRequest):
     load = _process_csv_text(req.load_file)
     pv = _process_csv_text(req.pv_file)
 
-    # --- FLUVIUS-CHECK: voldoende datapunten (minimaal ~half jaar) ---
-    MIN_POINTS = 20000  # hard minimum; jaarprofiel is ~35.000 punten
-
+    # FLUVIUS–minimum
+    MIN_POINTS = 20000
     if len(load) < MIN_POINTS or len(pv) < MIN_POINTS:
         return {
             "load_kwh": [],
@@ -109,32 +113,23 @@ def parse_csv(req: ParseCSVRequest):
             "error": "NOT_ENOUGH_DATA_FOR_FLUVIUS"
         }
 
-    # prices.csv mag optioneel zijn → lege string opleveren
+    # prices optioneel
     prices_raw = req.prices_file if req.prices_file is not None else ""
     prices = _process_csv_text(prices_raw) if prices_raw.strip() != "" else []
 
-    # load en pv zijn verplicht
     if not load or not pv:
-        return {
-            "load_kwh": [],
-            "pv_kwh": [],
-            "prices_dyn": [],
-            "error": "INVALID_LOAD_PV"
-        }
+        return {"load_kwh": [], "pv_kwh": [], "prices_dyn": [], "error": "INVALID_LOAD_PV"}
 
-    # Zorg dat load en pv even lang zijn
+    # Align lengtes
     n = min(len(load), len(pv))
     load = load[:n]
     pv = pv[:n]
 
-    # prices (dynamisch) is optioneel
-    # Alleen gebruiken als:
-    # - er wél iets staat
-    # - en lengte exact matcht met load/pv
+    # Dynamische prijzen
     if prices and len(prices) == n:
         prices_dyn = prices
     else:
-        prices_dyn = []  # => fallback in backend
+        prices_dyn = []
 
     return {
         "load_kwh": load,
@@ -142,33 +137,16 @@ def parse_csv(req: ParseCSVRequest):
         "prices_dyn": prices_dyn
     }
 
-    # prices alleen controleren als ze er zijn
-    if prices and len(prices) != len(load):
-        return {
-            "load_kwh": [],
-            "pv_kwh": [],
-            "prices_dyn": [],
-            "error": "INVALID"
-        }
-
-    return {
-        "load_kwh": load,
-        "pv_kwh": pv,
-        "prices_dyn": prices  # kan leeg zijn
-    }
-
 
 # ============================================================
-# COMPUTE ENDPOINT
+# COMPUTE ENDPOINT (Pro 2)
 # ============================================================
 
 class ComputeRequest(BaseModel):
-    # PROFIELEN
     load_kwh: list[float]
     pv_kwh: list[float]
     prices_dyn: list[float]
 
-    # TARIEVEN
     p_enkel_imp: float
     p_enkel_exp: float
 
@@ -178,7 +156,6 @@ class ComputeRequest(BaseModel):
 
     p_export_dyn: float
 
-    # BATTERIJ
     E: float
     P: float
     DoD: float
@@ -188,144 +165,11 @@ class ComputeRequest(BaseModel):
     battery_cost: float
     battery_degradation: float
 
-    # PEAK SHAVING / CAPACITEIT
     capacity_tariff_kw: float
     peak_shaving_enabled: bool
 
-    # HUIDIG TARIEF
     current_tariff: str
-
-class AdviceRequest(BaseModel):
-    country: str          # "NL" of "BE"
-    battery: dict         # batterijconfig en eventueel extra metadata
-    results: dict         # alle scenario-resultaten (A1, B1, C1, ROI, etc.)
-
-    class ComputeV3Request(BaseModel):
-    # PROFIELEN
-    load_kwh: list[float]
-    pv_kwh: list[float]
-    prices_dyn: list[float] | None = None
-
-    # BATTERIJ
-    E: float
-    P: float
-    DoD: float          # fractie 0..1
-    eta_rt: float       # fractie 0..1
-    battery_cost: float
-    battery_degradation: float   # fractie 0..1
-
-    # TARIEF / LAND
-    country: str               # "NL" / "BE"
-    current_tariff: str        # "enkel" / "dag_nacht" / "dynamisch"
-
-    # TARIEVEN
-    p_enkel_imp: float
-    p_enkel_exp: float
-
-    p_dag: float
-    p_nacht: float
-    p_exp_dn: float
-
-    p_export_dyn: float
-
-    # VASTRECHT
-    vastrecht_year: float
-
-    # TERUGLEVERKOSTEN
-    feedin_monthly_cost: float = 0.0
-    feedin_cost_per_kwh: float = 0.0
-    feedin_free_kwh: float = 0.0
-    feedin_price_after_free: float = 0.0
-
-    # OMVORMER
-    inverter_power_kw: float = 0.0
-    inverter_cost_per_kw: float = 0.0   # per kW per jaar
-
-    # CAPACITEITSTARIEF (BE)
-    capacity_tariff_kw: float = 0.0
-
-class ComputeRequest(BaseModel):
-    # PROFIELEN
-    load_kwh: list[float]
-    pv_kwh: list[float]
-    prices_dyn: list[float]
-
-    # TARIEVEN
-    p_enkel_imp: float
-    p_enkel_exp: float
-
-    p_dag: float
-    p_nacht: float
-    p_exp_dn: float
-
-    p_export_dyn: float
-
-    # BATTERIJ
-    E: float
-    P: float
-    DoD: float
-    eta_rt: float
-    vastrecht: float
-
-    battery_cost: float
-    battery_degradation: float
-
-    # PEAK SHAVING / CAPACITEIT
-    capacity_tariff_kw: float
-    peak_shaving_enabled: bool
-
-    # HUIDIG TARIEF
-    current_tariff: str
-
-    # LAND (NL of BE)
     country: str
-
-class ComputeV3Request(BaseModel):
-    """
-    Request-body voor de nieuwe BatteryEngine Pro 3 endpoint (/compute_v3).
-    Deze lijkt sterk op ComputeRequest, maar heeft expliciete velden
-    voor terugleverkosten en omvormerkosten per jaar.
-    """
-    # PROFIELEN
-    load_kwh: list[float]
-    pv_kwh: list[float]
-    prices_dyn: list[float]
-
-    # TARIEVEN
-    p_enkel_imp: float
-    p_enkel_exp: float
-
-    p_dag: float
-    p_nacht: float
-    p_exp_dn: float
-
-    p_export_dyn: float
-
-    # BATTERIJ
-    E: float
-    P: float
-    DoD: float         # verwacht 0–1 (dus UI moet /100 doen)
-    eta_rt: float      # 0–1
-    vastrecht: float
-
-    battery_cost: float
-    battery_degradation: float  # 0–1
-
-    # TERUGLEVERKOSTEN / OMVORMER
-    feedin_monthly_cost: float
-    feedin_cost_per_kwh: float
-    feedin_free_kwh: float
-    feedin_price_after_free: float
-
-    inverter_power_kw: float
-    inverter_cost_per_kw_year: float
-
-    # CAPACITEITSTARIEF (€/kW/jaar, BE)
-    capacity_tariff_kw_year: float
-
-    # HUIDIG TARIEF / LAND
-    current_tariff: str   # "enkel" / "dag_nacht" / "dynamisch"
-    country: str          # "NL" / "BE"
 
 
 @app.post("/compute")
@@ -359,33 +203,92 @@ def compute(req: ComputeRequest):
     )
 
 
+# ============================================================
+# COMPUTE_V3 ENDPOINT (Pro 3)
+# ============================================================
+
+class ComputeV3Request(BaseModel):
+    # PROFIELEN
+    load_kwh: list[float]
+    pv_kwh: list[float]
+    prices_dyn: list[float] | None = None
+
+    # BATTERIJ
+    E: float
+    P: float
+    DoD: float
+    eta_rt: float
+    battery_cost: float
+    battery_degradation: float
+
+    # TARIEF / LAND
+    country: str
+    current_tariff: str
+
+    # TARIEVEN
+    p_enkel_imp: float
+    p_enkel_exp: float
+
+    p_dag: float
+    p_nacht: float
+    p_exp_dn: float
+
+    p_export_dyn: float
+
+    # VASTRECHT
+    vastrecht_year: float
+
+    # TERUGLEVERKOSTEN / OMVORMER
+    feedin_monthly_cost: float = 0.0
+    feedin_cost_per_kwh: float = 0.0
+    feedin_free_kwh: float = 0.0
+    feedin_price_after_free: float = 0.0
+
+    inverter_power_kw: float = 0.0
+    inverter_cost_per_kw: float = 0.0
+
+    # BE – capaciteitstarief
+    capacity_tariff_kw: float = 0.0
+
+
 @app.post("/compute_v3")
 def compute_v3(req: ComputeV3Request):
-    """
-    Nieuwe endpoint voor BatteryEngine Pro 3.
-    Nu nog een lege schil die de engine aanroept.
-    Later implementeren we BatteryEnginePro3.compute() volledig.
-    """
 
-    input_data = ComputeV3Input(
-        load_kwh=req.load_kwh,
-        pv_kwh=req.pv_kwh,
-        prices_dyn=req.prices_dyn,
+    # 1) Validatie
+    if not req.load_kwh or not req.pv_kwh:
+        return {"error": "LOAD_OR_PV_EMPTY"}
+
+    n = min(len(req.load_kwh), len(req.pv_kwh))
+    load = req.load_kwh[:n]
+    pv = req.pv_kwh[:n]
+
+    # 2) Resolutie bepalen
+    dt = detect_resolution(load)
+    start = datetime(2025, 1, 1)
+    timestamps = [start + timedelta(hours=dt * i) for i in range(n)]
+
+    load_ts = TimeSeries(timestamps, load, dt)
+    pv_ts = TimeSeries(timestamps, pv, dt)
+
+    # 3) Dynamic prices
+    dynamic_prices = req.prices_dyn if req.prices_dyn and len(req.prices_dyn) == n else None
+
+    # 4) Tariefconfig bouwen
+    tariff_cfg = TariffConfig(
+        country=req.country,
+        current_tariff=req.current_tariff,
 
         p_enkel_imp=req.p_enkel_imp,
         p_enkel_exp=req.p_enkel_exp,
+
         p_dag=req.p_dag,
         p_nacht=req.p_nacht,
         p_exp_dn=req.p_exp_dn,
-        p_export_dyn=req.p_export_dyn,
 
-        E=req.E,
-        P=req.P,
-        DoD=req.DoD,
-        eta_rt=req.eta_rt,
-        vastrecht=req.vastrecht,
-        battery_cost=req.battery_cost,
-        battery_degradation=req.battery_degradation,
+        p_export_dyn=req.p_export_dyn,
+        dynamic_prices=dynamic_prices,
+
+        vastrecht_year=req.vastrecht_year,
 
         feedin_monthly_cost=req.feedin_monthly_cost,
         feedin_cost_per_kwh=req.feedin_cost_per_kwh,
@@ -393,88 +296,83 @@ def compute_v3(req: ComputeV3Request):
         feedin_price_after_free=req.feedin_price_after_free,
 
         inverter_power_kw=req.inverter_power_kw,
-        inverter_cost_per_kw_year=req.inverter_cost_per_kw_year,
-        capacity_tariff_kw_year=req.capacity_tariff_kw_year,
+        inverter_cost_per_kw=req.inverter_cost_per_kw,
 
-        current_tariff=req.current_tariff,
-        country=req.country,
+        capacity_tariff_kw=req.capacity_tariff_kw
     )
 
-    # LET OP: deze functie is nu nog niet geïmplementeerd
-    # in BatteryEnginePro3, dus hij zal voorlopig een
-    # NotImplementedError gooien totdat we hem invullen.
-    result = BatteryEnginePro3.compute(input_data)
+    # 5) Batterijconfig bouwen
+    batt_cfg = BatteryConfig(
+        E=req.E,
+        P=req.P,
+        DoD=req.DoD,
+        eta_rt=req.eta_rt,
+        investment_eur=req.battery_cost,
+        degradation=req.battery_degradation
+    )
+
+    # 6) Engine uitvoeren
+    runner = ScenarioRunner(load_ts, pv_ts, tariff_cfg, batt_cfg)
+    result = runner.run()   # geeft dict terug (stap 13)
+
     return result
+
+
+# ============================================================
+# ADVICE GENERATOR
+# ============================================================
+
+class AdviceRequest(BaseModel):
+    country: str
+    battery: dict
+    results: dict
 
 
 @app.post("/generate_advice")
 def generate_advice(req: AdviceRequest):
-    """
-    Genereert een professioneel adviesrapport gebaseerd op berekende data.
-    Dit gebruikt GPT-5.1 (via OpenAI) voor premium aanbevelingen.
-    """
 
-    # Bouw een duidelijke prompt voor het model
     prompt = f"""
 Je bent een professionele energieconsultant gespecialiseerd in thuisbatterijen.
 
-Genereer een helder, volledig en zakelijk adviesrapport op basis van de volgende gegevens:
+Genereer een helder, volledig en zakelijk adviesrapport op basis van:
 
 Land: {req.country}
-
-Batterijconfiguratie (zoals gekozen in de tool):
+Batterijconfiguratie:
 {req.battery}
 
-Berekende resultaten uit de simulatie:
+Simulatieresultaten:
 {req.results}
 
-SCHRIJFSTRUCTUUR:
+Lever een adviesrapport met:
 1. Executive summary
-2. Financiële analyse (incl. ROI en terugverdientijd interpreteren)
-3. Energetische analyse (zelfverbruik, import, export, rol van de batterij)
-4. Land-specifiek advies:
-   - NL → focus op eigen verbruik, vermijden lage terugleververgoeding, dynamische prijzen
-   - BE → focus op peak-shaving en besparing op capaciteitstarief
-5. Concreet aankoopadvies:
-   - aanbevolen batterijcapaciteit (range, geen merk)
-   - aanbevolen laad/ontlaadvermogen (range, geen merk)
-   - risico’s / aandachtspunten
-6. Samenvatting voor gebruik in een offerte.
+2. Financiële analyse (ROI, terugverdientijd)
+3. Energetische analyse (import, export, eigen verbruik)
+4. Land-specifiek advies (NL / BE)
+5. Concreet aankoopadvies (capaciteit en vermogen)
+6. Samenvatting voor offerte
 
-STIJL:
-- Professioneel, helder, concreet
-- Geen overdreven marketingtaal
-- Schrijf als mens, niet als AI
-- Tekst in het Nederlands.
-Lever alleen de adviestekst terug, zonder extra uitleg of meta-commentaar.
+Stijl:
+- professioneel
+- helder
+- geen AI-taal
+- Nederlands
 """
 
     try:
         response = client.chat.completions.create(
             model="gpt-5.1",
             messages=[
-                {"role": "system", "content": "Je bent een gecertificeerde energieconsultant gespecialiseerd in thuisbatterijen in Nederland en België."},
+                {"role": "system", "content": "Je bent een gecertificeerde energieconsultant gespecialiseerd in thuisbatterijen."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=1200,
             temperature=0.3,
         )
 
-        advice_text = response.choices[0].message.content
-
-        return {
-            "advice": advice_text
-        }
+        return {"advice": response.choices[0].message.content}
 
     except Exception as e:
-        # Bij fout: een simpele boodschap terug
         return {
             "error": str(e),
-            "advice": "Er is een fout opgetreden bij het genereren van het advies. Probeer het later opnieuw."
+            "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
-
-
-
-
-
-
