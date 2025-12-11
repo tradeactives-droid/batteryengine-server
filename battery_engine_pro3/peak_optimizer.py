@@ -2,205 +2,55 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
 
-from .types import TimeSeries, PeakInfo
+from .battery_model import BatteryModel
+from .types import TimeSeries
 
 
-@dataclass
-class MonthlyPeaks:
-    before: List[float]
-    after: List[float]
-
+# ============================================================
+# PHASE 1 — BASELINE PEAK DETECTION
+# ============================================================
 
 class PeakOptimizer:
-    """
-    BE Peak Shaving Engine (versie 1)
-    - Detecteert maandpieken vóór batterij
-    - Berekent maandpieken NA batterij (placeholder)
-    """
 
     @staticmethod
     def compute_monthly_peaks(load: TimeSeries, pv: TimeSeries) -> List[float]:
         """
-        Berekent maandpieken (kW) ZONDER batterij.
-        load en pv zijn TimeSeries met dt_hours (bv. 0.25).
+        Berekent per maand de maximale net-afname (kW).
+        load - pv  (negatief = teruglevering → telt niet)
         """
+        n = len(load.values)
         dt = load.dt_hours
-        net = [load.values[i] - pv.values[i] for i in range(len(load))]
+        timestamps = load.timestamps
 
-        peaks = [0.0 for _ in range(12)]  # 12 maanden
+        monthly_peaks = [0.0] * 12
 
-        for i, value in enumerate(net):
-            month_index = load.month_index[i]  # 0..11
-            power_kw = value / dt             # kWh → kW
+        for i in range(n):
+            net_kw = load.values[i] - pv.values[i]
+            if net_kw < 0:
+                net_kw = 0.0  # export telt niet
+            month = timestamps[i].month - 1
+            if net_kw > monthly_peaks[month]:
+                monthly_peaks[month] = net_kw
 
-            if power_kw > peaks[month_index]:
-                peaks[month_index] = power_kw
-
-        return peaks
-
-    @staticmethod
-    def compute_monthly_peaks_after(load: TimeSeries, pv: TimeSeries, limits: List[float]) -> List[float]:
-        """
-        Placeholder voor peak-shaved pieken NA batterij.
-        Voor nu: return dezelfde waarden als ervoor.
-
-        Wordt in Stap 7B vervangen door echte peak shaving.
-        """
-        return PeakOptimizer.compute_monthly_peaks(load, pv)
+        return monthly_peaks
 
     @staticmethod
-    def compute_peakinfo(load: TimeSeries, pv: TimeSeries, limits: List[float]) -> PeakInfo:
+    def compute_monthly_targets(baseline_peaks: List[float], reduction_factor: float = 0.85) -> List[float]:
         """
-        Bouwt PeakInfo object zoals ScenarioRunner verwacht.
+        Doelpeiken (bijv. 15% reductie = factor 0.85).
         """
-        before = PeakOptimizer.compute_monthly_peaks(load, pv)
-        after  = PeakOptimizer.compute_monthly_peaks_after(load, pv, limits)
+        return [p * reduction_factor for p in baseline_peaks]
 
-        return PeakInfo(monthly_before=before, monthly_after=after)
-
-
-    # ------------------------------------------------------------
-    #  PEAK SHAVING – FASE 1
-    # ------------------------------------------------------------
-    @staticmethod
-    def compute_monthly_targets(before_peaks: List[float], reduction_factor: float = 0.85) -> List[float]:
-        """
-        Bepaalt peak targets per maand.
-        reduction_factor = 0.85 betekent 15% reductie t.o.v. oorspronkelijke piek.
-        Dit is een eenvoudige, maar effectief startpunt.
-        """
-        return [p * reduction_factor for p in before_peaks]
-
-    @staticmethod
-    def simulate_with_peak_shaving(
-        load: TimeSeries,
-        pv: TimeSeries,
-        battery: BatteryModel,
-        monthly_targets: List[float]
-    ):
-        """
-        Simuleert batterijgedrag MET peak shaving:
-        Ontlaadt batterij wanneer (load > target), zodat load nooit boven target komt.
-        """
-
-        dt = load.dt_hours
-        values_load = load.values
-        values_pv = pv.values
-        n = len(values_load)
-
-        soc = battery.initial_soc_kwh
-        P = battery.power_kw
-        eta_c = battery.eta_charge
-        eta_d = battery.eta_discharge
-        E_min = battery.E_min
-        E_max = battery.E_max
-
-        import_profile = []
-        export_profile = []
-        soc_profile = []
-
-        new_monthly_peaks = [0.0] * 12
-
-        for t in range(n):
-            month = load.month_index[t]
-            target = monthly_targets[month]
-
-            net = values_load[t] - values_pv[t]      # positief = tekort
-            dt_energy = P * dt                       # max dis/charge per timestep
-
-            # ------------------------------------------------------------
-            # 1. Als load onder target zit → normale simulatie
-            # ------------------------------------------------------------
-            if net <= target * dt:
-                # Normale laad/ontlaadregels (zoals simulate_with_battery)
-                # Maar eenvoudiger hier
-                if net > 0:
-                    # tekort → ontladen
-                    discharge = min(net, dt_energy)
-                    dis_batt = discharge / eta_d
-
-                    if soc - dis_batt < E_min:
-                        dis_batt = soc - E_min
-
-                    delivered = dis_batt * eta_d
-                    soc -= dis_batt
-                    grid_import = net - delivered
-                    if grid_import < 0:
-                        grid_import = 0.0
-
-                    import_profile.append(grid_import)
-                    export_profile.append(0.0)
-
-                else:
-                    # overschot → laden
-                    surplus = -net
-                    charge = min(surplus, dt_energy)
-                    charge_into = charge * eta_c
-
-                    if soc + charge_into > E_max:
-                        charge_into = E_max - soc
-
-                    soc += charge_into
-                    export_val = surplus - (charge_into / eta_c)
-                    if export_val < 0:
-                        export_val = 0.0
-
-                    import_profile.append(0.0)
-                    export_profile.append(export_val)
-
-            # ------------------------------------------------------------
-            # 2. Als load boven target komt → peak shaving
-            # ------------------------------------------------------------
-            else:
-                # hoeveel moeten we verlagen?
-                desired_kw = target                   # kW doel
-                actual_kw = values_load[t] - values_pv[t] / dt  # kW
-                reduction_kw = actual_kw - desired_kw
-
-                reduction_kwh = reduction_kw * dt
-
-                # hoeveel kan batterij leveren?
-                deliverable = min(dt_energy, reduction_kwh)
-                dis_batt = deliverable / eta_d
-
-                if soc - dis_batt < E_min:
-                    dis_batt = soc - E_min
-
-                delivered = dis_batt * eta_d
-                soc -= dis_batt
-
-                # nieuwe net belasting:
-                new_net = net - delivered
-                if new_net < 0:
-                    new_net = 0.0
-
-                import_profile.append(new_net)
-                export_profile.append(0.0)
-
-            # track nieuwe maandpiek
-            new_power_kw = max(0.0, (import_profile[-1]) / dt)
-            if new_power_kw > new_monthly_peaks[month]:
-                new_monthly_peaks[month] = new_power_kw
-
-            soc_profile.append(soc)
-
-        return new_monthly_peaks, import_profile, export_profile, soc_profile
 
 # ============================================================
-# PHASE 3 — ADVANCED PEAK SHAVING PLANNING LAYER
+# PHASE 2 + 3 — ADVANCED PEAK SHAVING SIMULATION
 # ============================================================
-
-from typing import List, Tuple
-
 
 class PeakShavingPlanner:
     """
-    Planlaag die SoC-capaciteit reserveert om maandpieken vooraf te kunnen scheren.
-
-    Output:
-    - soc_targets: lijst met SoC-doelen per timestep (kWh)
+    Maakt een dynamische SoC-min curve.
     """
 
     @staticmethod
@@ -210,12 +60,7 @@ class PeakShavingPlanner:
         timestep_hours: float = 0.25
     ) -> float:
         """
-        Berekent hoeveel kWh de batterij moet opslaan om deze piek te scheren.
-
-        Bijv:
-        baseline = 8 kW
-        target   = 4 kW
-        → delta = 4 kW * 0.25 h = 1 kWh
+        Hoeveel kWh moet de batterij opslaan om piek te scheren?
         """
         delta_kw = max(0.0, baseline_peak_kw - target_peak_kw)
         return delta_kw * timestep_hours
@@ -228,48 +73,148 @@ class PeakShavingPlanner:
         baseline_peaks: List[float],
         target_peaks: List[float]
     ) -> List[float]:
-        """
-        Bouwt een SoC-planningscurve voor de volledige tijdreeks (1 jaar).
-
-        Regels:
-        1) Voor elke maand berekenen we de vereiste opslag (reserve)
-        2) Voor die maand moet de batterij nooit onder reserve kWh komen
-        3) SoC_min = battery.E_min + reserve
-        4) Als SoC lager dreigt te worden → batterij moet opladen
-        """
 
         n = len(load.values)
         dt = load.dt_hours
-
         timestamps = load.timestamps
+
         soc_min_dynamic = [battery.E_min] * n
 
-        # ------------------------------
-        # 1. Bepaal reserve per maand
-        # ------------------------------
-        monthly_reserve_kwh = []
+        # Reserve per maand
+        monthly_reserve = []
         for m in range(12):
-
-            baseline = baseline_peaks[m]
-            target = target_peaks[m]
-
             reserve = PeakShavingPlanner.compute_required_reserve(
-                baseline_peak_kw=baseline,
-                target_peak_kw=target,
-                timestep_hours=0.25  # kwartierwaarden
+                baseline_peaks[m],
+                target_peaks[m],
+                timestep_hours=dt
             )
+            monthly_reserve.append(reserve)
 
-            monthly_reserve_kwh.append(reserve)
-
-        # ------------------------------
-        # 2. Bouw SoC-limieten per timestep
-        # ------------------------------
+        # SoC limiet curve
         for i in range(n):
             month = timestamps[i].month - 1
-            reserve_kwh = monthly_reserve_kwh[month]
-
-            # Batterij mag niet onder:
-            # E_min + reserve vallen
-            soc_min_dynamic[i] = battery.E_min + reserve_kwh
+            soc_min_dynamic[i] = battery.E_min + monthly_reserve[month]
 
         return soc_min_dynamic
+
+
+# ============================================================
+# PHASE 3 — DETAILED PEAK SHAVING ENGINE
+# ============================================================
+
+class PeakOptimizer:
+
+    @staticmethod
+    def simulate_with_peak_shaving(
+        load: TimeSeries,
+        pv: TimeSeries,
+        battery: BatteryModel,
+        monthly_targets: List[float],
+        soc_plan: List[float]  # NIEUW: dynamische SoC ondergrens
+    ) -> Tuple[List[float], List[float], List[float], List[float]]:
+        """
+        Geavanceerde peak shaving simulatie:
+
+        - Houdt rekening met soc_plan (SoC mag niet onder planning)
+        - Scheren: als net load > target_peak → batterij ontladen
+        - Slim laden: bij PV-overschot wordt geladen tot limieten
+        - Import/export correct uitrekenen
+        """
+
+        load_v = load.values
+        pv_v = pv.values
+        ts = load.timestamps
+        dt = load.dt_hours
+        n = len(load_v)
+
+        # Batterij parameters
+        P = battery.power_kw
+        eta_c = battery.eta_charge
+        eta_d = battery.eta_discharge
+        E_min = battery.E_min
+        E_max = battery.E_max
+
+        soc = battery.initial_soc_kwh
+
+        import_profile = [0.0] * n
+        export_profile = [0.0] * n
+        soc_profile = [0.0] * n
+
+        # Output peaks
+        monthly_peaks_after = [0.0] * 12
+
+        for t in range(n):
+            month = ts[t].month - 1
+            target_peak = monthly_targets[month]
+            soc_min_required = soc_plan[t]
+
+            load_kw = load_v[t]
+            pv_kw = pv_v[t]
+            net_kw = load_kw - pv_kw
+
+            # -----------------------------------------
+            # CASE 1: net_kw > target_peak → peak shaving
+            # -----------------------------------------
+            if net_kw > target_peak:
+                required_kw = net_kw - target_peak
+                max_discharge_kw = P
+
+                discharge_kw = min(required_kw, max_discharge_kw)
+
+                # Hoeveel energie moet van SoC af gaan?
+                discharge_kwh_from_batt = discharge_kw * dt / eta_d
+
+                # Respecteer SoC ondergrens
+                if soc - discharge_kwh_from_batt < soc_min_required:
+                    discharge_kwh_from_batt = max(0.0, soc - soc_min_required)
+
+                real_delivered_kw = discharge_kwh_from_batt * eta_d / dt
+
+                soc -= discharge_kwh_from_batt
+
+                grid_kw = load_kw - pv_kw - real_delivered_kw
+                if grid_kw < 0:
+                    grid_kw = 0
+
+                import_profile[t] = grid_kw
+                export_profile[t] = 0.0
+
+            # ---------------------------------------------------
+            # CASE 2: net_kw <= target_peak → eigenverbruik + laden
+            # ---------------------------------------------------
+            else:
+                net_surplus_kw = pv_kw - load_kw
+
+                if net_surplus_kw > 0:
+                    # PV overschot → laden
+                    charge_kw = min(net_surplus_kw, P)
+
+                    charge_kwh_into_batt = charge_kw * dt * eta_c
+
+                    # Respecteer SoC-max
+                    if soc + charge_kwh_into_batt > E_max:
+                        charge_kwh_into_batt = E_max - soc
+
+                    soc += charge_kwh_into_batt
+
+                    export_kw = net_surplus_kw - (charge_kwh_into_batt / dt / eta_c)
+                    if export_kw < 0:
+                        export_kw = 0.0
+
+                    import_profile[t] = 0.0
+                    export_profile[t] = export_kw
+
+                else:
+                    # Klein tekort → import uit net
+                    import_profile[t] = -net_surplus_kw
+                    export_profile[t] = 0.0
+
+            # Save SoC
+            soc_profile[t] = soc
+
+            # Update after-peak for month
+            grid_kw_final = import_profile[t]
+            if grid_kw_final > monthly_peaks_after[month]:
+                monthly_peaks_after[month] = grid_kw_final
+
+        return monthly_peaks_after, import_profile, export_profile, soc_profile
