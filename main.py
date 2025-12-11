@@ -302,6 +302,53 @@ def compute(req: ComputeRequest):
     )
 
 
+@app.post("/compute_v3")
+def compute_v3(req: ComputeV3Request):
+    """
+    Nieuwe endpoint voor BatteryEngine Pro 3.
+    Nu nog een lege schil die de engine aanroept.
+    Later implementeren we BatteryEnginePro3.compute() volledig.
+    """
+
+    input_data = ComputeV3Input(
+        load_kwh=req.load_kwh,
+        pv_kwh=req.pv_kwh,
+        prices_dyn=req.prices_dyn,
+
+        p_enkel_imp=req.p_enkel_imp,
+        p_enkel_exp=req.p_enkel_exp,
+        p_dag=req.p_dag,
+        p_nacht=req.p_nacht,
+        p_exp_dn=req.p_exp_dn,
+        p_export_dyn=req.p_export_dyn,
+
+        E=req.E,
+        P=req.P,
+        DoD=req.DoD,
+        eta_rt=req.eta_rt,
+        vastrecht=req.vastrecht,
+        battery_cost=req.battery_cost,
+        battery_degradation=req.battery_degradation,
+
+        feedin_monthly_cost=req.feedin_monthly_cost,
+        feedin_cost_per_kwh=req.feedin_cost_per_kwh,
+        feedin_free_kwh=req.feedin_free_kwh,
+        feedin_price_after_free=req.feedin_price_after_free,
+
+        inverter_power_kw=req.inverter_power_kw,
+        inverter_cost_per_kw_year=req.inverter_cost_per_kw_year,
+        capacity_tariff_kw_year=req.capacity_tariff_kw_year,
+
+        current_tariff=req.current_tariff,
+        country=req.country,
+    )
+
+    # LET OP: deze functie is nu nog niet geïmplementeerd
+    # in BatteryEnginePro3, dus hij zal voorlopig een
+    # NotImplementedError gooien totdat we hem invullen.
+    result = BatteryEnginePro3.compute(input_data)
+    return result
+
 
 @app.post("/generate_advice")
 def generate_advice(req: AdviceRequest):
@@ -368,5 +415,6 @@ Lever alleen de adviestekst terug, zonder extra uitleg of meta-commentaar.
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies. Probeer het later opnieuw."
         }
+
 
 
