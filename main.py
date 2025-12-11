@@ -137,39 +137,6 @@ def parse_csv(req: ParseCSVRequest):
     }
 
 
-# ============================================================
-# COMPUTE ENDPOINT (Pro 2)
-# ============================================================
-
-class ComputeRequest(BaseModel):
-    load_kwh: list[float]
-    pv_kwh: list[float]
-    prices_dyn: list[float]
-
-    p_enkel_imp: float
-    p_enkel_exp: float
-
-    p_dag: float
-    p_nacht: float
-    p_exp_dn: float
-
-    p_export_dyn: float
-
-    E: float
-    P: float
-    DoD: float
-    eta_rt: float
-    vastrecht: float
-
-    battery_cost: float
-    battery_degradation: float
-
-    capacity_tariff_kw: float
-    peak_shaving_enabled: bool
-
-    current_tariff: str
-    country: str
-
 
 # ============================================================
 # COMPUTE_V3 ENDPOINT (Pro 3)
@@ -344,5 +311,6 @@ Stijl:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
