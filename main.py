@@ -247,10 +247,43 @@ def compute_v3(req: ComputeV3Request):
         degradation=req.battery_degradation
     )
 
-    # 6) Engine uitvoeren
-    runner = ScenarioRunner(load_ts, pv_ts, tariff_cfg, batt_cfg)
-    result = runner.run()   # geeft dict terug (stap 13)
+# 6) Engine uitvoeren via BatteryEnginePro3
+    input_payload = {
+        "load_kwh": req.load_kwh,
+        "pv_kwh": req.pv_kwh,
+        "prices_dyn": req.prices_dyn,
 
+        "E": req.E,
+        "P": req.P,
+        "DoD": req.DoD,
+        "eta_rt": req.eta_rt,
+        "battery_cost": req.battery_cost,
+        "battery_degradation": req.battery_degradation,
+
+        "country": req.country,
+        "current_tariff": req.current_tariff,
+
+        "p_enkel_imp": req.p_enkel_imp,
+        "p_enkel_exp": req.p_enkel_exp,
+        "p_dag": req.p_dag,
+        "p_nacht": req.p_nacht,
+        "p_exp_dn": req.p_exp_dn,
+        "p_export_dyn": req.p_export_dyn,
+
+        "vastrecht": req.vastrecht_year,
+
+        "feedin_monthly_cost": req.feedin_monthly_cost,
+        "feedin_cost_per_kwh": req.feedin_cost_per_kwh,
+        "feedin_free_kwh": req.feedin_free_kwh,
+        "feedin_price_after_free": req.feedin_price_after_free,
+
+        "inverter_power_kw": req.inverter_power_kw,
+        "inverter_cost_per_kw_year": req.inverter_cost_per_kw,
+
+        "capacity_tariff_kw_year": req.capacity_tariff_kw,
+    }
+
+    result = BatteryEnginePro3.compute(input_payload)
     return result
 
 
@@ -312,6 +345,7 @@ Stijl:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
