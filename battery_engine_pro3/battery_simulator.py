@@ -88,9 +88,93 @@ class BatterySimulator:
 
     def simulate_with_battery(self) -> SimulationResult:
         """
-        Simulatie mét batterij (automatische strategie per land).
-
-        - BE: automatische peak shaving
-        - NL: automatische optimalisatie op eigen verbruik / feed-in / prijzen
+        Baseline batterijsimulatie (zonder peak shaving).
+        Laadt bij overschot, ontlaadt bij tekort, respecteert:
+        - P_max
+        - E_min / E_max
+        - Efficiëntie (eta_c / eta_d)
         """
-        raise NotImplementedError("BatterySimulator.simulate_with_battery is not implemented yet")
+
+        load = self.load.values
+        pv = self.pv.values
+        n = len(load)
+
+        dt = self.load.dt_hours
+        batt = self.battery
+
+        E = batt.capacity_kwh
+        P_max = batt.power_kw
+        eta_c = batt.eta_charge
+        eta_d = batt.eta_discharge
+        E_min = batt.E_min
+        E_max = batt.E_max
+
+        soc = batt.initial_soc_kwh
+
+        import_profile = []
+        export_profile = []
+        soc_profile = []
+
+        for t in range(n):
+            net = load[t] - pv[t]  # positief = import nodig
+
+            if net > 0:
+                # ------------------------------------------
+                # ONTLADEN (vraag > opwek)
+                # ------------------------------------------
+                max_discharge_kwh = P_max * dt  # kWh
+                discharge_needed = min(net, max_discharge_kwh)
+
+                # Door efficiëntie geeft batt minder energie af dan SoC verliest
+                discharge_from_batt = discharge_needed / eta_d
+
+                if soc - discharge_from_batt < E_min:
+                    discharge_from_batt = soc - E_min
+
+                # werkelijke batterijoutput
+                delivered = discharge_from_batt * eta_d
+
+                soc -= discharge_from_batt
+                grid_import = net - delivered
+
+                if grid_import < 0:
+                    grid_import = 0.0
+
+                import_profile.append(grid_import)
+                export_profile.append(0.0)
+
+            else:
+                # ------------------------------------------
+                # LADEN (opwek > vraag)
+                # ------------------------------------------
+                surplus = -net
+                max_charge_kwh = P_max * dt  # kWh
+
+                charge_possible = min(surplus, max_charge_kwh)
+
+                # Door efficiëntie neemt de batterij minder toe dan je erin stopt
+                charge_into_batt = charge_possible * eta_c
+
+                if soc + charge_into_batt > E_max:
+                    charge_into_batt = E_max - soc
+
+                soc += charge_into_batt
+
+                # grid export = PV overschot dat niet in de batterij kan
+                grid_export = surplus - (charge_into_batt / eta_c)
+                if grid_export < 0:
+                    grid_export = 0.0
+
+                import_profile.append(0.0)
+                export_profile.append(grid_export)
+
+            soc_profile.append(soc)
+
+        return SimulationResult(
+            import_kwh=sum(import_profile),
+            export_kwh=sum(export_profile),
+            import_profile=import_profile,
+            export_profile=export_profile,
+            soc_profile=soc_profile,
+            dt_hours=dt
+        )
