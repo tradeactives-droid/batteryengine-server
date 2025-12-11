@@ -32,7 +32,9 @@ class CostEngine:
         self,
         import_profile_kwh: List[float],
         export_profile_kwh: List[float],
-        tariff_type: TariffCode
+        tariff_type: TariffCode,
+        peak_kw_before: float | None = None,
+        peak_kw_after: float | None = None
     ) -> ScenarioResult:
         """
         Bereken totale kosten (per jaar) voor een gegeven import/export profiel
