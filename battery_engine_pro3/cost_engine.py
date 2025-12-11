@@ -103,6 +103,17 @@ class CostEngine:
         # -------------------------------
         capacity_tariff = 0.0
 
+        # ----------------------------------------
+        # Capaciteitstarief België (realistisch BE model)
+        # peak_kw_before  = oude piek (kW)
+        # peak_kw_after   = nieuwe piek met batterij (kW)
+        # ----------------------------------------
+        if country == "BE" and peak_kw_before is not None and peak_kw_after is not None:
+            delta_kw = peak_kw_after - peak_kw_before
+            capacity_tariff = delta_kw * cfg.capacity_tariff_kw  # €/kW·jaar
+        else:
+            capacity_tariff = 0.0
+
         # -------------------------------
         # 5. Vastrecht
         # -------------------------------
