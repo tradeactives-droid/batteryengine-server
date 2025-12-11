@@ -9,23 +9,52 @@ from .types import ROIResult
 
 @dataclass
 class ROIConfig:
-    battery_cost_eur: float
-    degradation_per_year: float  # 0–1
-    horizon_years: int = 15
+    """
+    Configuratie voor ROI-berekening.
+    """
+    battery_cost_eur: float          # totale investering in de batterij
+    yearly_saving_eur: float         # besparing in het eerste jaar (€/jaar)
+    degradation: float               # jaarlijkse degradatie (bijv. 0.02 = 2%)
+    horizon_years: int = 15          # berekenhorizon (standaard 15 jaar)
 
 
 class ROIEngine:
     """
-    Berekent ROI, totale besparing over levensduur en terugverdientijd.
+    Berekent ROI, terugverdientijd en totale besparing over de levensduur.
     """
 
-    def __init__(self, config: ROIConfig) -> None:
-        self.cfg = config
-
-    def compute_roi(self, base_saving_per_year_eur: float) -> ROIResult:
+    @staticmethod
+    def compute(cfg: ROIConfig) -> ROIResult:
         """
-        base_saving_per_year_eur = besparing in jaar 1.
-
-        Later nemen we hier batterijdegradatie in mee over meerdere jaren.
+        Eenvoudig maar realistisch ROI-model:
+        - elk jaar daalt de besparing met (1 - degradatie)^(jaar-1)
+        - payback = eerste jaar waarin cumulatieve besparing >= investering
+        - roi_percent = totale besparing / investering * 100
         """
-        raise NotImplementedError("ROIEngine.compute_roi is not implemented yet")
+
+        # Geen investering of besparing → geen ROI
+        if cfg.battery_cost_eur <= 0 or cfg.yearly_saving_eur <= 0:
+            return ROIResult(
+                yearly_saving_eur=cfg.yearly_saving_eur,
+                payback_years=None,
+                roi_percent=0.0
+            )
+
+        total_savings = 0.0
+        payback: Optional[int] = None
+
+        for year in range(1, cfg.horizon_years + 1):
+            factor = (1.0 - cfg.degradation) ** (year - 1)
+            year_save = cfg.yearly_saving_eur * factor
+            total_savings += year_save
+
+            if payback is None and total_savings >= cfg.battery_cost_eur:
+                payback = year
+
+        roi_percent = (total_savings / cfg.battery_cost_eur) * 100.0
+
+        return ROIResult(
+            yearly_saving_eur=cfg.yearly_saving_eur,
+            payback_years=payback,
+            roi_percent=roi_percent
+        )
