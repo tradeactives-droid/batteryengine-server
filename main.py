@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from openai import OpenAI
 
 # Engine imports
-from BatteryEngine_Pro2 import compute_scenarios_v2
 from battery_engine_pro3.scenario_runner import ScenarioRunner
 from battery_engine_pro3.types import TimeSeries, TariffConfig, BatteryConfig
 
@@ -376,3 +375,4 @@ Stijl:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
