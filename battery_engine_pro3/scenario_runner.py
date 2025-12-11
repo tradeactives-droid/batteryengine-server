@@ -185,39 +185,24 @@ class ScenarioRunner:
         with_batt_cost = C1_costs[current_tariff].total_cost_eur
 
         # ----------------------------------------------------
-        # 4. ROI-berekening (eenvoudig model)
+        # 4. ROI-berekening via ROIEngine
         # ----------------------------------------------------
         yearly_saving = baseline_cost - with_batt_cost
 
-        if self.batt_cfg is None or self.batt_cfg.investment_eur <= 0 or yearly_saving <= 0:
+        if self.batt_cfg is None:
             roi_result = ROIResult(
                 yearly_saving_eur=yearly_saving,
                 payback_years=None,
                 roi_percent=0.0
             )
         else:
-            invest = self.batt_cfg.investment_eur
-            degr = self.batt_cfg.degradation  # fractie per jaar, bijv. 0.02
-            horizon = 15
-
-            total_savings = 0.0
-            payback: Optional[int] = None
-
-            for year in range(1, horizon + 1):
-                factor = (1 - degr) ** (year - 1)
-                year_save = yearly_saving * factor
-                total_savings += year_save
-
-                if payback is None and total_savings >= invest:
-                    payback = year
-
-            roi_percent = (total_savings / invest) * 100.0
-
-            roi_result = ROIResult(
+            roi_cfg = ROIConfig(
+                battery_cost_eur=self.batt_cfg.investment_eur,
                 yearly_saving_eur=yearly_saving,
-                payback_years=payback,
-                roi_percent=roi_percent
+                degradation=self.batt_cfg.degradation,
+                horizon_years=15
             )
+            roi_result = ROIEngine.compute(roi_cfg)
 
         # ----------------------------------------------------
         # 5. FullScenarioOutput teruggeven
