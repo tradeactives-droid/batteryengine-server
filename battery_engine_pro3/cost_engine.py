@@ -38,16 +38,7 @@ class CostEngine:
     ) -> ScenarioResult:
         """
         Bereken totale kosten (per jaar) voor een gegeven import/export profiel
-        onder een bepaald tarief.
-
-        TODO: implementatie van:
-        - import * prijs
-        - export * feed-in
-        - feed-in vaste kosten
-        - staffel
-        - omvormer
-        - capaciteitstarief (BE)
-        - vastrecht
+        + optioneel capaciteitstarief (BE).
         """
 
         cfg = self.cfg
@@ -63,7 +54,6 @@ class CostEngine:
             revenue_energy = total_export_kwh * cfg.p_enkel_exp
 
         elif tariff_type == "dag_nacht":
-            # Baseline benadering — later uitbreiden op timestamps
             avg_price = 0.5 * cfg.p_dag + 0.5 * cfg.p_nacht
             cost_energy = total_import_kwh * avg_price
             revenue_energy = total_export_kwh * cfg.p_exp_dn
@@ -71,7 +61,6 @@ class CostEngine:
         elif tariff_type == "dynamisch":
             if cfg.dynamic_prices is None:
                 raise ValueError("Dynamic tariff selected but dynamic_prices missing")
-
             dyn_price_avg = sum(cfg.dynamic_prices) / len(cfg.dynamic_prices)
             cost_energy = total_import_kwh * dyn_price_avg
             revenue_energy = total_export_kwh * cfg.p_export_dyn
@@ -94,23 +83,14 @@ class CostEngine:
         # -------------------------------
         # 3. Omvormerkosten
         # -------------------------------
-        # LET OP — correcte variabele naam
         inverter_cost = cfg.inverter_power_kw * cfg.inverter_cost_per_kw
 
         # -------------------------------
-        # 4. Capaciteitstarief (BE)
-        # Wordt later overschreven door PeakEngine
+        # 4. Capaciteitstarief BE
         # -------------------------------
-        capacity_tariff = 0.0
-
-        # ----------------------------------------
-        # Capaciteitstarief België (realistisch BE model)
-        # peak_kw_before  = oude piek (kW)
-        # peak_kw_after   = nieuwe piek met batterij (kW)
-        # ----------------------------------------
         if country == "BE" and peak_kw_before is not None and peak_kw_after is not None:
             delta_kw = peak_kw_after - peak_kw_before
-            capacity_tariff = delta_kw * cfg.capacity_tariff_kw  # €/kW·jaar
+            capacity_tariff = delta_kw * cfg.capacity_tariff_kw
         else:
             capacity_tariff = 0.0
 
