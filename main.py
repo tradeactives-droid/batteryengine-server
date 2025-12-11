@@ -223,6 +223,53 @@ class ComputeRequest(BaseModel):
     # LAND (NL of BE)
     country: str
 
+class ComputeV3Request(BaseModel):
+    """
+    Request-body voor de nieuwe BatteryEngine Pro 3 endpoint (/compute_v3).
+    Deze lijkt sterk op ComputeRequest, maar heeft expliciete velden
+    voor terugleverkosten en omvormerkosten per jaar.
+    """
+    # PROFIELEN
+    load_kwh: list[float]
+    pv_kwh: list[float]
+    prices_dyn: list[float]
+
+    # TARIEVEN
+    p_enkel_imp: float
+    p_enkel_exp: float
+
+    p_dag: float
+    p_nacht: float
+    p_exp_dn: float
+
+    p_export_dyn: float
+
+    # BATTERIJ
+    E: float
+    P: float
+    DoD: float         # verwacht 0–1 (dus UI moet /100 doen)
+    eta_rt: float      # 0–1
+    vastrecht: float
+
+    battery_cost: float
+    battery_degradation: float  # 0–1
+
+    # TERUGLEVERKOSTEN / OMVORMER
+    feedin_monthly_cost: float
+    feedin_cost_per_kwh: float
+    feedin_free_kwh: float
+    feedin_price_after_free: float
+
+    inverter_power_kw: float
+    inverter_cost_per_kw_year: float
+
+    # CAPACITEITSTARIEF (€/kW/jaar, BE)
+    capacity_tariff_kw_year: float
+
+    # HUIDIG TARIEF / LAND
+    current_tariff: str   # "enkel" / "dag_nacht" / "dynamisch"
+    country: str          # "NL" / "BE"
+
 
 @app.post("/compute")
 def compute(req: ComputeRequest):
@@ -321,4 +368,5 @@ Lever alleen de adviestekst terug, zonder extra uitleg of meta-commentaar.
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies. Probeer het later opnieuw."
         }
+
 
