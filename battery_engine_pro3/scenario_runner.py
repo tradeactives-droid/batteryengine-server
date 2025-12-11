@@ -14,22 +14,21 @@ from .types import (
     TariffCode,
 )
 from .battery_model import BatteryModel
+    ##
 from .battery_simulator import BatterySimulator
 from .cost_engine import CostEngine
 from .peak_optimizer import PeakOptimizer
+from .peak_optimizer import PeakShavingPlanner  # Fase 3 planning
 from .roi_engine import ROIEngine, ROIConfig
 
 
+# ======================================================
+# FullScenarioOutput
+# ======================================================
 @dataclass
 class FullScenarioOutput:
     """
-    Volledige output van BatteryEngine Pro 3:
-
-    - A1: huidige situatie (zonder batterij, huidig tarief)
-    - B1: toekomst zonder batterij (per tarief)
-    - C1: toekomst met batterij (per tarief)
-    - roi: ROI-resultaten (besparing, terugverdientijd, ROI%)
-    - peaks: peak shaving info (alleen relevant voor BE)
+    Volledige output van BatteryEngine Pro 3.
     """
     A1: ScenarioResult
     B1: Dict[TariffCode, ScenarioResult]
@@ -38,9 +37,16 @@ class FullScenarioOutput:
     peaks: PeakInfo
 
 
+# ======================================================
+# ScenarioRunner
+# ======================================================
 class ScenarioRunner:
     """
-    Orkestreert alle scenario’s (A1, B1, C1, ROI, peaks).
+    Orkestreert alle scenario’s:
+    A1 = huidige situatie (geen batterij)
+    B1 = toekomst zonder batterij
+    C1 = toekomst met batterij (incl. BE peak shaving)
+    ROI = 15 jaar
     """
 
     def __init__(
@@ -55,10 +61,10 @@ class ScenarioRunner:
         self.tariff_cfg = tariff_cfg
         self.batt_cfg = batt_cfg
 
+    # ----------------------------------------------------
+    # Battery builder
+    # ----------------------------------------------------
     def _build_battery_model(self) -> BatteryModel:
-        """
-        Helper: bouwt een BatteryModel op basis van BatteryConfig.
-        """
         if self.batt_cfg is None:
             raise ValueError("BatteryConfig is required for battery scenarios")
 
@@ -70,24 +76,17 @@ class ScenarioRunner:
             eta=cfg.eta_rt
         )
 
+    # ----------------------------------------------------
+    # Main execution
+    # ----------------------------------------------------
     def run(self) -> FullScenarioOutput:
-        """
-        Voert alle scenario's uit:
-        - A1 (huidig tarief, geen batterij)
-        - B1 (toekomst zonder batterij, alle tarieven)
-        - C1 (met batterij: NL = normaal, BE = peak shaving)
-        - ROI (15 jaar, incl. degradatie)
-        - PeakInfo (alleen BE)
-        """
-
-        country = self.tariff_cfg.country   # "NL" of "BE"
-        current_tariff = self.tariff_cfg.current_tariff  # "enkel" / "dag_nacht" / "dynamisch"
-
+        country = self.tariff_cfg.country          # "NL" / "BE"
+        current_tariff = self.tariff_cfg.current_tariff
         cost_engine = CostEngine(self.tariff_cfg)
 
-        # ----------------------------------------------------
-        # 1. Scenario A1 — huidige situatie (geen batterij)
-        # ----------------------------------------------------
+        # =================================================
+        # 1. A1 — huidige situatie
+        # =================================================
         sim_no = BatterySimulator(self.load, self.pv, battery=None)
         A1_sim = sim_no.simulate_no_battery()
 
@@ -97,68 +96,82 @@ class ScenarioRunner:
             current_tariff
         )
 
-        # ----------------------------------------------------
-        # 2. Scenario B1 — toekomst zonder batterij (alle tarieven)
-        # ----------------------------------------------------
+        # =================================================
+        # 2. B1 — toekomst zonder batterij (alle tarieven)
+        # =================================================
         B1_sim = sim_no.simulate_no_battery()
 
         B1_costs: Dict[TariffCode, ScenarioResult] = {
-            peak_before_kw = max(baseline_peaks)
-    peak_after_kw = max(new_peaks)
-
-    C1_costs = {
-        "enkel": cost_engine.compute_cost(
-            C1_import, C1_export, "enkel",
-            peak_kw_before=peak_before_kw,
-            peak_kw_after=peak_after_kw
-        ),
-        "dag_nacht": cost_engine.compute_cost(
-            C1_import, C1_export, "dag_nacht",
-            peak_kw_before=peak_before_kw,
-            peak_kw_after=peak_after_kw
-        ),
-        "dynamisch": cost_engine.compute_cost(
-            C1_import, C1_export, "dynamisch",
-            peak_kw_before=peak_before_kw,
-            peak_kw_after=peak_after_kw
-        ),
-    }
+            "enkel":     cost_engine.compute_cost(B1_sim.import_profile, B1_sim.export_profile, "enkel"),
+            "dag_nacht": cost_engine.compute_cost(B1_sim.import_profile, B1_sim.export_profile, "dag_nacht"),
+            "dynamisch": cost_engine.compute_cost(B1_sim.import_profile, B1_sim.export_profile, "dynamisch"),
         }
 
         baseline_cost = B1_costs[current_tariff].total_cost_eur
 
-        # ----------------------------------------------------
-        # 3. Scenario C1 — toekomst met batterij
-        # ----------------------------------------------------
+        # =================================================
+        # 3. C1 — toekomst met batterij
+        # =================================================
         if self.batt_cfg is None:
-            # Geen batterijconfig → C1 = gelijk aan B1
+            # Geen batterij → zelfde als B1
             C1_costs = B1_costs.copy()
             peak_info = PeakInfo(monthly_before=[], monthly_after=[])
+
         else:
             battery_model = self._build_battery_model()
 
+            # --------------------------------------------
+            # BE → Peak Shaving FASE 1+2+3
+            # --------------------------------------------
             if country == "BE":
-                # 3A. BE → Peak Shaving
 
-                # Baseline maandpieken (zonder batterij)
+                # Fase 1: baseline peaks
                 baseline_peaks = PeakOptimizer.compute_monthly_peaks(self.load, self.pv)
 
-                # Targets (bijv. 15% reductie)
-                monthly_targets = PeakOptimizer.compute_monthly_targets(baseline_peaks, reduction_factor=0.85)
+                # Fase 2: targets (bijv 85%)
+                monthly_targets = PeakOptimizer.compute_monthly_targets(
+                    baseline_peaks,
+                    reduction_factor=0.85
+                )
 
-                # Simuleer batterij MET peak shaving
+                # Fase 3: SoC–planning curve
+                soc_plan = PeakShavingPlanner.plan_monthly_soc_targets(
+                    self.load,
+                    self.pv,
+                    battery_model,
+                    baseline_peaks,
+                    monthly_targets
+                )
+
+                # Peak–shaving simulatie (met soc_plan)
                 new_peaks, C1_import, C1_export, C1_soc = PeakOptimizer.simulate_with_peak_shaving(
                     self.load,
                     self.pv,
                     battery_model,
-                    monthly_targets
+                    monthly_targets,
+                    soc_plan
                 )
 
-                # Kosten met batterij (alle tarieven)
+                # Capaciteitstarief heeft JAAR–piek nodig
+                peak_before_kw = max(baseline_peaks)
+                peak_after_kw  = max(new_peaks)
+
                 C1_costs = {
-                    "enkel":     cost_engine.compute_cost(C1_import, C1_export, "enkel"),
-                    "dag_nacht": cost_engine.compute_cost(C1_import, C1_export, "dag_nacht"),
-                    "dynamisch": cost_engine.compute_cost(C1_import, C1_export, "dynamisch"),
+                    "enkel": cost_engine.compute_cost(
+                        C1_import, C1_export, "enkel",
+                        peak_kw_before=peak_before_kw,
+                        peak_kw_after=peak_after_kw
+                    ),
+                    "dag_nacht": cost_engine.compute_cost(
+                        C1_import, C1_export, "dag_nacht",
+                        peak_kw_before=peak_before_kw,
+                        peak_kw_after=peak_after_kw
+                    ),
+                    "dynamisch": cost_engine.compute_cost(
+                        C1_import, C1_export, "dynamisch",
+                        peak_kw_before=peak_before_kw,
+                        peak_kw_after=peak_after_kw
+                    ),
                 }
 
                 peak_info = PeakInfo(
@@ -166,8 +179,10 @@ class ScenarioRunner:
                     monthly_after=new_peaks
                 )
 
+            # --------------------------------------------
+            # NL → normale batterij-optimalisatie
+            # --------------------------------------------
             else:
-                # 3B. NL → normale batterijsimulatie (geen peak shaving)
                 sim_batt = BatterySimulator(self.load, self.pv, battery_model)
                 C1_sim = sim_batt.simulate_with_battery()
 
@@ -182,11 +197,10 @@ class ScenarioRunner:
                     monthly_after=[]
                 )
 
+        # =================================================
+        # 4. ROI via ROIEngine
+        # =================================================
         with_batt_cost = C1_costs[current_tariff].total_cost_eur
-
-        # ----------------------------------------------------
-        # 4. ROI-berekening via ROIEngine
-        # ----------------------------------------------------
         yearly_saving = baseline_cost - with_batt_cost
 
         if self.batt_cfg is None:
@@ -204,9 +218,9 @@ class ScenarioRunner:
             )
             roi_result = ROIEngine.compute(roi_cfg)
 
-        # ----------------------------------------------------
-        # 5. FullScenarioOutput teruggeven
-        # ----------------------------------------------------
+        # =================================================
+        # 5. Teruggeven aan API
+        # =================================================
         return FullScenarioOutput(
             A1=A1_cost,
             B1=B1_costs,
