@@ -6,18 +6,18 @@ from typing import List, Optional
 
 
 # ============================================================
-# Timeseries (load, PV, prices)
+# TimeSeries (uniform voor load, PV en dynamische prijzen)
 # ============================================================
 
 @dataclass
 class TimeSeries:
-    timestamps: List            # datetime stamps (list)
-    values: List[float]         # kWh or prices
-    dt_hours: float             # resolution in hours (1.0 or 0.25)
+    timestamps: List           # list[datetime]
+    values: List[float]        # kWh (load/pv) of €/kWh (prices)
+    dt_hours: float            # 1.0 of 0.25
 
 
 # ============================================================
-# ScenarioResult (output per scenario per tarief)
+# ScenarioResult — output per tarief, per scenario
 # ============================================================
 
 @dataclass
@@ -35,7 +35,7 @@ class ScenarioResult:
 
 
 # ============================================================
-# ROI Result
+# ROI Result — jaarlijkse besparing, payback & ROI
 # ============================================================
 
 @dataclass
@@ -53,13 +53,13 @@ class ROIResult:
 
 
 # ============================================================
-# Peak Shaving Info (BE-only)
+# Peak Shaving Info — alleen België
 # ============================================================
 
 @dataclass
 class PeakInfo:
-    monthly_before: List[float]   # 12 waardes, kW
-    monthly_after: List[float]    # 12 waardes, kW
+    monthly_before: List[float]   # 12 waarden (kW)
+    monthly_after: List[float]    # 12 waarden (kW)
 
     def to_dict(self):
         return {
@@ -69,36 +69,36 @@ class PeakInfo:
 
 
 # ============================================================
-# Tariff Configuration (input voor CostEngine)
+# Tariff Configuration — volledig inputmodel voor CostEngine
 # ============================================================
 
 @dataclass
 class TariffConfig:
     # Land
-    country: str                 # "NL" of "BE"
+    country: str                       # "NL" / "BE"
 
     # Huidig tarief van de gebruiker
-    current_tariff: str          # "enkel" / "dag_nacht" / "dynamisch"
+    current_tariff: str                # "enkel" / "dag_nacht" / "dynamisch"
 
-    # Vastrecht / vaste kosten per jaar
+    # Vastrecht per jaar
     vastrecht_year: float
 
-    # Energieprijzen — enkel tarief
-    p_enkel_imp: float           # €/kWh import
-    p_enkel_exp: float           # €/kWh export
+    # Enkel tarief (vast)
+    p_enkel_imp: float                 # €/kWh
+    p_enkel_exp: float                 # €/kWh
 
-    # Energieprijzen — dag/nacht
-    p_dag: float                 # €/kWh import dag
-    p_nacht: float               # €/kWh import nacht
-    p_exp_dn: float              # €/kWh export bij dag/nacht tarief
+    # Dag/nacht tarieven
+    p_dag: float                       # €/kWh
+    p_nacht: float                     # €/kWh
+    p_exp_dn: float                    # €/kWh
 
-    # Dynamische tarieven
-    p_export_dyn: float          # exportvergoeding bij dynamisch
-    dynamic_prices: Optional[List[float]]  # importprijs per timestep; None = niet gebruikt
+    # Dynamische inputprijzen
+    p_export_dyn: float                # €/kWh
+    dynamic_prices: Optional[List[float]]
 
-    # Terugleverkosten (NL-only)
-    feedin_monthly_cost: float         # €/maand
-    feedin_cost_per_kwh: float         # (alternatief – wordt zelden gebruikt)
+    # NL – terugleverkosten
+    feedin_monthly_cost: float
+    feedin_cost_per_kwh: float
     feedin_free_kwh: float
     feedin_price_after_free: float
 
@@ -106,27 +106,27 @@ class TariffConfig:
     inverter_power_kw: float           # kW
     inverter_cost_per_kw: float        # €/kW/jaar
 
-    # Capaciteitstarief (BE)
+    # BE – capaciteitstarief
     capacity_tariff_kw: float          # €/kW/jaar
 
 
 # ============================================================
-# Battery Configuration (input voor batterijmodellen)
+# Battery Configuration — input voor BatteryModel
 # ============================================================
 
 @dataclass
 class BatteryConfig:
-    # Capaciteit & vermogen
-    E: float              # kWh, nominale capaciteit
-    P: float              # kW, maximaal laad/ontlaadvermogen
+    # Capaciteit en vermogen
+    E: float                # kWh
+    P: float                # kW
 
-    # Depth of Discharge en round-trip efficiency
-    DoD: float            # fractie 0–1
-    eta_rt: float         # round-trip efficiency (0–1)
+    # DoD en round-trip
+    DoD: float              # 0–1
+    eta_rt: float           # 0–1
 
     # Financieel
-    investment_eur: float  # totale aanschafkosten €
-    degradation: float     # jaarlijkse degradatie (0–1) — 0.02 = 2%
+    investment_eur: float   # totale kost € (batterij+installatie)
+    degradation: float      # jaarlijkse degradatie 0–1
 
     def to_dict(self):
         return {
@@ -139,6 +139,9 @@ class BatteryConfig:
         }
 
 
-# Alias types (voor duidelijkheid)
+# ============================================================
+# Aliases voor duidelijkheid
+# ============================================================
+
 TariffCode = str
 CountryCode = str
