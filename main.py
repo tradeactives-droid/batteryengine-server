@@ -190,6 +190,50 @@ class AdviceRequest(BaseModel):
     battery: dict         # batterijconfig en eventueel extra metadata
     results: dict         # alle scenario-resultaten (A1, B1, C1, ROI, etc.)
 
+    class ComputeV3Request(BaseModel):
+    # PROFIELEN
+    load_kwh: list[float]
+    pv_kwh: list[float]
+    prices_dyn: list[float] | None = None
+
+    # BATTERIJ
+    E: float
+    P: float
+    DoD: float          # fractie 0..1
+    eta_rt: float       # fractie 0..1
+    battery_cost: float
+    battery_degradation: float   # fractie 0..1
+
+    # TARIEF / LAND
+    country: str               # "NL" / "BE"
+    current_tariff: str        # "enkel" / "dag_nacht" / "dynamisch"
+
+    # TARIEVEN
+    p_enkel_imp: float
+    p_enkel_exp: float
+
+    p_dag: float
+    p_nacht: float
+    p_exp_dn: float
+
+    p_export_dyn: float
+
+    # VASTRECHT
+    vastrecht_year: float
+
+    # TERUGLEVERKOSTEN
+    feedin_monthly_cost: float = 0.0
+    feedin_cost_per_kwh: float = 0.0
+    feedin_free_kwh: float = 0.0
+    feedin_price_after_free: float = 0.0
+
+    # OMVORMER
+    inverter_power_kw: float = 0.0
+    inverter_cost_per_kw: float = 0.0   # per kW per jaar
+
+    # CAPACITEITSTARIEF (BE)
+    capacity_tariff_kw: float = 0.0
+
 class ComputeRequest(BaseModel):
     # PROFIELEN
     load_kwh: list[float]
@@ -418,6 +462,7 @@ Lever alleen de adviestekst terug, zonder extra uitleg of meta-commentaar.
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies. Probeer het later opnieuw."
         }
+
 
 
 
