@@ -187,3 +187,89 @@ class PeakOptimizer:
             soc_profile.append(soc)
 
         return new_monthly_peaks, import_profile, export_profile, soc_profile
+
+# ============================================================
+# PHASE 3 — ADVANCED PEAK SHAVING PLANNING LAYER
+# ============================================================
+
+from typing import List, Tuple
+
+
+class PeakShavingPlanner:
+    """
+    Planlaag die SoC-capaciteit reserveert om maandpieken vooraf te kunnen scheren.
+
+    Output:
+    - soc_targets: lijst met SoC-doelen per timestep (kWh)
+    """
+
+    @staticmethod
+    def compute_required_reserve(
+        baseline_peak_kw: float,
+        target_peak_kw: float,
+        timestep_hours: float = 0.25
+    ) -> float:
+        """
+        Berekent hoeveel kWh de batterij moet opslaan om deze piek te scheren.
+
+        Bijv:
+        baseline = 8 kW
+        target   = 4 kW
+        → delta = 4 kW * 0.25 h = 1 kWh
+        """
+        delta_kw = max(0.0, baseline_peak_kw - target_peak_kw)
+        return delta_kw * timestep_hours
+
+    @staticmethod
+    def plan_monthly_soc_targets(
+        load: TimeSeries,
+        pv: TimeSeries,
+        battery: BatteryModel,
+        baseline_peaks: List[float],
+        target_peaks: List[float]
+    ) -> List[float]:
+        """
+        Bouwt een SoC-planningscurve voor de volledige tijdreeks (1 jaar).
+
+        Regels:
+        1) Voor elke maand berekenen we de vereiste opslag (reserve)
+        2) Voor die maand moet de batterij nooit onder reserve kWh komen
+        3) SoC_min = battery.E_min + reserve
+        4) Als SoC lager dreigt te worden → batterij moet opladen
+        """
+
+        n = len(load.values)
+        dt = load.dt_hours
+
+        timestamps = load.timestamps
+        soc_min_dynamic = [battery.E_min] * n
+
+        # ------------------------------
+        # 1. Bepaal reserve per maand
+        # ------------------------------
+        monthly_reserve_kwh = []
+        for m in range(12):
+
+            baseline = baseline_peaks[m]
+            target = target_peaks[m]
+
+            reserve = PeakShavingPlanner.compute_required_reserve(
+                baseline_peak_kw=baseline,
+                target_peak_kw=target,
+                timestep_hours=0.25  # kwartierwaarden
+            )
+
+            monthly_reserve_kwh.append(reserve)
+
+        # ------------------------------
+        # 2. Bouw SoC-limieten per timestep
+        # ------------------------------
+        for i in range(n):
+            month = timestamps[i].month - 1
+            reserve_kwh = monthly_reserve_kwh[month]
+
+            # Batterij mag niet onder:
+            # E_min + reserve vallen
+            soc_min_dynamic[i] = battery.E_min + reserve_kwh
+
+        return soc_min_dynamic
