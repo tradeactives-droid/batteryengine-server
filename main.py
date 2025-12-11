@@ -82,6 +82,16 @@ def _process_csv_text(raw: str) -> list[float]:
 
     return floats
 
+def detect_resolution(load: list[float]) -> float:
+    """
+    Simpele resolutiedetectie:
+    - >= 30.000 punten → kwartierwaarden (0.25 uur)
+    - anders → 1 uur
+    """
+    n = len(load)
+    if n >= 30000:
+        return 0.25
+    return 1.0
 
 @app.post("/parse_csv")
 def parse_csv(req: ParseCSVRequest):
@@ -462,6 +472,7 @@ Lever alleen de adviestekst terug, zonder extra uitleg of meta-commentaar.
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies. Probeer het later opnieuw."
         }
+
 
 
 
