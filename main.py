@@ -13,6 +13,7 @@ from openai import OpenAI
 # Engine imports
 from battery_engine_pro3.scenario_runner import ScenarioRunner
 from battery_engine_pro3.types import TimeSeries, TariffConfig, BatteryConfig
+from battery_engine_pro3.engine import BatteryEnginePro3
 
 
 # ============================================================
@@ -311,6 +312,7 @@ Stijl:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
