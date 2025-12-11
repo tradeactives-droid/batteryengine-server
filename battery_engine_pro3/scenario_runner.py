@@ -221,10 +221,10 @@ class ScenarioRunner:
         # =================================================
         # 5. Teruggeven aan API
         # =================================================
-        return FullScenarioOutput(
-            A1=A1_cost,
-            B1=B1_costs,
-            C1=C1_costs,
-            roi=roi_result,
-            peaks=peak_info
-        )
+        return {
+            "A1": A1_cost.to_dict(),
+            "B1": {k: v.to_dict() for k, v in B1_costs.items()},
+            "C1": {k: v.to_dict() for k, v in C1_costs.items()},
+            "roi": roi_result.to_dict(),
+            "peaks": peak_info.to_dict(),
+        }
