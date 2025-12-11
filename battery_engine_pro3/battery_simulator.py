@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List, Literal
+from typing import List, Optional
 
 from .battery_model import BatteryModel
-from .types import TimeSeries, CountryCode, TariffCode
+from .types import TimeSeries
 
 
 @dataclass
@@ -22,28 +22,27 @@ class SimulationResult:
 class BatterySimulator:
     """
     Hoofdsimulator voor NL/BE batterijgedrag.
-
-    - NL: focus op eigenverbruik / dynamische prijzen
-    - BE: focus op peak shaving + eigenverbruik
+    
+    - Zonder battery → simulate_no_battery()
+    - Met battery → simulate_with_battery()
     """
 
     def __init__(
         self,
         load: TimeSeries,
         pv: TimeSeries,
-        battery: BatteryModel,
-        country: CountryCode,
-        tariff_type: TariffCode
+        battery: Optional[BatteryModel] = None
     ) -> None:
         self.load = load
         self.pv = pv
         self.battery = battery
-        self.country = country
-        self.tariff_type = tariff_type
 
         if len(load.values) != len(pv.values):
             raise ValueError("Load and PV timeseries must have same length")
 
+    # ------------------------------------------------------------
+    # SCENARIO A1 / B1 — ZONDER BATTERIJ
+    # ------------------------------------------------------------
     def simulate_no_battery(self) -> SimulationResult:
         """
         Basissimulatie zonder batterij.
@@ -71,29 +70,28 @@ class BatterySimulator:
                 import_profile.append(0.0)
                 export_profile.append(-net)
 
-        import_kwh = sum(import_profile)
-        export_kwh = sum(export_profile)
-
-        # Geen batterij, dus SoC = 0 voor alle punten
-        soc_profile = [0.0] * n
-
         return SimulationResult(
-            import_kwh=import_kwh,
-            export_kwh=export_kwh,
+            import_kwh=sum(import_profile),
+            export_kwh=sum(export_profile),
             import_profile=import_profile,
             export_profile=export_profile,
-            soc_profile=soc_profile,
+            soc_profile=[0.0] * n,
             dt_hours=dt
         )
 
+    # ------------------------------------------------------------
+    # SCENARIO C1 — MET BATTERIJ (baseline, geen peak shaving)
+    # ------------------------------------------------------------
     def simulate_with_battery(self) -> SimulationResult:
         """
-        Baseline batterijsimulatie (zonder peak shaving).
-        Laadt bij overschot, ontlaadt bij tekort, respecteert:
-        - P_max
-        - E_min / E_max
-        - Efficiëntie (eta_c / eta_d)
+        Simuleert batterijgedrag:
+        - laden bij overschot (pv > load)
+        - ontladen bij tekort (load > pv)
+        - respecteert DoD, efficiency & power limits
         """
+
+        if self.battery is None:
+            raise ValueError("simulate_with_battery() called but no BatteryModel provided")
 
         load = self.load.values
         pv = self.pv.values
@@ -102,7 +100,6 @@ class BatterySimulator:
         dt = self.load.dt_hours
         batt = self.battery
 
-        E = batt.capacity_kwh
         P_max = batt.power_kw
         eta_c = batt.eta_charge
         eta_d = batt.eta_discharge
@@ -116,27 +113,24 @@ class BatterySimulator:
         soc_profile = []
 
         for t in range(n):
-            net = load[t] - pv[t]  # positief = import nodig
+            net = load[t] - pv[t]  # + → tekort, - → overschot
 
             if net > 0:
-                # ------------------------------------------
-                # ONTLADEN (vraag > opwek)
-                # ------------------------------------------
-                max_discharge_kwh = P_max * dt  # kWh
-                discharge_needed = min(net, max_discharge_kwh)
+                # -----------------------------
+                # ONTLADEN
+                # -----------------------------
+                max_discharge = P_max * dt
+                discharge_needed = min(net, max_discharge)
 
-                # Door efficiëntie geeft batt minder energie af dan SoC verliest
                 discharge_from_batt = discharge_needed / eta_d
 
                 if soc - discharge_from_batt < E_min:
                     discharge_from_batt = soc - E_min
 
-                # werkelijke batterijoutput
                 delivered = discharge_from_batt * eta_d
-
                 soc -= discharge_from_batt
-                grid_import = net - delivered
 
+                grid_import = net - delivered
                 if grid_import < 0:
                     grid_import = 0.0
 
@@ -144,15 +138,13 @@ class BatterySimulator:
                 export_profile.append(0.0)
 
             else:
-                # ------------------------------------------
-                # LADEN (opwek > vraag)
-                # ------------------------------------------
+                # -----------------------------
+                # LADEN
+                # -----------------------------
                 surplus = -net
-                max_charge_kwh = P_max * dt  # kWh
+                max_charge = P_max * dt
 
-                charge_possible = min(surplus, max_charge_kwh)
-
-                # Door efficiëntie neemt de batterij minder toe dan je erin stopt
+                charge_possible = min(surplus, max_charge)
                 charge_into_batt = charge_possible * eta_c
 
                 if soc + charge_into_batt > E_max:
@@ -160,7 +152,6 @@ class BatterySimulator:
 
                 soc += charge_into_batt
 
-                # grid export = PV overschot dat niet in de batterij kan
                 grid_export = surplus - (charge_into_batt / eta_c)
                 if grid_export < 0:
                     grid_export = 0.0
