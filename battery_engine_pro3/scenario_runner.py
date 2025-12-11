@@ -102,9 +102,26 @@ class ScenarioRunner:
         B1_sim = sim_no.simulate_no_battery()
 
         B1_costs: Dict[TariffCode, ScenarioResult] = {
-            "enkel":     cost_engine.compute_cost(B1_sim.import_profile, B1_sim.export_profile, "enkel"),
-            "dag_nacht": cost_engine.compute_cost(B1_sim.import_profile, B1_sim.export_profile, "dag_nacht"),
-            "dynamisch": cost_engine.compute_cost(B1_sim.import_profile, B1_sim.export_profile, "dynamisch"),
+            peak_before_kw = max(baseline_peaks)
+    peak_after_kw = max(new_peaks)
+
+    C1_costs = {
+        "enkel": cost_engine.compute_cost(
+            C1_import, C1_export, "enkel",
+            peak_kw_before=peak_before_kw,
+            peak_kw_after=peak_after_kw
+        ),
+        "dag_nacht": cost_engine.compute_cost(
+            C1_import, C1_export, "dag_nacht",
+            peak_kw_before=peak_before_kw,
+            peak_kw_after=peak_after_kw
+        ),
+        "dynamisch": cost_engine.compute_cost(
+            C1_import, C1_export, "dynamisch",
+            peak_kw_before=peak_before_kw,
+            peak_kw_after=peak_after_kw
+        ),
+    }
         }
 
         baseline_cost = B1_costs[current_tariff].total_cost_eur
