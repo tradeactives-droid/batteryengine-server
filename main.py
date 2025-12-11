@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from openai import OpenAI
 
 from BatteryEngine_Pro2 import compute_scenarios_v2
-
+from battery_engine_pro3 import BatteryEnginePro3, ComputeV3Input
 
 # ============================================================
 # FASTAPI INIT
@@ -321,3 +321,4 @@ Lever alleen de adviestekst terug, zonder extra uitleg of meta-commentaar.
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies. Probeer het later opnieuw."
         }
+
