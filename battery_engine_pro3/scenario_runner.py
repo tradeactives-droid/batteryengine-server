@@ -17,6 +17,7 @@ from .battery_model import BatteryModel
 from .battery_simulator import BatterySimulator
 from .cost_engine import CostEngine
 from .peak_optimizer import PeakOptimizer
+from .roi_engine import ROIEngine, ROIConfig
 
 
 @dataclass
