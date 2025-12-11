@@ -58,11 +58,94 @@ class BatteryEnginePro3:
     @staticmethod
     def compute(input_data: ComputeV3Input) -> Dict[str, Any]:
         """
-        Hoofdfunctie:
-
-        - Bouwt TimeSeries, TariffConfig, BatteryConfig
-        - Roept ScenarioRunner.run()
-        - Formatteert output naar JSON-achtig dict
+        Hoofdfunctie voor BatteryEngine Pro 3.
+        Bouwt alle modellen, voert ScenarioRunner.run() uit en geeft API-ready output terug.
         """
-        # TODO: implementatie volgt in volgende stap
-        raise NotImplementedError("BatteryEnginePro3.compute is not implemented yet")
+
+        from datetime import datetime, timedelta
+        from .types import TimeSeries, TariffConfig, BatteryConfig
+        from .scenario_runner import ScenarioRunner
+
+        # ------------------------------------------------------
+        # 1) BASIC VALIDATION
+        # ------------------------------------------------------
+        if not input_data.load_kwh or not input_data.pv_kwh:
+            return {"error": "LOAD_OR_PV_EMPTY"}
+
+        n = min(len(input_data.load_kwh), len(input_data.pv_kwh))
+        load_vals = input_data.load_kwh[:n]
+        pv_vals = input_data.pv_kwh[:n]
+
+        # ------------------------------------------------------
+        # 2) DETECT RESOLUTION (1 uur of 0.25 uur)
+        # ------------------------------------------------------
+        if n >= 30000:
+            dt = 0.25
+        else:
+            dt = 1.0
+
+        start = datetime(2025, 1, 1)
+        timestamps = [start + timedelta(hours=dt * i) for i in range(n)]
+
+        load_ts = TimeSeries(timestamps, load_vals, dt)
+        pv_ts = TimeSeries(timestamps, pv_vals, dt)
+
+        # Dynamische prijzen
+        dyn_prices = (
+            input_data.prices_dyn
+            if input_data.prices_dyn and len(input_data.prices_dyn) == n
+            else None
+        )
+
+        # ------------------------------------------------------
+        # 3) Tariefconfig
+        # ------------------------------------------------------
+        tariff_cfg = TariffConfig(
+            country=input_data.country,
+            current_tariff=input_data.current_tariff,
+
+            vastrecht_year=input_data.vastrecht,
+
+            p_enkel_imp=input_data.p_enkel_imp,
+            p_enkel_exp=input_data.p_enkel_exp,
+
+            p_dag=input_data.p_dag,
+            p_nacht=input_data.p_nacht,
+            p_exp_dn=input_data.p_exp_dn,
+
+            p_export_dyn=input_data.p_export_dyn,
+            dynamic_prices=dyn_prices,
+
+            feedin_monthly_cost=input_data.feedin_monthly_cost,
+            feedin_cost_per_kwh=input_data.feedin_cost_per_kwh,
+            feedin_free_kwh=input_data.feedin_free_kwh,
+            feedin_price_after_free=input_data.feedin_price_after_free,
+
+            inverter_power_kw=input_data.inverter_power_kw,
+            inverter_cost_per_kw=input_data.inverter_cost_per_kw_year,
+
+            capacity_tariff_kw=input_data.capacity_tariff_kw_year,
+        )
+
+        # ------------------------------------------------------
+        # 4) Batterijconfig
+        # ------------------------------------------------------
+        batt_cfg = BatteryConfig(
+            E=input_data.E,
+            P=input_data.P,
+            DoD=input_data.DoD,
+            eta_rt=input_data.eta_rt,
+            investment_eur=input_data.battery_cost,
+            degradation=input_data.battery_degradation,
+        )
+
+        # ------------------------------------------------------
+        # 5) UITVOEREN SCENARIOENGINE
+        # ------------------------------------------------------
+        runner = ScenarioRunner(load_ts, pv_ts, tariff_cfg, batt_cfg)
+        result = runner.run()     # dit is al API-ready (dicts!)
+
+        # ------------------------------------------------------
+        # 6) DIRECT TERUG NAAR API
+        # ------------------------------------------------------
+        return result
