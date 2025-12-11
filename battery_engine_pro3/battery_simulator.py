@@ -46,9 +46,45 @@ class BatterySimulator:
 
     def simulate_no_battery(self) -> SimulationResult:
         """
-        Simulatie zonder batterij (baseline).
+        Basissimulatie zonder batterij.
+        load = verbruik
+        pv   = opwek
+        import = max(load - pv, 0)
+        export = max(pv - load, 0)
         """
-        raise NotImplementedError("BatterySimulator.simulate_no_battery is not implemented yet")
+
+        load = self.load.values
+        pv = self.pv.values
+        n = len(load)
+        dt = self.load.dt_hours
+
+        import_profile = []
+        export_profile = []
+
+        for i in range(n):
+            net = load[i] - pv[i]  # positief = import, negatief = export
+
+            if net >= 0:
+                import_profile.append(net)
+                export_profile.append(0.0)
+            else:
+                import_profile.append(0.0)
+                export_profile.append(-net)
+
+        import_kwh = sum(import_profile)
+        export_kwh = sum(export_profile)
+
+        # Geen batterij, dus SoC = 0 voor alle punten
+        soc_profile = [0.0] * n
+
+        return SimulationResult(
+            import_kwh=import_kwh,
+            export_kwh=export_kwh,
+            import_profile=import_profile,
+            export_profile=export_profile,
+            soc_profile=soc_profile,
+            dt_hours=dt
+        )
 
     def simulate_with_battery(self) -> SimulationResult:
         """
