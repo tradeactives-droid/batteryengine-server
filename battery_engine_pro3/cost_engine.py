@@ -47,4 +47,79 @@ class CostEngine:
         - capaciteitstarief (BE)
         - vastrecht
         """
-        raise NotImplementedError("CostEngine.compute_cost is not implemented yet")
+
+        cfg = self.cfg
+        country = cfg.country
+        total_import_kwh = sum(import_profile_kwh)
+        total_export_kwh = sum(export_profile_kwh)
+
+        # -------------------------------
+        # 1. Energieprijzen
+        # -------------------------------
+        if tariff_type == "enkel":
+            cost_energy = total_import_kwh * cfg.p_enkel_imp
+            revenue_energy = total_export_kwh * cfg.p_enkel_exp
+
+        elif tariff_type == "dag_nacht":
+            # Baseline benadering — later uitbreiden op timestamps
+            avg_price = 0.5 * cfg.p_dag + 0.5 * cfg.p_nacht
+            cost_energy = total_import_kwh * avg_price
+            revenue_energy = total_export_kwh * cfg.p_exp_dn
+
+        elif tariff_type == "dynamisch":
+            if cfg.dynamic_prices is None:
+                raise ValueError("Dynamic tariff selected but dynamic_prices missing")
+
+            dyn_price_avg = sum(cfg.dynamic_prices) / len(cfg.dynamic_prices)
+            cost_energy = total_import_kwh * dyn_price_avg
+            revenue_energy = total_export_kwh * cfg.p_export_dyn
+
+        else:
+            raise ValueError(f"Unknown tariff type: {tariff_type}")
+
+        energy_net = cost_energy - revenue_energy
+
+        # -------------------------------
+        # 2. Feed-in kosten
+        # -------------------------------
+        feedin_fixed_year = cfg.feedin_monthly_cost * 12.0
+
+        feedin_var = 0.0
+        if cfg.feedin_cost_per_kwh > 0:
+            overage = max(0.0, total_export_kwh - cfg.feedin_free_kwh)
+            feedin_var = overage * cfg.feedin_price_after_free
+
+        # -------------------------------
+        # 3. Omvormerkosten
+        # -------------------------------
+        # LET OP — correcte variabele naam
+        inverter_cost = cfg.inverter_power_kw * cfg.inverter_cost_per_kw
+
+        # -------------------------------
+        # 4. Capaciteitstarief (BE)
+        # Wordt later overschreven door PeakEngine
+        # -------------------------------
+        capacity_tariff = 0.0
+
+        # -------------------------------
+        # 5. Vastrecht
+        # -------------------------------
+        vastrecht_year = cfg.vastrecht_year
+
+        # -------------------------------
+        # 6. Totale kosten
+        # -------------------------------
+        total_cost = (
+            energy_net
+            + feedin_var
+            + feedin_fixed_year
+            + inverter_cost
+            + capacity_tariff
+            + vastrecht_year
+        )
+
+        return ScenarioResult(
+            import_kwh=total_import_kwh,
+            export_kwh=total_export_kwh,
+            total_cost_eur=total_cost,
+        )
