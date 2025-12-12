@@ -81,12 +81,14 @@ class CostEngine:
         # -------------------------------
         # 2. Feed-in kosten
         # -------------------------------
-        feedin_fixed_year = cfg.feedin_monthly_cost * 12.0
+        feedin_cost = 0.0
 
-        feedin_var = 0.0
-        if cfg.feedin_cost_per_kwh > 0:
-            overage = max(0.0, total_export_kwh - cfg.feedin_free_kwh)
-            feedin_var = overage * cfg.feedin_price_after_free
+        # 1) vaste kosten
+        feedin_cost += cfg.feedin_monthly_cost * 12.0
+
+        # 2) variabele kosten (alleen boven gratis drempel)
+        extra_kwh = max(0.0, total_export_kwh - cfg.feedin_free_kwh)
+        feedin_cost += extra_kwh * cfg.feedin_price_after_free
 
         # -------------------------------
         # 3. Omvormerkosten
