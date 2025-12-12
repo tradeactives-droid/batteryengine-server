@@ -114,8 +114,7 @@ class CostEngine:
         # -------------------------------
         total_cost = (
             energy_net
-            + feedin_var
-            + feedin_fixed_year
+            + feedin_cost
             + inverter_cost
             + capacity_tariff
             + vastrecht_year
