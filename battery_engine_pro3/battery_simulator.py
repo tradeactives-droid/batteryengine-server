@@ -1,8 +1,7 @@
-# battery_engine_pro3/battery_simulator.py
-
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
+
 from .battery_model import BatteryModel
 from .types import TimeSeries
 
@@ -25,16 +24,21 @@ class BatterySimulator:
         self.battery = battery
 
     def simulate_no_battery(self) -> SimulationResult:
-        import_p, export_p = [], []
+        import_p = []
+        export_p = []
+        soc = [0.0] * len(self.load.values)
+
         for l, p in zip(self.load.values, self.pv.values):
             net = l - p
-            import_p.append(max(0, net))
-            export_p.append(max(0, -net))
+            import_p.append(max(0.0, net))
+            export_p.append(max(0.0, -net))
 
         return SimulationResult(
-            sum(import_p), sum(export_p),
-            import_p, export_p,
-            [0.0]*len(import_p),
+            sum(import_p),
+            sum(export_p),
+            import_p,
+            export_p,
+            soc,
             self.load.dt_hours
         )
 
@@ -42,33 +46,40 @@ class BatterySimulator:
         if self.battery is None:
             return self.simulate_no_battery()
 
-        soc = self.battery.initial_soc_kwh
-        dt = self.load.dt_hours
+        batt = self.battery
+        soc = batt.initial_soc_kwh
 
-        import_p, export_p, soc_p = [], [], []
+        import_p = []
+        export_p = []
+        soc_p = []
 
         for l, p in zip(self.load.values, self.pv.values):
             net = l - p
 
-            if net < 0:
-                charge = min(-net, self.battery.power_kw)
-                energy = charge * dt * self.battery.eta_charge
-                energy = min(energy, self.battery.E_max - soc)
-                soc += energy
-                export_p.append(max(0, -net - energy / dt))
-                import_p.append(0)
-            else:
-                discharge = min(net, self.battery.power_kw)
-                energy = discharge * dt / self.battery.eta_discharge
-                energy = min(energy, soc - self.battery.E_min)
-                soc -= energy
-                delivered = energy * self.battery.eta_discharge / dt
-                import_p.append(max(0, net - delivered))
-                export_p.append(0)
+            if net > 0:  # ontladen
+                deliverable = min(net, batt.P_max)
+                required_kwh = deliverable / batt.eta_discharge
+                actual_kwh = min(required_kwh, soc - batt.E_min)
+                delivered = actual_kwh * batt.eta_discharge
+                soc -= actual_kwh
+                import_p.append(max(0.0, net - delivered))
+                export_p.append(0.0)
+            else:  # laden
+                surplus = -net
+                charge_kw = min(surplus, batt.P_max)
+                charge_kwh = charge_kw * batt.eta_charge
+                charge_kwh = min(charge_kwh, batt.E_max - soc)
+                soc += charge_kwh
+                export_p.append(max(0.0, surplus - charge_kwh / batt.eta_charge))
+                import_p.append(0.0)
 
             soc_p.append(soc)
 
         return SimulationResult(
-            sum(import_p), sum(export_p),
-            import_p, export_p, soc_p, dt
+            sum(import_p),
+            sum(export_p),
+            import_p,
+            export_p,
+            soc_p,
+            self.load.dt_hours
         )
