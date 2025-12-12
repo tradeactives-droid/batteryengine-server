@@ -1,5 +1,3 @@
-# battery_engine_pro3/battery_model.py
-
 from __future__ import annotations
 from dataclasses import dataclass
 import math
@@ -22,16 +20,22 @@ class BatteryModel:
     initial_soc_kwh: float = 0.0
 
     def __post_init__(self):
+        self.E_cap = max(0.0, self.E_cap)
+        self.P_max = max(0.0, self.P_max)
+        self.dod = min(max(self.dod, 0.0), 1.0)
+
+        if self.eta <= 0:
+            self.eta = 1.0
+
         self.capacity_kwh = self.E_cap
         self.power_kw = self.P_max
 
-        # Efficiency split
         eff = math.sqrt(self.eta)
         self.eta_charge = eff
         self.eta_discharge = eff
 
         self.E_max = self.E_cap
-        self.E_min = self.E_cap * (1 - self.dod)
+        self.E_min = self.E_cap * (1.0 - self.dod)
 
-        # 🔑 TEST-CONFORME initial SoC
+        # ⭐ TEST-VERPLICHTE initial SoC
         self.initial_soc_kwh = self.E_min + self.initial_soc_frac * (self.E_max - self.E_min)
