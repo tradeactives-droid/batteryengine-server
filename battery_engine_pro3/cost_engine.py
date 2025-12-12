@@ -68,8 +68,8 @@ class CostEngine:
             else:
                 dyn_price_avg = sum(prices) / len(prices)
 
-    cost_energy = total_import_kwh * dyn_price_avg
-    revenue_energy = total_export_kwh * cfg.p_export_dyn
+            cost_energy = total_import_kwh * dyn_price_avg
+            revenue_energy = total_export_kwh * cfg.p_export_dyn
             cost_energy = total_import_kwh * dyn_price_avg
             revenue_energy = total_export_kwh * cfg.p_export_dyn
 
