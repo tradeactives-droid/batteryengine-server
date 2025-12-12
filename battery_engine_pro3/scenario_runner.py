@@ -1,60 +1,104 @@
+# battery_engine_pro3/scenario_runner.py
+
+from __future__ import annotations
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, Optional
+
+from .types import ScenarioResult, PeakInfo, TariffCode
+from .battery_simulator import BatterySimulator
+from .battery_model import BatteryModel
+from .cost_engine import CostEngine
+from .peak_optimizer import PeakOptimizer, PeakShavingPlanner
 
 
-@dataclass
-class TimeSeries:
-    timestamps: List
-    values: List[float]
-    dt_hours: float
+FullScenarioOutput = Dict[str, object]
 
 
-@dataclass
-class ScenarioResult:
-    import_kwh: float
-    export_kwh: float
-    total_cost_eur: float
+class ScenarioRunner:
+    """
+    Orkestreert alle scenario’s:
+    - A1: huidige situatie
+    - B1: toekomst zonder batterij
+    - C1: toekomst met batterij
+    """
 
+    def __init__(
+        self,
+        load,
+        pv,
+        tariff_cfg,
+        batt_cfg: Optional[object] = None,
+    ):
+        self.load = load
+        self.pv = pv
+        self.tariff_cfg = tariff_cfg
+        self.batt_cfg = batt_cfg
 
-@dataclass
-class ROIResult:
-    yearly_saving_eur: float
-    payback_years: Optional[int]
-    roi_percent: float
+    def run(self) -> FullScenarioOutput:
 
+        cost_engine = CostEngine(self.tariff_cfg)
 
-@dataclass
-class PeakInfo:
-    monthly_before: List[float]
-    monthly_after: List[float]
+        # =================================================
+        # A1 — huidige situatie (geen batterij)
+        # =================================================
+        sim_no = BatterySimulator(self.load, self.pv, battery=None)
+        A1_sim = sim_no.simulate_no_battery()
 
+        A1 = cost_engine.compute_cost(
+            A1_sim.import_profile,
+            A1_sim.export_profile,
+            self.tariff_cfg.current_tariff
+        )
 
-@dataclass
-class TariffConfig:
-    country: str
-    current_tariff: str
-    vastrecht_year: float
-    p_enkel_imp: float
-    p_enkel_exp: float
-    p_dag: float
-    p_nacht: float
-    p_exp_dn: float
-    p_export_dyn: float
-    dynamic_prices: Optional[List[float]]
-    feedin_monthly_cost: float
-    feedin_cost_per_kwh: float
-    feedin_free_kwh: float
-    feedin_price_after_free: float
-    inverter_power_kw: float
-    inverter_cost_per_kw: float
-    capacity_tariff_kw: float
+        # =================================================
+        # B1 — toekomst zonder batterij (alle tarieven)
+        # =================================================
+        B1 = {
+            "enkel": cost_engine.compute_cost(
+                A1_sim.import_profile, A1_sim.export_profile, "enkel"
+            ),
+            "dag_nacht": cost_engine.compute_cost(
+                A1_sim.import_profile, A1_sim.export_profile, "dag_nacht"
+            ),
+            "dynamisch": cost_engine.compute_cost(
+                A1_sim.import_profile, A1_sim.export_profile, "dynamisch"
+            ),
+        }
 
+        # =================================================
+        # C1 — toekomst met batterij
+        # =================================================
+        if self.batt_cfg is None:
+            C1 = B1
+            peak_info = PeakInfo(monthly_before=[], monthly_after=[])
+        else:
+            battery_model = BatteryModel(
+                E_cap=self.batt_cfg.E,
+                P_max=self.batt_cfg.P,
+                dod=self.batt_cfg.DoD,
+                eta=self.batt_cfg.eta_rt,
+            )
 
-@dataclass
-class BatteryConfig:
-    E: float
-    P: float
-    DoD: float
-    eta_rt: float
-    investment_eur: float
-    degradation: float
+            sim_batt = BatterySimulator(self.load, self.pv, battery_model)
+            sim_res = sim_batt.simulate_with_battery()
+
+            C1 = {
+                "enkel": cost_engine.compute_cost(
+                    sim_res.import_profile,
+                    sim_res.export_profile,
+                    "enkel"
+                )
+            }
+
+            peak_info = PeakInfo(monthly_before=[], monthly_after=[])
+
+        # =================================================
+        # RESULTAAT
+        # =================================================
+        return {
+            "A1": A1,
+            "B1": B1,
+            "C1": C1,
+            "roi": None,
+            "peaks": peak_info,
+        }
