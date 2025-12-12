@@ -269,13 +269,7 @@ def compute_v3(req: ComputeV3Request):
     )
 
     # 6) Engine uitvoeren
-    from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
-
-    # input_payload → omzetten naar dataclass
-    input_obj = ComputeV3Input(**input_payload)
-
-    # Engine draaien
-    result = BatteryEnginePro3.compute(input_obj)
+    result = BatteryEnginePro3.compute(engine_input)
     return result
 
 
@@ -301,7 +295,7 @@ def generate_advice(req: AdviceRequest):
     prompt = f"""
 Je bent een professionele energieconsultant gespecialiseerd in thuisbatterijen.
 
-Genereer een helder, volledig en zakelijk adviesrapport op basis van:
+Genereer een helder, zakelijk adviesrapport gebaseerd op:
 
 Land: {req.country}
 Batterijconfiguratie:
@@ -310,13 +304,13 @@ Batterijconfiguratie:
 Resultaten:
 {req.results}
 
-Schrijf een adviesrapport met:
+Strakke structuur:
 1. Executive summary
 2. Financiële analyse
 3. Energetische analyse
-4. Land-specifiek advies (NL / BE)
-5. Aankoopadvies (capaciteit + vermogen)
-6. Samenvatting voor offerte
+4. Land-specifiek advies (NL/BE)
+5. Aankoopadvies
+6. Samenvatting
 """
 
     try:
@@ -336,4 +330,3 @@ Schrijf een adviesrapport met:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
-
