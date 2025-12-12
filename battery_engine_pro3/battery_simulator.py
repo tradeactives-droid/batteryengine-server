@@ -21,10 +21,10 @@ class SimulationResult:
 
 class BatterySimulator:
     """
-    Basissimulatie voor batterijgedrag (NL/BE).
-    - laadt bij PV-overschot
-    - ontlaadt bij nettekort
-    - respecteert P_max, E_min, E_max, efficiënties
+    Basissimulatie voor batterijgedrag:
+    - PV-overschot → laden
+    - Tekort → ontladen
+    - respecteert P_max, E_min, E_max, eta_c, eta_d
     """
 
     def __init__(
@@ -33,12 +33,13 @@ class BatterySimulator:
         pv: TimeSeries,
         battery: BatteryModel | None
     ) -> None:
-        self.load = load
-        self.pv = pv
-        self.battery = battery
 
         if len(load.values) != len(pv.values):
             raise ValueError("Load and PV timeseries must have same length")
+
+        self.load = load
+        self.pv = pv
+        self.battery = battery
 
     # -------------------------------------------------------------
     # SIMULATIE ZONDER BATTERIJ
@@ -54,8 +55,7 @@ class BatterySimulator:
         soc_profile = [0.0] * n
 
         for i in range(n):
-            net = load[i] - pv[i]  # positief = import
-
+            net = load[i] - pv[i]
             if net >= 0:
                 import_profile.append(net)
                 export_profile.append(0.0)
@@ -73,7 +73,7 @@ class BatterySimulator:
         )
 
     # -------------------------------------------------------------
-    # SIMULATIE MÈT BATTERIJ  (100% correcte versie)
+    # SIMULATIE MET BATTERIJ
     # -------------------------------------------------------------
     def simulate_with_battery(self) -> SimulationResult:
         if self.battery is None:
@@ -86,7 +86,7 @@ class BatterySimulator:
 
         batt = self.battery
 
-        # Batterij parameters
+        # Parameters
         P = batt.power_kw
         eta_c = batt.eta_charge
         eta_d = batt.eta_discharge
@@ -104,63 +104,55 @@ class BatterySimulator:
             pv_kw = pv[t]
             net_kw = load_kw - pv_kw  # positief = tekort → ontladen
 
-            # ---------------------------------------------------------
-            # CASE 1: Tekort → ONTLADEN
-            # ---------------------------------------------------------
+            # =====================================================
+            # CASE 1: TEKORT → BATTERIJ ONTLADEN
+            # =====================================================
             if net_kw > 0:
                 required_kw = net_kw
-                max_discharge_kw = P
+                discharge_kw = min(required_kw, P)
 
-                discharge_kw = min(required_kw, max_discharge_kw)
+                # kWh die UIT de batterij moet komen (corrigeer voor efficiency)
+                discharge_kwh = discharge_kw * dt / eta_d
 
-                # kWh die effectief uit de batterij moet komen
-                discharge_kwh_from_batt = discharge_kw * dt / eta_d
+                # Respecteer SoC-min
+                if soc - discharge_kwh < E_min:
+                    discharge_kwh = max(0.0, soc - E_min)
 
-                # respecteer SoC-minimum
-                if soc - discharge_kwh_from_batt < E_min:
-                    discharge_kwh_from_batt = max(0, soc - E_min)
+                # Werkelijke geleverde kW
+                real_kw = discharge_kwh * eta_d / dt
 
-                # effectieve geleverde energie naar load
-                real_delivered_kw = discharge_kwh_from_batt * eta_d / dt
+                soc -= discharge_kwh
 
-                soc -= discharge_kwh_from_batt
-
-                # resterend tekort → grid import
-                grid_kw = required_kw - real_delivered_kw
-                if grid_kw < 0:
-                    grid_kw = 0.0
-
+                # Resterende import uit net
+                grid_kw = max(0.0, required_kw - real_kw)
                 import_profile[t] = grid_kw
                 export_profile[t] = 0.0
 
-            # ---------------------------------------------------------
-            # CASE 2: Overschot → LADEN
-            # ---------------------------------------------------------
+            # =====================================================
+            # CASE 2: OVERSCHOT → LADEN
+            # =====================================================
             else:
                 surplus_kw = -net_kw  # pv > load
 
                 if surplus_kw > 0:
                     charge_kw = min(surplus_kw, P)
 
-                    # hoeveelheid kWh die BATTERIJ krijgt (na efficiency)
-                    charge_kwh_into_batt = charge_kw * dt * eta_c
+                    # kWh die BATTERIJ ontvangt
+                    charge_kwh = charge_kw * dt * eta_c
 
-                    # respecteer SoC-max
-                    if soc + charge_kwh_into_batt > E_max:
-                        charge_kwh_into_batt = E_max - soc
+                    # Respecteer SoC-max
+                    if soc + charge_kwh > E_max:
+                        charge_kwh = E_max - soc
 
-                    soc += charge_kwh_into_batt
+                    soc += charge_kwh
 
-                    # resterend overschot → export
-                    export_kw = surplus_kw - (charge_kwh_into_batt / dt / eta_c)
-                    if export_kw < 0:
-                        export_kw = 0.0
-
+                    # Resterend overschot → export
+                    export_kw = surplus_kw - (charge_kwh / dt / eta_c)
+                    export_profile[t] = max(0.0, export_kw)
                     import_profile[t] = 0.0
-                    export_profile[t] = export_kw
 
                 else:
-                    # load > pv maar kleiner dan 0? (kan niet)
+                    # Net exact gelijk of minimale discrepantie
                     import_profile[t] = 0.0
                     export_profile[t] = 0.0
 
