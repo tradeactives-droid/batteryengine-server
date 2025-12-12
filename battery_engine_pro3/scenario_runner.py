@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from .types import ScenarioResult, PeakInfo, TariffCode
+from .types import ScenarioResult, PeakInfo, TariffCode, ROIResult
 from .battery_simulator import BatterySimulator
 from .battery_model import BatteryModel
 from .cost_engine import CostEngine
@@ -82,6 +82,9 @@ class ScenarioRunner:
             sim_batt = BatterySimulator(self.load, self.pv, battery_model)
             sim_res = sim_batt.simulate_with_battery()
 
+            # -----------------------------
+            # COST C1
+            # -----------------------------
             C1 = {
                 "enkel": cost_engine.compute_cost(
                     sim_res.import_profile,
@@ -90,15 +93,49 @@ class ScenarioRunner:
                 )
             }
 
-            peak_info = PeakInfo(monthly_before=[], monthly_after=[])
+            # -----------------------------
+            # PEAK SHAVING (alleen BE)
+            # -----------------------------
+            if self.tariff_cfg.country == "BE":
+                monthly_before = PeakOptimizer.compute_monthly_peaks(
+                    self.load, self.pv
+                )
 
-        # =================================================
-        # RESULTAAT
-        # =================================================
+                targets = PeakOptimizer.compute_monthly_targets(monthly_before)
+
+                monthly_after, _, _, _ = PeakOptimizer.simulate_with_peak_shaving(
+                    self.load,
+                    self.pv,
+                    battery_model,
+                    targets
+                )
+
+                peak_info = PeakInfo(
+                    monthly_before=monthly_before,
+                    monthly_after=monthly_after
+                )
+            else:
+                peak_info = PeakInfo(monthly_before=[], monthly_after=[])
+
+            # -----------------------------
+            # ROI (simpel: verschil A1 vs C1)
+            # -----------------------------
+        
+        if self.batt_cfg is not None:
+            yearly_saving = A1.total_cost_eur - C1["enkel"].total_cost_eur
+        else:
+            yearly_saving = 0.0
+
+        roi = ROIResult(
+            yearly_saving_eur=yearly_saving,
+            payback_years=None,
+            roi_percent=0.0
+        )
+
         return {
             "A1": A1,
             "B1": B1,
             "C1": C1,
-            "roi": None,
+            "roi": roi,
             "peaks": peak_info,
         }
