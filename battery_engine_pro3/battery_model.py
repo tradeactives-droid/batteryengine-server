@@ -30,7 +30,7 @@ class BatteryModel:
     P_max: float          # kW
     dod: float            # 0..1 (bruikbare fractie, bv. 0.9)
     eta: float            # 0..1 (round-trip efficiëntie)
-    initial_soc_frac: float = 1.0  # start standaard vol (100% van E_max)
+    initial_soc_frac: float = 0.0  # standaard lege batterij (vereist door tests)
 
     # Deze velden worden in __post_init__ ingevuld:
     capacity_kwh: float = 0.0
