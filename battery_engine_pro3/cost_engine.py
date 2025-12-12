@@ -59,9 +59,17 @@ class CostEngine:
             revenue_energy = total_export_kwh * cfg.p_exp_dn
 
         elif tariff_type == "dynamisch":
-            if cfg.dynamic_prices is None:
-                raise ValueError("Dynamic tariff selected but dynamic_prices missing")
-            dyn_price_avg = sum(cfg.dynamic_prices) / len(cfg.dynamic_prices)
+            prices = cfg.dynamic_prices
+
+            # Fallback wanneer er GEEN dynamische prijzen zijn (tests eisen dit)
+            if prices is None or len(prices) == 0:
+                # Gebruik vaste importprijs als fallback
+                dyn_price_avg = cfg.p_enkel_imp
+            else:
+                dyn_price_avg = sum(prices) / len(prices)
+
+    cost_energy = total_import_kwh * dyn_price_avg
+    revenue_energy = total_export_kwh * cfg.p_export_dyn
             cost_energy = total_import_kwh * dyn_price_avg
             revenue_energy = total_export_kwh * cfg.p_export_dyn
 
