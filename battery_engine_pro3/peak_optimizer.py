@@ -42,3 +42,29 @@ class PeakOptimizer:
             peaks[m] = max(peaks[m], imp[-1])
 
         return peaks, imp, exp, soc
+
+    # ============================================================
+    # Backwards compatibility voor ScenarioRunner & tests
+    # ============================================================
+
+    class PeakShavingPlanner:
+        """
+        Wrapper zodat ScenarioRunner kan blijven werken
+        zonder PeakOptimizer te breken.
+        """
+
+        @staticmethod
+        def plan_monthly_soc_targets(
+            load: TimeSeries,
+            pv: TimeSeries,
+            battery: BatteryModel,
+            baseline_peaks,
+            target_peaks
+         ):
+            # eenvoudige default: geen extra reserve boven E_min
+            return [battery.E_min] * len(load.values)
+
+
+    # Alias zodat beide namen werken
+    PeakShaver = PeakOptimizer
+
