@@ -30,7 +30,13 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-client = OpenAI()
+# OpenAI client — wordt alleen geactiveerd als er een API key is
+client = None
+try:
+    client = OpenAI()
+except Exception:
+    # In CI-tests of ontbrekende API-sleutel → client blijft None
+    pass
 
 
 @app.options("/{rest_of_path:path}")
@@ -345,6 +351,7 @@ Stijl:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
