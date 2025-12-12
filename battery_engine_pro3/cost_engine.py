@@ -21,13 +21,13 @@ class CostEngine:
         exp = sum(export_profile_kwh)
 
         if tariff_type == "enkel":
-            energy = imp * self.cfg.p_enkel_imp - exp * self.cfg.p_enkel_exp
+            energy = imp * self.cfg.p_enkel_imp
         elif tariff_type == "dag_nacht":
             avg = 0.5 * (self.cfg.p_dag + self.cfg.p_nacht)
-            energy = imp * avg - exp * self.cfg.p_exp_dn
+            energy = imp * avg
         else:
             price = self.cfg.p_enkel_imp
-            energy = imp * price - exp * self.cfg.p_export_dyn
+            energy = imp * price
 
         feedin = self.cfg.feedin_monthly_cost * 12
         excess = max(0.0, exp - self.cfg.feedin_free_kwh)
