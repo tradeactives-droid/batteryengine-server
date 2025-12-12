@@ -72,5 +72,19 @@ class PeakOptimizer:
 
 
     # Alias zodat beide namen werken
-    PeakShaver = PeakOptimizer
+    
+    # ============================================================
+    # Backwards compatibility aliases (tests & ScenarioRunner)
+    # ============================================================
 
+    class PeakShavingPlanner:
+        @staticmethod
+        def plan_monthly_soc_targets(
+            load,
+            pv,
+            battery,
+            baseline_peaks,
+            target_peaks
+        ):
+            # eenvoudige default: geen extra reserve
+            return [battery.E_min] * len(load.values)
