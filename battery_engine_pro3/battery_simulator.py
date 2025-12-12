@@ -1,7 +1,7 @@
 # battery_engine_pro3/battery_simulator.py
 
 from __future__ import annotations
-from dataclasses import dataclasses, dataclass
+from dataclasses import dataclass
 from typing import List
 
 from .battery_model import BatteryModel
