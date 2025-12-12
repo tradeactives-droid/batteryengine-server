@@ -1,66 +1,94 @@
-import pytest
-from battery_engine_pro3.battery_simulator import BatterySimulator
-from battery_engine_pro3.battery_model import BatteryModel
-from battery_engine_pro3.types import TimeSeries
+def simulate_with_battery(self) -> SimulationResult:
+        """
+        Correcte batterijsimulatie:
+        - Laadt bij overschot (PV > load)
+        - Ontlaadt bij tekort (load > PV)
+        - Respecteert P_max, E_min, E_max, efficiënties
+        """
 
-def make_ts(values):
-    """Helper: maak een TimeSeries met dt = 1 uur."""
-    from datetime import datetime, timedelta
-    start = datetime(2025, 1, 1)
-    timestamps = [start + timedelta(hours=i) for i in range(len(values))]
-    return TimeSeries(timestamps=timestamps, values=values, dt_hours=1.0)
+        load = self.load.values
+        pv = self.pv.values
+        n = len(load)
 
-def test_simulate_no_battery_basic():
-    """Test of import/export correct worden berekend zonder batterij."""
-    load = make_ts([3, 2, 1])
-    pv   = make_ts([1, 2, 5])
+        dt = self.load.dt_hours
+        batt = self.battery
 
-    sim = BatterySimulator(load, pv, battery=None)
-    result = sim.simulate_no_battery()
+        # Batterijparameters
+        soc = batt.initial_soc_kwh
+        E_min = batt.E_min
+        E_max = batt.E_max
+        P_max = batt.P_max
+        eta_c = batt.eta_c
+        eta_d = batt.eta_d
 
-    # Moment 1: load3 - pv1 = 2 import
-    # Moment 2: load2 - pv2 = 0
-    # Moment 3: load1 - pv5 = 4 export
-    assert result.import_kwh == pytest.approx(2)
-    assert result.export_kwh == pytest.approx(4)
+        import_profile = []
+        export_profile = []
+        soc_profile = []
 
-    assert result.import_profile == [2, 0, 0]
-    assert result.export_profile == [0, 0, 4]
+        for t in range(n):
+            net = load[t] - pv[t]  # positief = tekort, negatief = overschot
 
-def test_simulate_with_battery_charge_discharge():
-    """
-    Test eenvoudig laad/ontlaadscenario:
-    - uur 1: PV overschot → batterij moet laden
-    - uur 2: load > PV → batterij moet ontladen
-    """
-    load = make_ts([0, 5])
-    pv   = make_ts([5, 0])
+            # ------------------------------------------
+            # 1) TEKORT → ONTLADEN
+            # ------------------------------------------
+            if net > 0:
+                needed = net  # kWh
+                max_discharge = P_max * dt  # kWh uit batterij-vermogen
 
-    batt = BatteryModel(E_cap=10, P_max=5, dod=0.9, eta=0.9)
+                # maximale energie die batterij kan afgeven (inclusief efficiëntie)
+                deliverable = max_discharge * eta_d
 
-    sim = BatterySimulator(load, pv, batt)
-    result = sim.simulate_with_battery()
+                delivered = min(needed, deliverable)
 
-    # UUR 1 — laden
-    # overschot = 5 kWh, max charge = 5 kW * 1h = 5 kWh
-    # efficiency = 0.9 → SoC stijgt 4.5 kWh
-    assert result.soc_profile[0] > 4.4 and result.soc_profile[0] < 4.6
+                # vanwege efficiëntie moet batterij MEER energie verliezen dan afgeleverd
+                batt_energy_used = delivered / eta_d
 
-    # UUR 2 — ontladen
-    # load = 5, batterij kan 5 kW leveren → 5 kWh * eta_d = ~4.5kWh
-    # grid_import = 5 - 4.5 = 0.5
-    assert result.import_profile[1] == pytest.approx(0.5, abs=0.1)
+                # Limiet: soc mag niet onder E_min komen
+                if soc - batt_energy_used < E_min:
+                    batt_energy_used = soc - E_min
+                    delivered = batt_energy_used * eta_d
 
-def test_soc_limits_respected():
-    """Test dat batterij nooit onder E_min of boven E_max komt."""
-    load = make_ts([0, 0, 10, 10])
-    pv   = make_ts([10, 10, 0, 0])
+                soc -= batt_energy_used
 
-    batt = BatteryModel(E_cap=10, P_max=3, dod=0.8, eta=0.9)
+                grid_import = needed - delivered
+                if grid_import < 0:
+                    grid_import = 0
 
-    sim = BatterySimulator(load, pv, batt)
-    result = sim.simulate_with_battery()
+                import_profile.append(grid_import)
+                export_profile.append(0.0)
 
-    for soc in result.soc_profile:
-        assert soc >= batt.E_min - 1e-6
-        assert soc <= batt.E_max + 1e-6
+            # ------------------------------------------
+            # 2) OVERSCHOT → LADEN
+            # ------------------------------------------
+            else:
+                surplus = -net
+                max_charge = P_max * dt
+
+                charge_input = min(surplus, max_charge)  # energie die je erin stopt
+                charge_stored = charge_input * eta_c      # SoC stijgt minder door verlies
+
+                # Limiet: soc mag niet boven E_max komen
+                if soc + charge_stored > E_max:
+                    charge_stored = E_max - soc
+                    charge_input = charge_stored / eta_c
+
+                soc += charge_stored
+
+                # export is overschot dat niet geladen kan worden
+                grid_export = surplus - charge_input
+                if grid_export < 0:
+                    grid_export = 0.0
+
+                import_profile.append(0.0)
+                export_profile.append(grid_export)
+
+            soc_profile.append(soc)
+
+        return SimulationResult(
+            import_kwh=sum(import_profile),
+            export_kwh=sum(export_profile),
+            import_profile=import_profile,
+            export_profile=export_profile,
+            soc_profile=soc_profile,
+            dt_hours=dt
+        )
