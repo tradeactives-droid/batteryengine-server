@@ -333,11 +333,21 @@ Stijl:
 - Nederlands
 """
 
+   # OpenAI client mag niet crashen tijdens tests (CI)
+    if client is None:
+        return {
+            "error": "NO_OPENAI_KEY",
+            "advice": "OpenAI API key ontbreekt — adviesgenerator werkt alleen in productie."
+        }
+
     try:
         response = client.chat.completions.create(
             model="gpt-5.1",
             messages=[
-                {"role": "system", "content": "Je bent een gecertificeerde energieconsultant gespecialiseerd in thuisbatterijen."},
+                {
+                    "role": "system",
+                    "content": "Je bent een gecertificeerde energieconsultant gespecialiseerd in thuisbatterijen."
+                },
                 {"role": "user", "content": prompt}
             ],
             max_tokens=1200,
