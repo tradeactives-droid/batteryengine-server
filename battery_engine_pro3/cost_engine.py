@@ -1,93 +1,47 @@
 # battery_engine_pro3/cost_engine.py
 
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import List
-
-from .types import TariffConfig, TariffCode, ScenarioResult
+from .types import TariffConfig, ScenarioResult
 
 
 class CostEngine:
 
-    def __init__(self, cfg: TariffConfig) -> None:
+    def __init__(self, cfg: TariffConfig):
         self.cfg = cfg
 
     def compute_cost(
         self,
         import_profile_kwh: List[float],
         export_profile_kwh: List[float],
-        tariff_type: TariffCode,
-        peak_kw_before: float | None = None,
-        peak_kw_after: float | None = None
+        tariff_type: str,
+        peak_kw_before=None,
+        peak_kw_after=None
     ) -> ScenarioResult:
 
-        cfg = self.cfg
+        imp = sum(import_profile_kwh)
+        exp = sum(export_profile_kwh)
 
-        total_import_kwh = sum(import_profile_kwh)
-        total_export_kwh = sum(export_profile_kwh)
-
-        # ------------------------------------------------------------
-        # Energieprijzen
-        # ------------------------------------------------------------
         if tariff_type == "enkel":
-            cost_energy = total_import_kwh * cfg.p_enkel_imp
-            revenue_energy = total_export_kwh * cfg.p_enkel_exp
-
-        elif tariff_type == "dag_nacht":
-            avg_price = 0.5 * cfg.p_dag + 0.5 * cfg.p_nacht
-            cost_energy = total_import_kwh * avg_price
-            revenue_energy = total_export_kwh * cfg.p_exp_dn
-
-        elif tariff_type == "dynamisch":
-            if not cfg.dynamic_prices:
-                avg_price = cfg.p_enkel_imp
-            else:
-                avg_price = sum(cfg.dynamic_prices) / len(cfg.dynamic_prices)
-
-            cost_energy = total_import_kwh * avg_price
-            revenue_energy = total_export_kwh * cfg.p_export_dyn
-
+            energy = imp * self.cfg.p_enkel_imp - exp * self.cfg.p_enkel_exp
         else:
-            raise ValueError(f"Unknown tariff type: {tariff_type}")
+            energy = imp * self.cfg.p_enkel_imp
 
-        # 🔥 FEED-IN ACTIEF → GEEN EXPORT-OPBRENGST
-        if cfg.feedin_cost_per_kwh > 0 or cfg.feedin_monthly_cost > 0:
-            energy_net = cost_energy
-        else:
-            energy_net = cost_energy - revenue_energy
+        feedin = self.cfg.feedin_monthly_cost * 12
+        extra = max(0, exp - self.cfg.feedin_free_kwh)
+        feedin += extra * self.cfg.feedin_price_after_free
 
-        # ------------------------------------------------------------
-        # Feed-in kosten
-        # ------------------------------------------------------------
-        feedin_cost = cfg.feedin_monthly_cost * 12.0
-        extra_kwh = max(0.0, total_export_kwh - cfg.feedin_free_kwh)
-        feedin_cost += extra_kwh * cfg.feedin_price_after_free
+        inverter = self.cfg.inverter_power_kw * self.cfg.inverter_cost_per_kw
+        capacity = 0
 
-        # ------------------------------------------------------------
-        # Omvormer
-        # ------------------------------------------------------------
-        inverter_cost = cfg.inverter_power_kw * cfg.inverter_cost_per_kw
+        if self.cfg.country == "BE" and peak_kw_before is not None:
+            capacity = (peak_kw_after - peak_kw_before) * self.cfg.capacity_tariff_kw
 
-        # ------------------------------------------------------------
-        # Capaciteitstarief BE
-        # ------------------------------------------------------------
-        if cfg.country == "BE" and peak_kw_before is not None and peak_kw_after is not None:
-            capacity_tariff = (peak_kw_after - peak_kw_before) * cfg.capacity_tariff_kw
-        else:
-            capacity_tariff = 0.0
-
-        # ------------------------------------------------------------
-        # Vastrecht
-        # ------------------------------------------------------------
-        total_cost = (
-            energy_net
-            + feedin_cost
-            + inverter_cost
-            + capacity_tariff
-            + cfg.vastrecht_year
-        )
+        total = energy + feedin + inverter + self.cfg.vastrecht_year + capacity
 
         return ScenarioResult(
-            import_kwh=total_import_kwh,
-            export_kwh=total_export_kwh,
-            total_cost_eur=total_cost
+            import_kwh=imp,
+            export_kwh=exp,
+            total_cost_eur=total
         )
