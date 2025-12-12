@@ -82,6 +82,11 @@ class ScenarioRunner:
     def run(self) -> FullScenarioOutput:
         country = self.tariff_cfg.country          # "NL" / "BE"
         current_tariff = self.tariff_cfg.current_tariff
+
+        # FIX: dynamic tariff fallback
+        if current_tariff == "dynamisch" and self.tariff_cfg.dynamic_prices is None:
+            self.tariff_cfg.dynamic_prices = []
+        
         cost_engine = CostEngine(self.tariff_cfg)
 
         # =================================================
