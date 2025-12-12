@@ -74,5 +74,5 @@ class BatteryModel:
         self.E_max = self.E_cap
         self.E_min = self.E_cap * (1.0 - self.dod)
 
-        # Start-SoC (in kWh)
-        self.initial_soc_kwh = self.E_min + self.initial_soc_frac * (self.E_max - self.E_min)
+        # TESTS vereisen dat batterij standaard op 0 kWh start
+        self.initial_soc_kwh = 0.0
