@@ -1,6 +1,6 @@
 # ============================================================
 # BatteryEngine Pro — Backend API
-# COMPLETE MAIN.PY (parse_csv + compute + compute_v3 + advice)
+# COMPLETE MAIN.PY (parse_csv + compute_v3 + advice)
 # ============================================================
 
 from fastapi import FastAPI
@@ -8,12 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 
+# OpenAI (mag falen als KEY ontbreekt — client blijft dan None)
 from openai import OpenAI
 
 # Engine imports
 from battery_engine_pro3.scenario_runner import ScenarioRunner
 from battery_engine_pro3.types import TimeSeries, TariffConfig, BatteryConfig
-from battery_engine_pro3.engine import BatteryEnginePro3
+from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
 
 
 # ============================================================
@@ -30,12 +31,11 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# OpenAI client — wordt alleen geactiveerd als er een API key is
+# OpenAI client — veilig i.v.m. CI-tests (geen key → client=None)
 client = None
 try:
     client = OpenAI()
 except Exception:
-    # In CI-tests of ontbrekende API-sleutel → client blijft None
     pass
 
 
@@ -71,7 +71,7 @@ def _process_csv_text(raw: str) -> list[float]:
     for ln in lines:
         rows.append([c.strip() for c in ln.split(delim)])
 
-    # Header verwijderen indien nodig
+    # Header verwijderen indien aanwezig
     if any(ch.isalpha() for ch in rows[0][0]):
         rows = rows[1:]
 
@@ -80,8 +80,7 @@ def _process_csv_text(raw: str) -> list[float]:
         for c in r:
             c = c.replace(",", ".")
             try:
-                f = float(c)
-                floats.append(f)
+                floats.append(float(c))
                 break
             except:
                 continue
@@ -93,13 +92,8 @@ def _process_csv_text(raw: str) -> list[float]:
 
 
 def detect_resolution(load: list[float]) -> float:
-    """
-    Detecteert resolutie:
-    - >= 30.000 punten → kwartierwaarden (0.25 uur)
-    - anders → uurwaarden (1 uur)
-    """
-    n = len(load)
-    if n >= 30000:
+    """>= 30.000 punten → kwartierwaarden (0.25 uur), anders uurwaarden."""
+    if len(load) >= 30000:
         return 0.25
     return 1.0
 
@@ -109,29 +103,20 @@ def parse_csv(req: ParseCSVRequest):
     load = _process_csv_text(req.load_file)
     pv = _process_csv_text(req.pv_file)
 
-    # FLUVIUS–minimum
     MIN_POINTS = 20000
     if len(load) < MIN_POINTS or len(pv) < MIN_POINTS:
-        return {
-            "load_kwh": [],
-            "pv_kwh": [],
-            "prices_dyn": [],
-            "error": "NOT_ENOUGH_DATA_FOR_FLUVIUS"
-        }
+        return {"load_kwh": [], "pv_kwh": [], "prices_dyn": [], "error": "NOT_ENOUGH_DATA_FOR_FLUVIUS"}
 
-    # prices optioneel
     prices_raw = req.prices_file if req.prices_file is not None else ""
     prices = _process_csv_text(prices_raw) if prices_raw.strip() != "" else []
 
     if not load or not pv:
         return {"load_kwh": [], "pv_kwh": [], "prices_dyn": [], "error": "INVALID_LOAD_PV"}
 
-    # Align lengtes
     n = min(len(load), len(pv))
     load = load[:n]
     pv = pv[:n]
 
-    # Dynamische prijzen
     if prices and len(prices) == n:
         prices_dyn = prices
     else:
@@ -142,7 +127,6 @@ def parse_csv(req: ParseCSVRequest):
         "pv_kwh": pv,
         "prices_dyn": prices_dyn
     }
-
 
 
 # ============================================================
@@ -189,7 +173,7 @@ class ComputeV3Request(BaseModel):
     inverter_power_kw: float = 0.0
     inverter_cost_per_kw: float = 0.0
 
-    # BE – capaciteitstarief
+    # BE — capaciteitstarief
     capacity_tariff_kw: float = 0.0
 
 
@@ -200,22 +184,17 @@ def compute_v3(req: ComputeV3Request):
     if not req.load_kwh or not req.pv_kwh:
         return {"error": "LOAD_OR_PV_EMPTY"}
 
+    # 2) Resolutie & timestamps
     n = min(len(req.load_kwh), len(req.pv_kwh))
-    load = req.load_kwh[:n]
-    pv = req.pv_kwh[:n]
+    dt = detect_resolution(req.load_kwh)
 
-    # 2) Resolutie bepalen
-    dt = detect_resolution(load)
     start = datetime(2025, 1, 1)
     timestamps = [start + timedelta(hours=dt * i) for i in range(n)]
 
-    load_ts = TimeSeries(timestamps, load, dt)
-    pv_ts = TimeSeries(timestamps, pv, dt)
+    load_ts = TimeSeries(timestamps, req.load_kwh[:n], dt)
+    pv_ts = TimeSeries(timestamps, req.pv_kwh[:n], dt)
 
-    # 3) Dynamic prices
-    dynamic_prices = req.prices_dyn if req.prices_dyn and len(req.prices_dyn) == n else None
-
-    # 4) Tariefconfig bouwen
+    # 3) Tariefconfig
     tariff_cfg = TariffConfig(
         country=req.country,
         current_tariff=req.current_tariff,
@@ -228,7 +207,7 @@ def compute_v3(req: ComputeV3Request):
         p_exp_dn=req.p_exp_dn,
 
         p_export_dyn=req.p_export_dyn,
-        dynamic_prices=dynamic_prices,
+        dynamic_prices=req.prices_dyn,
 
         vastrecht_year=req.vastrecht_year,
 
@@ -243,7 +222,7 @@ def compute_v3(req: ComputeV3Request):
         capacity_tariff_kw=req.capacity_tariff_kw
     )
 
-    # 5) Batterijconfig bouwen
+    # 4) Batterijconfig
     batt_cfg = BatteryConfig(
         E=req.E,
         P=req.P,
@@ -253,43 +232,44 @@ def compute_v3(req: ComputeV3Request):
         degradation=req.battery_degradation
     )
 
-# 6) Engine uitvoeren via BatteryEnginePro3
-    input_payload = {
-        "load_kwh": req.load_kwh,
-        "pv_kwh": req.pv_kwh,
-        "prices_dyn": req.prices_dyn,
+    # 5) Engine input model bouwen
+    engine_input = ComputeV3Input(
+        load_kwh=req.load_kwh,
+        pv_kwh=req.pv_kwh,
+        prices_dyn=req.prices_dyn,
 
-        "E": req.E,
-        "P": req.P,
-        "DoD": req.DoD,
-        "eta_rt": req.eta_rt,
-        "battery_cost": req.battery_cost,
-        "battery_degradation": req.battery_degradation,
+        p_enkel_imp=req.p_enkel_imp,
+        p_enkel_exp=req.p_enkel_exp,
+        p_dag=req.p_dag,
+        p_nacht=req.p_nacht,
+        p_exp_dn=req.p_exp_dn,
+        p_export_dyn=req.p_export_dyn,
 
-        "country": req.country,
-        "current_tariff": req.current_tariff,
+        E=req.E,
+        P=req.P,
+        DoD=req.DoD,
+        eta_rt=req.eta_rt,
+        vastrecht=req.vastrecht_year,
 
-        "p_enkel_imp": req.p_enkel_imp,
-        "p_enkel_exp": req.p_enkel_exp,
-        "p_dag": req.p_dag,
-        "p_nacht": req.p_nacht,
-        "p_exp_dn": req.p_exp_dn,
-        "p_export_dyn": req.p_export_dyn,
+        battery_cost=req.battery_cost,
+        battery_degradation=req.battery_degradation,
 
-        "vastrecht": req.vastrecht_year,
+        feedin_monthly_cost=req.feedin_monthly_cost,
+        feedin_cost_per_kwh=req.feedin_cost_per_kwh,
+        feedin_free_kwh=req.feedin_free_kwh,
+        feedin_price_after_free=req.feedin_price_after_free,
 
-        "feedin_monthly_cost": req.feedin_monthly_cost,
-        "feedin_cost_per_kwh": req.feedin_cost_per_kwh,
-        "feedin_free_kwh": req.feedin_free_kwh,
-        "feedin_price_after_free": req.feedin_price_after_free,
+        inverter_power_kw=req.inverter_power_kw,
+        inverter_cost_per_kw_year=req.inverter_cost_per_kw,
 
-        "inverter_power_kw": req.inverter_power_kw,
-        "inverter_cost_per_kw_year": req.inverter_cost_per_kw,
+        capacity_tariff_kw_year=req.capacity_tariff_kw,
 
-        "capacity_tariff_kw_year": req.capacity_tariff_kw,
-    }
+        country=req.country,
+        current_tariff=req.current_tariff,
+    )
 
-    result = BatteryEnginePro3.compute(input_payload)
+    # 6) Engine uitvoeren
+    result = BatteryEnginePro3.compute(engine_input)
     return result
 
 
@@ -306,6 +286,12 @@ class AdviceRequest(BaseModel):
 @app.post("/generate_advice")
 def generate_advice(req: AdviceRequest):
 
+    if client is None:
+        return {
+            "error": "NO_OPENAI_KEY",
+            "advice": "OpenAI API key ontbreekt — adviesgenerator werkt alleen in productie."
+        }
+
     prompt = f"""
 Je bent een professionele energieconsultant gespecialiseerd in thuisbatterijen.
 
@@ -315,45 +301,28 @@ Land: {req.country}
 Batterijconfiguratie:
 {req.battery}
 
-Simulatieresultaten:
+Resultaten:
 {req.results}
 
-Lever een adviesrapport met:
+Schrijf een adviesrapport met:
 1. Executive summary
-2. Financiële analyse (ROI, terugverdientijd)
-3. Energetische analyse (import, export, eigen verbruik)
+2. Financiële analyse
+3. Energetische analyse
 4. Land-specifiek advies (NL / BE)
-5. Concreet aankoopadvies (capaciteit en vermogen)
+5. Aankoopadvies (capaciteit + vermogen)
 6. Samenvatting voor offerte
-
-Stijl:
-- professioneel
-- helder
-- geen AI-taal
-- Nederlands
 """
-
-   # OpenAI client mag niet crashen tijdens tests (CI)
-    if client is None:
-        return {
-            "error": "NO_OPENAI_KEY",
-            "advice": "OpenAI API key ontbreekt — adviesgenerator werkt alleen in productie."
-        }
 
     try:
         response = client.chat.completions.create(
             model="gpt-5.1",
             messages=[
-                {
-                    "role": "system",
-                    "content": "Je bent een gecertificeerde energieconsultant gespecialiseerd in thuisbatterijen."
-                },
+                {"role": "system", "content": "Je bent een gecertificeerde energieconsultant gespecialiseerd in thuisbatterijen."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=1200,
             temperature=0.3,
         )
-
         return {"advice": response.choices[0].message.content}
 
     except Exception as e:
@@ -361,9 +330,3 @@ Stijl:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
-
-
-
-
-
-
