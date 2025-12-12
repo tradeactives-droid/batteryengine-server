@@ -269,7 +269,13 @@ def compute_v3(req: ComputeV3Request):
     )
 
     # 6) Engine uitvoeren
-    result = BatteryEnginePro3.compute(engine_input)
+    from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
+
+    # input_payload → omzetten naar dataclass
+    input_obj = ComputeV3Input(**input_payload)
+
+    # Engine draaien
+    result = BatteryEnginePro3.compute(input_obj)
     return result
 
 
@@ -330,3 +336,4 @@ Schrijf een adviesrapport met:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
