@@ -20,7 +20,13 @@ class PeakOptimizer:
         return [p * reduction_factor for p in baseline]
 
     @staticmethod
-    def simulate_with_peak_shaving(load, pv, battery: BatteryModel, targets):
+    def simulate_with_peak_shaving(
+        load,
+        pv,
+        battery: BatteryModel,
+        targets,
+        soc_plan=None
+    ):
         imp, exp, soc = [], [], []
         soc_kwh = battery.initial_soc_kwh
         peaks = [0.0] * 12
