@@ -29,9 +29,12 @@ class CostEngine:
             price = self.cfg.p_enkel_imp
             energy = imp * price
 
-        feedin = self.cfg.feedin_monthly_cost * 12
-        excess = max(0.0, exp - self.cfg.feedin_free_kwh)
-        feedin += excess * self.cfg.feedin_price_after_free
+        feedin = 0.0
+
+        if exp > 0:
+            feedin = self.cfg.feedin_monthly_cost * 12
+            excess = max(0.0, exp - self.cfg.feedin_free_kwh)
+            feedin += excess * self.cfg.feedin_price_after_free
 
         inverter = self.cfg.inverter_power_kw * self.cfg.inverter_cost_per_kw
 
