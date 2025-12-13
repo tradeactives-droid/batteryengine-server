@@ -1,3 +1,5 @@
+# battery_engine_pro3/battery_simulator.py
+
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
@@ -23,6 +25,9 @@ class BatterySimulator:
         self.pv = pv
         self.battery = battery
 
+    # -------------------------------------------------
+    # SIMULATIE ZONDER BATTERIJ
+    # -------------------------------------------------
     def simulate_no_battery(self) -> SimulationResult:
         import_p = []
         export_p = []
@@ -42,6 +47,12 @@ class BatterySimulator:
             self.load.dt_hours
         )
 
+    # -------------------------------------------------
+    # SIMULATIE MET BATTERIJ
+    # -------------------------------------------------
+    def simulate_with_battery(self) -> SimulationResult:
+        if self.battery is None:
+            return self.simulate_no_battery()
 
         batt = self.battery
         soc = batt.initial_soc_kwh
@@ -57,16 +68,21 @@ class BatterySimulator:
                 deliverable = min(net, batt.P_max)
                 required_kwh = deliverable / batt.eta_discharge
                 actual_kwh = min(required_kwh, soc - batt.E_min)
+
                 delivered = actual_kwh * batt.eta_discharge
                 soc -= actual_kwh
+
                 import_p.append(max(0.0, net - delivered))
                 export_p.append(0.0)
+
             else:  # laden
                 surplus = -net
                 charge_kw = min(surplus, batt.P_max)
                 charge_kwh = charge_kw * batt.eta_charge
                 charge_kwh = min(charge_kwh, batt.E_max - soc)
+
                 soc += charge_kwh
+
                 export_p.append(max(0.0, surplus - charge_kwh / batt.eta_charge))
                 import_p.append(0.0)
 
