@@ -12,8 +12,7 @@ from datetime import datetime, timedelta
 from openai import OpenAI
 
 # Engine imports
-from battery_engine_pro3.scenario_runner import ScenarioRunner
-from battery_engine_pro3.types import TimeSeries, TariffConfig, BatteryConfig
+from battery_engine_pro3.types import TimeSeries
 from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
 
 
@@ -82,7 +81,7 @@ def _process_csv_text(raw: str) -> list[float]:
             try:
                 floats.append(float(c))
                 break
-            except:
+            except Exception:
                 continue
 
     if len(floats) < 10:
@@ -145,7 +144,7 @@ class ComputeV3Request(BaseModel):
     DoD: float
     eta_rt: float
     battery_cost: float
-    battery_degradation: float
+    battery_degradation: float  # dit is "degradation_per_year" in de berekening
 
     # TARIEF / LAND
     country: str
@@ -184,58 +183,22 @@ def compute_v3(req: ComputeV3Request):
     if not req.load_kwh or not req.pv_kwh:
         return {"error": "LOAD_OR_PV_EMPTY"}
 
-    # 2) Resolutie & timestamps
+    # 2) Resolutie & timestamps (TimeSeries wordt door andere delen gebruikt)
     n = min(len(req.load_kwh), len(req.pv_kwh))
     dt = detect_resolution(req.load_kwh)
 
     start = datetime(2025, 1, 1)
     timestamps = [start + timedelta(hours=dt * i) for i in range(n)]
 
-    load_ts = TimeSeries(timestamps, req.load_kwh[:n], dt)
-    pv_ts = TimeSeries(timestamps, req.pv_kwh[:n], dt)
+    _load_ts = TimeSeries(timestamps, req.load_kwh[:n], dt)
+    _pv_ts = TimeSeries(timestamps, req.pv_kwh[:n], dt)
+    # NB: _load_ts/_pv_ts staan hier bewust “unused” zodat je later makkelijk ScenarioRunner kunt her-activeren,
+    # maar ze breken niks. Wil je ze weg: kan ook.
 
-    # 3) Tariefconfig
-    tariff_cfg = TariffConfig(
-        country=req.country,
-        current_tariff=req.current_tariff,
-
-        p_enkel_imp=req.p_enkel_imp,
-        p_enkel_exp=req.p_enkel_exp,
-
-        p_dag=req.p_dag,
-        p_nacht=req.p_nacht,
-        p_exp_dn=req.p_exp_dn,
-
-        p_export_dyn=req.p_export_dyn,
-        dynamic_prices=req.prices_dyn,
-
-        vastrecht_year=req.vastrecht_year,
-
-        feedin_monthly_cost=req.feedin_monthly_cost,
-        feedin_cost_per_kwh=req.feedin_cost_per_kwh,
-        feedin_free_kwh=req.feedin_free_kwh,
-        feedin_price_after_free=req.feedin_price_after_free,
-
-        inverter_power_kw=req.inverter_power_kw,
-        inverter_cost_per_kw=req.inverter_cost_per_kw,
-
-        capacity_tariff_kw=req.capacity_tariff_kw
-    )
-
-    # 4) Batterijconfig
-    batt_cfg = BatteryConfig(
-        E=req.E,
-        P=req.P,
-        DoD=req.DoD,
-        eta_rt=req.eta_rt,
-        investment_eur=req.battery_cost,
-        degradation_per_year=req.battery_degradation
-    )
-
-    # 5) Engine input model bouwen
+    # 3) Engine input model bouwen
     engine_input = ComputeV3Input(
-        load_kwh=req.load_kwh,
-        pv_kwh=req.pv_kwh,
+        load_kwh=req.load_kwh[:n],
+        pv_kwh=req.pv_kwh[:n],
         prices_dyn=req.prices_dyn,
 
         p_enkel_imp=req.p_enkel_imp,
@@ -252,7 +215,7 @@ def compute_v3(req: ComputeV3Request):
         vastrecht=req.vastrecht_year,
 
         battery_cost=req.battery_cost,
-        battery_degradation=req.battery_degradation,
+        battery_degradation=req.battery_degradation,  # → wordt downstream als degradation_per_year gebruikt
 
         feedin_monthly_cost=req.feedin_monthly_cost,
         feedin_cost_per_kwh=req.feedin_cost_per_kwh,
@@ -268,7 +231,7 @@ def compute_v3(req: ComputeV3Request):
         current_tariff=req.current_tariff,
     )
 
-    # 6) Engine uitvoeren
+    # 4) Engine uitvoeren
     result = BatteryEnginePro3.compute(engine_input)
     return result
 
@@ -330,4 +293,3 @@ Strakke structuur:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
-
