@@ -128,7 +128,7 @@ class ScenarioRunner:
                 ROIConfig(
                     battery_cost_eur=self.batt_cfg.investment_eur,
                     yearly_saving_eur=yearly_saving,
-                    degradation=self.batt_cfg.degradation,
+                    degradation=self.batt_cfg.degradation_per_year,
                     horizon_years=15,  # vaste keuze voor nu
                 )
             )
