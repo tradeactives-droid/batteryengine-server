@@ -120,15 +120,16 @@ class BatteryConfig:
     E: float                # kWh
     P: float                # kW
 
-    # DoD en round-trip efficiency
+    # DoD en round-trip
     DoD: float              # 0–1
     eta_rt: float           # 0–1
 
-    # Degradatie
-    degradation_per_year: float  # bv 0.02 voor 2% per jaar
+    # Levensduur & degradatie
+    lifetime_years: int     # 10 / 15 / 20 / 25
+    degradation_per_year: float  # bv 0.02 voor 2%
 
     # Financieel
-    investment_eur: float   # totale kost € (batterij + installatie)
+    investment_eur: float   # totale kost € (batterij+installatie)
 
     def to_dict(self):
         return {
