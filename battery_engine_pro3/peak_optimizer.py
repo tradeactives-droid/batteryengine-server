@@ -44,7 +44,7 @@ class PeakOptimizer:
         export_profile = []
         soc_profile = []
 
-        soc = battery.initial_soc_kwh
+        soc = battery.E_max
         monthly_peaks_after = [0.0] * 12
 
         for t, l, p in zip(load.timestamps, load.values, pv.values):
