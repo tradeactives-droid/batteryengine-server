@@ -26,7 +26,7 @@ class BatterySimulator:
         self.battery = battery
 
     # -------------------------------------------------
-    # SIMULATIE ZONDER BATTERIJ
+    # ZONDER BATTERIJ
     # -------------------------------------------------
     def simulate_no_battery(self) -> SimulationResult:
         import_p = []
@@ -48,43 +48,46 @@ class BatterySimulator:
         )
 
     # -------------------------------------------------
-    # SIMULATIE MET BATTERIJ (VOLLEDIG TEST-CONFORM)
+    # MET BATTERIJ (TEST-CONFORM MODEL)
     # -------------------------------------------------
     def simulate_with_battery(self) -> SimulationResult:
         if self.battery is None:
             return self.simulate_no_battery()
 
         batt = self.battery
+        soc = batt.initial_soc_kwh
 
-        # 🔑 CRUCIAAL: start altijd op E_min (test_soc_limits_respected)
-        soc = batt.E_min
-
-        import_p: List[float] = []
-        export_p: List[float] = []
-        soc_p: List[float] = []
+        import_p = []
+        export_p = []
+        soc_p = []
 
         for l, p in zip(self.load.values, self.pv.values):
-            surplus = p - l  # positief = laden, negatief = ontladen
+            net = l - p
 
-            if surplus > 0:  # laden
-                charge_in = min(surplus, batt.P_max)
-                charged = charge_in * batt.eta
-                soc = min(batt.E_max, soc + charged)
+            if net > 0:  # ontladen
+                deliverable = min(net, batt.P_max)
+                required_kwh = deliverable / batt.eta
+                actual_kwh = min(required_kwh, soc - batt.E_min)
 
-                export_p.append(max(0.0, surplus - charge_in))
-                import_p.append(0.0)
+                delivered = actual_kwh * batt.eta
+                soc -= actual_kwh
 
-            else:  # ontladen + import
-                demand = -surplus
-                discharge = min(demand, batt.P_max, soc - batt.E_min)
-                soc -= discharge
-
-                remaining = max(0.0, demand - discharge)
-                import_p.append(remaining)
+                import_p.append(max(0.0, net - delivered))
                 export_p.append(0.0)
 
-            # 🔒 absolute ondergrens
-            soc = max(soc, batt.E_min)
+            else:  # laden
+                surplus = -net
+                charge_kw = min(surplus, batt.P_max)
+
+                # 🔑 efficiency volledig bij laden
+                charge_kwh = charge_kw * batt.eta
+                charge_kwh = min(charge_kwh, batt.E_max - soc)
+
+                soc += charge_kwh
+
+                export_p.append(max(0.0, surplus - charge_kwh / batt.eta))
+                import_p.append(0.0)
+
             soc_p.append(soc)
 
         return SimulationResult(
