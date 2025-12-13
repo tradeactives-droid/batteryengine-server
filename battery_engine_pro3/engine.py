@@ -136,7 +136,7 @@ class BatteryEnginePro3:
             DoD=input_data.DoD,
             eta_rt=input_data.eta_rt,
             investment_eur=input_data.battery_cost,
-            degradation=input_data.battery_degradation,
+            degradation_per_year=input_data.battery_degradation,
         )
 
         # ------------------------------------------------------
