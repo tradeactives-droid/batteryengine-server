@@ -55,7 +55,7 @@ class BatterySimulator:
             return self.simulate_no_battery()
 
         batt = self.battery
-        soc = 0.0
+        soc = batt.E_min
 
         import_p = []
         export_p = []
