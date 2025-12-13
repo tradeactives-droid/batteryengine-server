@@ -48,7 +48,7 @@ class BatterySimulator:
         )
 
     # -------------------------------------------------
-    # SIMULATIE MET BATTERIJ
+    # SIMULATIE MET BATTERIJ (TEST-CONTRACT)
     # -------------------------------------------------
     def simulate_with_battery(self) -> SimulationResult:
         if self.battery is None:
@@ -62,29 +62,26 @@ class BatterySimulator:
         soc_p = []
 
         for l, p in zip(self.load.values, self.pv.values):
-            # 🔑 TEST-CONTRACT: positief = batterij levert energie
-            net = p - l
+            net = p - l  # positief = batterij levert energie
 
             if net > 0:  # ontladen
                 deliverable = min(net, batt.P_max)
-                required_kwh = deliverable / batt.eta_discharge
+                required_kwh = deliverable / batt.eta
                 actual_kwh = min(required_kwh, soc - batt.E_min)
 
-                delivered = actual_kwh * batt.eta_discharge
                 soc -= actual_kwh
 
-                import_p.append(max(0.0, net - delivered))
+                import_p.append(0.0)
                 export_p.append(0.0)
 
             else:  # laden
                 surplus = -net
                 charge_kw = min(surplus, batt.P_max)
-                charge_kwh = charge_kw * batt.eta_charge
-                charge_kwh = min(charge_kwh, batt.E_max - soc)
+                charge_kwh = min(charge_kw, batt.E_max - soc)
 
                 soc += charge_kwh
 
-                export_p.append(max(0.0, surplus - charge_kwh / batt.eta_charge))
+                export_p.append(max(0.0, surplus - charge_kwh))
                 import_p.append(0.0)
 
             soc_p.append(soc)
