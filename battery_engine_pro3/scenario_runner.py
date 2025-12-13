@@ -120,8 +120,6 @@ class ScenarioRunner:
 
         # =================================================
         # ROI (met degradatie) — Optie A
-        # Degradatie verlaagt de jaarlijkse besparing per jaar:
-        # saving_year_n = saving_year_1 * (1 - degradation)^(n-1)
         # =================================================
         if self.batt_cfg is not None:
             yearly_saving = A1.total_cost_eur - C1["enkel"].total_cost_eur
@@ -131,18 +129,9 @@ class ScenarioRunner:
                     battery_cost_eur=self.batt_cfg.investment_eur,
                     yearly_saving_eur=yearly_saving,
                     degradation=self.batt_cfg.degradation,
-                    horizon_years=15,  # vaste keuze voor nu (10/15/20/25 later uitbreiden)
+                    horizon_years=15,  # vaste keuze voor nu
                 )
             )
-        else:
-            roi = ROIResult(
-                yearly_saving_eur=0.0,
-                payback_years=None,
-                roi_percent=0.0
-            )
-
-            roi = ROIEngine.compute(roi_cfg)
-
         else:
             roi = ROIResult(
                 yearly_saving_eur=0.0,
