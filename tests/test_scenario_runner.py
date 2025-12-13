@@ -52,7 +52,7 @@ def base_battery():
         DoD=0.9,
         eta_rt=0.9,
         investment_eur=4000,
-        degradation=0.01
+        degradation_per_year=0.01
     )
 
 
