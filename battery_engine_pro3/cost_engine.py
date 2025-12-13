@@ -21,7 +21,10 @@ class CostEngine:
         exp = sum(export_profile_kwh)
 
         if tariff_type == "enkel":
-            energy = imp * self.cfg.p_enkel_imp
+            energy = (
+                imp * self.cfg.p_enkel_imp
+                - exp * self.cfg.p_enkel_exp
+            )
         elif tariff_type == "dag_nacht":
             avg = 0.5 * (self.cfg.p_dag + self.cfg.p_nacht)
             energy = imp * avg
