@@ -217,6 +217,7 @@ def compute_v3(req: ComputeV3Request):
 
         battery_cost=req.battery_cost,
         battery_degradation=req.battery_degradation,  # → wordt downstream als degradation_per_year gebruikt
+        battery_lifetime_years=req.battery_lifetime_years,
 
         feedin_monthly_cost=req.feedin_monthly_cost,
         feedin_cost_per_kwh=req.feedin_cost_per_kwh,
@@ -294,4 +295,5 @@ Strakke structuur:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
