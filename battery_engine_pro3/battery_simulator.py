@@ -68,7 +68,7 @@ class BatterySimulator:
                 deliverable = min(net, batt.P_max)
 
                 # ❗ GEEN efficiency bij ontladen (test-model)
-                actual_kwh = min(deliverable, soc - batt.E_min)
+                actual_kwh = min(deliverable, soc)
 
                 delivered = actual_kwh
                 soc -= actual_kwh
