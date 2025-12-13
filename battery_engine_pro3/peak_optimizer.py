@@ -51,7 +51,7 @@ class PeakOptimizer:
             month = t.month - 1
             net = l - p
 
-            soc_min = soc_plan[0] if soc_plan else battery.E_min
+            soc_min = battery.E_min
 
             if net > targets[month]:
                 shave_kw = min(net - targets[month], battery.power_kw)
