@@ -34,7 +34,9 @@ class CostEngine:
 
         feedin = 0.0
 
-        if exp > 0:
+        feedin = 0.0
+
+        if exp > 0 and self.cfg.feedin_cost_per_kwh > 0:
             feedin = self.cfg.feedin_monthly_cost * 12
             excess = max(0.0, exp - self.cfg.feedin_free_kwh)
             feedin += excess * self.cfg.feedin_price_after_free
