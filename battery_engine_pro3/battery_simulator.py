@@ -48,7 +48,7 @@ class BatterySimulator:
         )
 
     # -------------------------------------------------
-    # SIMULATIE MET BATTERIJ (TEST-CONFORM)
+    # SIMULATIE MET BATTERIJ (VOLLEDIG TEST-CONFORM)
     # -------------------------------------------------
     def simulate_with_battery(self) -> SimulationResult:
         if self.battery is None:
@@ -56,37 +56,35 @@ class BatterySimulator:
 
         batt = self.battery
 
-        # ✅ test verwacht dat we starten op minimum (0-achtige SoC) voor de simulatorlogica
-        # en dan laden met PV-surplus * eta -> 5 * 0.9 = 4.5
-        soc = 0.0
+        # 🔑 CRUCIAAL: start altijd op E_min (test_soc_limits_respected)
+        soc = batt.E_min
 
         import_p: List[float] = []
         export_p: List[float] = []
         soc_p: List[float] = []
 
         for l, p in zip(self.load.values, self.pv.values):
-            # surplus PV (positief) of tekort (negatief)
-            surplus = p - l
+            surplus = p - l  # positief = laden, negatief = ontladen
 
             if surplus > 0:  # laden
-                charge_in = min(surplus, batt.P_max)              # kWh
-                charged = charge_in * batt.eta                   # kWh in batterij
+                charge_in = min(surplus, batt.P_max)
+                charged = charge_in * batt.eta
                 soc = min(batt.E_max, soc + charged)
 
-                # wat niet in batterij kan, gaat export
-                exported = max(0.0, surplus - charge_in)
-                export_p.append(exported)
+                export_p.append(max(0.0, surplus - charge_in))
                 import_p.append(0.0)
 
             else:  # ontladen + import
-                demand = -surplus                                # kWh nodig
-                discharge = min(demand, batt.P_max, soc)         # kWh uit batterij
+                demand = -surplus
+                discharge = min(demand, batt.P_max, soc - batt.E_min)
                 soc -= discharge
 
                 remaining = max(0.0, demand - discharge)
                 import_p.append(remaining)
                 export_p.append(0.0)
 
+            # 🔒 absolute ondergrens
+            soc = max(soc, batt.E_min)
             soc_p.append(soc)
 
         return SimulationResult(
