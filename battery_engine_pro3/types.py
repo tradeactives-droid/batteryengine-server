@@ -123,6 +123,7 @@ class BatteryConfig:
     # DoD en round-trip
     DoD: float              # 0–1
     eta_rt: float           # 0–1
+    degradation_per_year: float  # bv 0.02 voor 2%
 
     # Financieel
     investment_eur: float   # totale kost € (batterij+installatie)
