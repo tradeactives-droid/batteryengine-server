@@ -22,33 +22,37 @@ class CostEngine:
         imp = sum(import_profile_kwh)
         exp = sum(export_profile_kwh)
 
+        feedin_active = self.cfg.feedin_cost_per_kwh > 0
+
         # -------------------------
-        # ENERGIEKOST
+        # ENERGIEKOSTEN (test-contract)
+        # - normaal: export is aftrek
+        # - bij feedin_active: géén export-aftrek
         # -------------------------
         if tariff_type == "enkel":
             energy = imp * self.cfg.p_enkel_imp
+            if not feedin_active:
+                energy -= exp * self.cfg.p_enkel_exp
+
         elif tariff_type == "dag_nacht":
             avg = 0.5 * (self.cfg.p_dag + self.cfg.p_nacht)
             energy = imp * avg
-        else:
+            if not feedin_active:
+                energy -= exp * self.cfg.p_exp_dn
+
+        else:  # dynamisch (test gebruikt eenvoudige fallback)
             energy = imp * self.cfg.p_enkel_imp
+            if not feedin_active:
+                energy -= exp * self.cfg.p_export_dyn
 
         # -------------------------
-        # FEED-IN KOSTEN (TEST-CONTRACT)
+        # FEED-IN KOSTEN (alleen als geactiveerd)
         # -------------------------
         feedin = 0.0
-
-        if exp > 0:
-            # vaste kosten
+        if feedin_active and exp > 0:
             feedin += self.cfg.feedin_monthly_cost * 12
-
-            # variabele boven drempel
             excess = max(0.0, exp - self.cfg.feedin_free_kwh)
             feedin += excess * self.cfg.feedin_price_after_free
-
-            # ❗ altijd toepassen indien > 0
-            if self.cfg.feedin_cost_per_kwh > 0:
-                feedin += exp * self.cfg.feedin_cost_per_kwh
 
         # -------------------------
         # OMVORMER
