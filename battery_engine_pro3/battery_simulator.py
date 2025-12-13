@@ -42,9 +42,6 @@ class BatterySimulator:
             self.load.dt_hours
         )
 
-    def simulate_with_battery(self) -> SimulationResult:
-        if self.battery is None:
-            return self.simulate_no_battery()
 
         batt = self.battery
         soc = batt.initial_soc_kwh
