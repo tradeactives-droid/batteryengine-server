@@ -9,7 +9,7 @@ class BatteryModel:
     P_max: float
     dod: float
     eta: float
-    initial_soc_frac: float = 1.0
+    initial_soc_frac: float = 0.0
 
     capacity_kwh: float = 0.0
     power_kw: float = 0.0
