@@ -35,6 +35,7 @@ class ComputeV3Input:
     vastrecht: float
     battery_cost: float
     battery_degradation: float
+    battery_lifetime_years: int
 
     # Feed-in / omvormer
     feedin_monthly_cost: float
