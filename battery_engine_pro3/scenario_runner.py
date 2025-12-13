@@ -9,6 +9,7 @@ from .battery_simulator import BatterySimulator
 from .battery_model import BatteryModel
 from .cost_engine import CostEngine
 from .peak_optimizer import PeakOptimizer, PeakShavingPlanner
+from .roi_engine import ROIEngine, ROIConfig
 
 
 FullScenarioOutput = Dict[str, object]
@@ -123,14 +124,22 @@ class ScenarioRunner:
         
         if self.batt_cfg is not None:
             yearly_saving = A1.total_cost_eur - C1["enkel"].total_cost_eur
-        else:
-            yearly_saving = 0.0
 
-        roi = ROIResult(
-            yearly_saving_eur=yearly_saving,
-            payback_years=None,
-            roi_percent=0.0
-        )
+            roi_cfg = ROIConfig(
+                battery_cost_eur=self.batt_cfg.investment_eur,
+                yearly_saving_eur=yearly_saving,
+                degradation=self.batt_cfg.degradation,
+                horizon_years=15
+            )
+
+            roi = ROIEngine.compute(roi_cfg)
+
+        else:
+            roi = ROIResult(
+                yearly_saving_eur=0.0,
+                payback_years=None,
+                roi_percent=0.0
+            )
 
         return {
             "A1": A1,
