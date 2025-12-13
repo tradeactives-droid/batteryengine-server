@@ -111,7 +111,7 @@ class TariffConfig:
 
 
 # ============================================================
-# Battery Configuration — input voor BatteryModel
+# Battery Configuration — input voor BatteryModel & ROI
 # ============================================================
 
 @dataclass
@@ -120,14 +120,15 @@ class BatteryConfig:
     E: float                # kWh
     P: float                # kW
 
-    # DoD en round-trip
+    # DoD en round-trip efficiency
     DoD: float              # 0–1
     eta_rt: float           # 0–1
-    degradation_per_year: float  # bv 0.02 voor 2%
+
+    # Degradatie
+    degradation_per_year: float  # bv 0.02 voor 2% per jaar
 
     # Financieel
-    investment_eur: float   # totale kost € (batterij+installatie)
-    degradation: float      # jaarlijkse degradatie 0–1
+    investment_eur: float   # totale kost € (batterij + installatie)
 
     def to_dict(self):
         return {
@@ -135,8 +136,8 @@ class BatteryConfig:
             "P": self.P,
             "DoD": self.DoD,
             "eta_rt": self.eta_rt,
+            "degradation_per_year": self.degradation_per_year,
             "investment_eur": self.investment_eur,
-            "degradation": self.degradation,
         }
 
 
