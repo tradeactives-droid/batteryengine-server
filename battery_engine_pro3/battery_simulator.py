@@ -89,7 +89,7 @@ class BatterySimulator:
                 export_p.append(max(0.0, surplus - charge_kwh / batt.eta))
                 import_p.append(0.0)
 
-            soc_p.append(soc)
+            soc_p.append(max(soc, batt.E_min))
 
         return SimulationResult(
             sum(import_p),
