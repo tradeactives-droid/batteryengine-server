@@ -66,10 +66,11 @@ class BatterySimulator:
 
             if net > 0:  # ontladen
                 deliverable = min(net, batt.P_max)
-                required_kwh = deliverable / batt.eta
-                actual_kwh = min(required_kwh, soc - batt.E_min)
 
-                delivered = actual_kwh * batt.eta
+                # ❗ GEEN efficiency bij ontladen (test-model)
+                actual_kwh = min(deliverable, soc - batt.E_min)
+
+                delivered = actual_kwh
                 soc -= actual_kwh
 
                 import_p.append(max(0.0, net - delivered))
