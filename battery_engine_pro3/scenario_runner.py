@@ -129,9 +129,10 @@ class ScenarioRunner:
                     battery_cost_eur=self.batt_cfg.investment_eur,
                     yearly_saving_eur=yearly_saving,
                     degradation=self.batt_cfg.degradation_per_year,
-                    horizon_years=15,  # vaste keuze voor nu
+                    horizon_years=self.batt_cfg.lifetime_years,
                 )
             )
+            
         else:
             roi = ROIResult(
                 yearly_saving_eur=0.0,
