@@ -229,7 +229,7 @@ def compute_v3(req: ComputeV3Request):
         DoD=req.DoD,
         eta_rt=req.eta_rt,
         investment_eur=req.battery_cost,
-        degradation=req.battery_degradation
+        degradation_per_year=req.battery_degradation
     )
 
     # 5) Engine input model bouwen
@@ -330,3 +330,4 @@ Strakke structuur:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
