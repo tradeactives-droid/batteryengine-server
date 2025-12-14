@@ -145,7 +145,7 @@ class ComputeV3Request(BaseModel):
     eta_rt: float
     battery_cost: float
     battery_degradation: float
-    battery_lifetime_years: int  # 10 / 15 / 20 / 25
+    battery_lifetime_years: int = 15
 
     # TARIEF / LAND
     country: str
@@ -295,5 +295,6 @@ Strakke structuur:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
