@@ -233,7 +233,7 @@ def compute_v3(req: ComputeV3Request):
         feedin_price_after_free=req.feedin_price_after_free,
 
         inverter_power_kw=req.inverter_power_kw,
-        inverter_cost_per_kw_year=req.inverter_cost_per_kw,
+        inverter_cost_per_kw_year=inverter_cost_per_kw_year,
 
         capacity_tariff_kw_year=req.capacity_tariff_kw,
 
@@ -303,6 +303,7 @@ Strakke structuur:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
