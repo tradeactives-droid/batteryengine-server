@@ -172,6 +172,7 @@ class ComputeV3Request(BaseModel):
 
     inverter_power_kw: float = 0.0
     inverter_cost_per_kw: float = 0.0
+    inverter_cost_per_kw_month: float | None = None
 
     # BE — capaciteitstarief
     capacity_tariff_kw: float = 0.0
@@ -295,6 +296,7 @@ Strakke structuur:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
