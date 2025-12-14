@@ -117,21 +117,21 @@ class TariffConfig:
 @dataclass
 class BatteryConfig:
     # Capaciteit en vermogen
-    E: float                # kWh
-    P: float                # kW
+    E: float
+    P: float
 
-    # DoD en round-trip
-    DoD: float              # 0–1
-    eta_rt: float           # 0–1
+    # DoD en rendement
+    DoD: float
+    eta_rt: float
 
-    # Levensduur & degradatie
-    lifetime_years: int     # 10 / 15 / 20 / 25
-    degradation_per_year: float  # bv 0.02 voor 2%
+    # Degradatie
+    degradation_per_year: float  # bv 0.02 = 2% per jaar
 
     # Financieel
-    investment_eur: float   # totale kost € (batterij+installatie)
+    investment_eur: float
 
-    lifetime_years: int   
+    # Levensduur (default = 15 jaar)
+    lifetime_years: int = 15
 
     def to_dict(self):
         return {
