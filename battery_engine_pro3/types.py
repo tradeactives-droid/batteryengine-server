@@ -131,6 +131,8 @@ class BatteryConfig:
     # Financieel
     investment_eur: float   # totale kost € (batterij+installatie)
 
+    lifetime_years: int   
+
     def to_dict(self):
         return {
             "E": self.E,
