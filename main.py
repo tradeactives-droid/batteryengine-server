@@ -197,6 +197,13 @@ def compute_v3(req: ComputeV3Request):
     # NB: _load_ts/_pv_ts staan hier bewust “unused” zodat je later makkelijk ScenarioRunner kunt her-activeren,
     # maar ze breken niks. Wil je ze weg: kan ook.
 
+    # Omvormerkosten: UI is €/kW/maand, engine verwacht €/kW/jaar
+    inverter_cost_per_kw_year = (
+        (req.inverter_cost_per_kw_month * 12.0)
+        if req.inverter_cost_per_kw_month is not None
+        else req.inverter_cost_per_kw
+    )    
+    
     # 3) Engine input model bouwen
     engine_input = ComputeV3Input(
         load_kwh=req.load_kwh[:n],
@@ -296,6 +303,7 @@ Strakke structuur:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
