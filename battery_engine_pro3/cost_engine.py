@@ -30,7 +30,7 @@ class CostEngine:
         # -------------------------
         if tariff_type == "enkel":
             energy = imp * self.cfg.p_enkel_imp
-            if not feedin_active:
+            if self.cfg.saldering:
                 energy -= exp * self.cfg.p_enkel_exp
 
         elif tariff_type == "dag_nacht":
