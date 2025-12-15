@@ -39,9 +39,9 @@ class CostEngine:
             if self.cfg.saldering:
                 energy -= exp * self.cfg.p_exp_dn
 
-        else:  # dynamisch (test gebruikt eenvoudige fallback)
+        else:  # dynamisch
             energy = imp * self.cfg.p_enkel_imp
-            if not feedin_active:
+            if self.cfg.saldering:
                 energy -= exp * self.cfg.p_export_dyn
 
         # -------------------------
