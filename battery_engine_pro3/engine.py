@@ -104,6 +104,7 @@ class BatteryEnginePro3:
         tariff_cfg = TariffConfig(
             country=input_data.country,
             current_tariff=input_data.current_tariff,
+            saldering=True,  # ⭐ default: A1 = met saldering
 
             vastrecht_year=input_data.vastrecht,
 
