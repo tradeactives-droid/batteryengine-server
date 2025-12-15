@@ -45,6 +45,8 @@ class ScenarioRunner:
         sim_no = BatterySimulator(self.load, self.pv, battery=None)
         A1_sim = sim_no.simulate_no_battery()
 
+        self.tariff_cfg.saldering = True
+
         A1 = cost_engine.compute_cost(
             A1_sim.import_profile,
             A1_sim.export_profile,
