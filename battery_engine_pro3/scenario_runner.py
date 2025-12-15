@@ -56,6 +56,8 @@ class ScenarioRunner:
         # =================================================
         # B1 — toekomst zonder batterij (alle tarieven)
         # =================================================
+        self.tariff_cfg.saldering = False
+        
         B1 = {
             "enkel": cost_engine.compute_cost(
                 A1_sim.import_profile, A1_sim.export_profile, "enkel"
