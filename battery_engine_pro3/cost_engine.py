@@ -23,25 +23,29 @@ class CostEngine:
 
 
         # -------------------------
-        # ENERGIEKOSTEN (test-contract)
-        # - normaal: export is aftrek
-        # - bij feedin_active: géén export-aftrek
+        # ENERGIEKOSTEN
+        # - saldering: export compenseert import
+        # - geen saldering: import betalen, export vergoed
         # -------------------------
         if tariff_type == "enkel":
-            energy = imp * self.cfg.p_enkel_imp
-            if self.cfg.saldering:
-                energy -= exp * self.cfg.p_enkel_exp
+            import_price = self.cfg.p_enkel_imp
+            export_price = self.cfg.p_enkel_exp
 
         elif tariff_type == "dag_nacht":
-            avg = 0.5 * (self.cfg.p_dag + self.cfg.p_nacht)
-            energy = imp * avg
-            if self.cfg.saldering:
-                energy -= exp * self.cfg.p_exp_dn
+            import_price = 0.5 * (self.cfg.p_dag + self.cfg.p_nacht)
+            export_price = self.cfg.p_exp_dn
 
         else:  # dynamisch
-            energy = imp * self.cfg.p_enkel_imp
-            if self.cfg.saldering:
-                energy -= exp * self.cfg.p_export_dyn
+            import_price = self.cfg.p_enkel_imp
+            export_price = self.cfg.p_export_dyn
+
+        if self.cfg.saldering:
+            # 🔁 ECHTE SALDERING
+            net_import = max(imp - exp, 0.0)
+            energy = net_import * import_price
+        else:
+            # ❌ GEEN SALDERING
+            energy = (imp * import_price) - (exp * export_price)
 
         # -------------------------
         # FEED-IN KOSTEN (alleen als geactiveerd)
