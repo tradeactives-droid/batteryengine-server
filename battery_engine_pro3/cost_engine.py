@@ -22,7 +22,6 @@ class CostEngine:
         imp = sum(import_profile_kwh)
         exp = sum(export_profile_kwh)
 
-        feedin_active = self.cfg.feedin_cost_per_kwh > 0
 
         # -------------------------
         # ENERGIEKOSTEN (test-contract)
