@@ -80,36 +80,37 @@ class TariffConfig:
     # Huidig tarief van de gebruiker
     current_tariff: str                # "enkel" / "dag_nacht" / "dynamisch"
 
-    saldering: bool = True
-
     # Vastrecht per jaar
     vastrecht_year: float
 
-    # Enkel tarief (vast)
-    p_enkel_imp: float                 # €/kWh
-    p_enkel_exp: float                 # €/kWh
+    # ⭐ Saldering actief?
+    saldering: bool = True
+
+    # Enkel tarief
+    p_enkel_imp: float
+    p_enkel_exp: float
 
     # Dag/nacht tarieven
-    p_dag: float                       # €/kWh
-    p_nacht: float                     # €/kWh
-    p_exp_dn: float                    # €/kWh
+    p_dag: float
+    p_nacht: float
+    p_exp_dn: float
 
-    # Dynamische inputprijzen
-    p_export_dyn: float                # €/kWh
+    # Dynamisch
+    p_export_dyn: float
     dynamic_prices: Optional[List[float]]
 
-    # NL – terugleverkosten
+    # Terugleverkosten
     feedin_monthly_cost: float
     feedin_cost_per_kwh: float
     feedin_free_kwh: float
     feedin_price_after_free: float
 
-    # Omvormerkosten
-    inverter_power_kw: float           # kW
-    inverter_cost_per_kw: float        # €/kW/jaar
+    # Omvormer
+    inverter_power_kw: float
+    inverter_cost_per_kw: float
 
-    # BE – capaciteitstarief
-    capacity_tariff_kw: float          # €/kW/jaar
+    # BE capaciteitstarief
+    capacity_tariff_kw: float
 
 
 # ============================================================
