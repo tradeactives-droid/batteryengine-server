@@ -36,7 +36,7 @@ class CostEngine:
         elif tariff_type == "dag_nacht":
             avg = 0.5 * (self.cfg.p_dag + self.cfg.p_nacht)
             energy = imp * avg
-            if not feedin_active:
+            if self.cfg.saldering:
                 energy -= exp * self.cfg.p_exp_dn
 
         else:  # dynamisch (test gebruikt eenvoudige fallback)
