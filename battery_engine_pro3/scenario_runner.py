@@ -130,6 +130,9 @@ class ScenarioRunner:
         # ROI (met degradatie) — Optie A
         # =================================================
         if self.batt_cfg is not None:
+            if current_tariff not in C1:
+                current_tariff = "enkel"
+
             yearly_saving = (
                 B1[current_tariff].total_cost_eur
                 - C1[current_tariff].total_cost_eur
