@@ -6,7 +6,6 @@ from .types import TariffConfig, ScenarioResult
 
 
 class CostEngine:
-
     def __init__(self, cfg: TariffConfig):
         self.cfg = cfg
 
