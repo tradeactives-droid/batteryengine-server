@@ -72,45 +72,65 @@ class PeakInfo:
 # Tariff Configuration — volledig inputmodel voor CostEngine
 # ============================================================
 
+from dataclasses import dataclass
+from typing import Optional, List
+
+
 @dataclass
 class TariffConfig:
-    # Land
-    country: str                       # "NL" / "BE"
+    # =========================
+    # Context
+    # =========================
+    country: str                      # "NL" / "BE"
+    current_tariff: str               # "enkel" / "dag_nacht" / "dynamisch"
 
-    # Huidig tarief van de gebruiker
-    current_tariff: str                # "enkel" / "dag_nacht" / "dynamisch"
-
-    # Vastrecht per jaar
+    # =========================
+    # Vaste kosten
+    # =========================
     vastrecht_year: float
 
-    # ⭐ Saldering actief?
-    saldering: bool = True
-
+    # =========================
     # Enkel tarief
+    # =========================
     p_enkel_imp: float
     p_enkel_exp: float
 
-    # Dag/nacht tarieven
+    # =========================
+    # Dag / Nacht
+    # =========================
     p_dag: float
     p_nacht: float
     p_exp_dn: float
 
+    # =========================
     # Dynamisch
+    # =========================
     p_export_dyn: float
     dynamic_prices: Optional[List[float]]
 
+    # =========================
     # Terugleverkosten
+    # =========================
     feedin_monthly_cost: float
     feedin_cost_per_kwh: float
     feedin_free_kwh: float
     feedin_price_after_free: float
 
+    # =========================
     # Omvormer
+    # =========================
     inverter_power_kw: float
     inverter_cost_per_kw: float
 
-    # BE capaciteitstarief
+    # =========================
+    # Capaciteitstarief (BE)
+    # =========================
     capacity_tariff_kw: float
+
+    # =========================
+    # ⭐ Saldering (ALTIJD ALS LAATSTE)
+    # =========================
+    saldering: bool = True
 
 
 # ============================================================
