@@ -87,6 +87,8 @@ class ScenarioRunner:
             sim_batt = BatterySimulator(self.load, self.pv, battery_model)
             sim_res = sim_batt.simulate_with_battery()
 
+            self.tariff_cfg.saldering = False
+
             # -----------------------------
             # COST C1
             # -----------------------------
