@@ -80,6 +80,8 @@ class TariffConfig:
     # Huidig tarief van de gebruiker
     current_tariff: str                # "enkel" / "dag_nacht" / "dynamisch"
 
+    saldering: bool = True
+
     # Vastrecht per jaar
     vastrecht_year: float
 
