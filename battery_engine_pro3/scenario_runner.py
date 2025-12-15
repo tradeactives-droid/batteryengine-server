@@ -37,6 +37,8 @@ class ScenarioRunner:
 
     def run(self) -> FullScenarioOutput:
 
+        current_tariff = self.tariff_cfg.current_tariff
+        
         cost_engine = CostEngine(self.tariff_cfg)
 
         # =================================================
@@ -128,7 +130,10 @@ class ScenarioRunner:
         # ROI (met degradatie) — Optie A
         # =================================================
         if self.batt_cfg is not None:
-            yearly_saving = A1.total_cost_eur - C1["enkel"].total_cost_eur
+            yearly_saving = (
+                B1[current_tariff].total_cost_eur
+                - C1[current_tariff].total_cost_eur
+            )
 
             roi = ROIEngine.compute(
                 ROIConfig(
