@@ -36,16 +36,35 @@ class CostEngine:
             export_price = self.cfg.p_exp_dn
 
         else:  # dynamisch
-            import_price = self.cfg.p_enkel_imp
+            import_price = None
             export_price = self.cfg.p_export_dyn
 
-        if self.cfg.saldering:
-            # 🔁 ECHTE SALDERING
-            net_import = max(imp - exp, 0.0)
-            energy = net_import * import_price
+        if tariff_type == "dynamisch" and self.cfg.dynamic_prices:
+            # =========================
+            # DYNAMISCH TARIEF
+            # =========================
+            import_cost = sum(
+                kwh * price
+                for kwh, price in zip(import_profile_kwh, self.cfg.dynamic_prices)
+            )
+
+            export_revenue = exp * export_price if not self.cfg.saldering else 0.0
+
+            if self.cfg.saldering:
+                # bij dynamisch + saldering: vereenvoudigd (kan later verfijnd)
+                energy = import_cost
+            else:
+                energy = import_cost - export_revenue
+
         else:
-            # ❌ GEEN SALDERING
-            energy = (imp * import_price) - (exp * export_price)
+            # =========================
+            # ENKEL & DAG/NACHT
+            # =========================
+            if self.cfg.saldering:
+                net_import = max(imp - exp, 0.0)
+                energy = net_import * import_price
+            else:
+                energy = (imp * import_price) - (exp * export_price)
 
         # -------------------------
         # FEED-IN KOSTEN (alleen als geactiveerd)
