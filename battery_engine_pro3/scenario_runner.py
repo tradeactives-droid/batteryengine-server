@@ -49,11 +49,21 @@ class ScenarioRunner:
 
         self.tariff_cfg.saldering = True
 
-        A1 = cost_engine.compute_cost(
-            A1_sim.import_profile,
-            A1_sim.export_profile,
-            self.tariff_cfg.current_tariff
-        )
+        # A1 per tarief (MET saldering) — nodig voor tariefmatrix
+        A1_per_tariff = {
+            "enkel": cost_engine.compute_cost(
+                A1_sim.import_profile, A1_sim.export_profile, "enkel"
+            ),
+            "dag_nacht": cost_engine.compute_cost(
+                A1_sim.import_profile, A1_sim.export_profile, "dag_nacht"
+            ),
+            "dynamisch": cost_engine.compute_cost(
+                A1_sim.import_profile, A1_sim.export_profile, "dynamisch"
+            ),
+        }
+
+        # A1 tile blijft gebaseerd op het gekozen tarief uit stap 1
+        A1 = A1_per_tariff[self.tariff_cfg.current_tariff]
 
         # =================================================
         # B1 — toekomst zonder batterij (alle tarieven)
@@ -92,14 +102,18 @@ class ScenarioRunner:
             self.tariff_cfg.saldering = False
 
             # -----------------------------
-            # COST C1
+            # COST C1 (alle tarieven, ZONDER saldering)
             # -----------------------------
             C1 = {
                 "enkel": cost_engine.compute_cost(
-                    sim_res.import_profile,
-                    sim_res.export_profile,
-                    "enkel"
-                )
+                    sim_res.import_profile, sim_res.export_profile, "enkel"
+                ),
+                "dag_nacht": cost_engine.compute_cost(
+                    sim_res.import_profile, sim_res.export_profile, "dag_nacht"
+                ),
+                "dynamisch": cost_engine.compute_cost(
+                    sim_res.import_profile, sim_res.export_profile, "dynamisch"
+                ),
             }
 
             # -----------------------------
@@ -156,6 +170,7 @@ class ScenarioRunner:
 
         return {
             "A1": A1,
+            "A1_per_tariff": A1_per_tariff,
             "B1": B1,
             "C1": C1,
             "roi": roi,
