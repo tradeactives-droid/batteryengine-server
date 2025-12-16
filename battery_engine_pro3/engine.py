@@ -116,7 +116,7 @@ class BatteryEnginePro3:
             p_exp_dn=input_data.p_exp_dn,
 
             p_export_dyn=input_data.p_export_dyn,
-            dynamic_prices=dyn_prices,
+            dynamic_prices=input_data.prices_dyn,
 
             feedin_monthly_cost=input_data.feedin_monthly_cost,
             feedin_cost_per_kwh=input_data.feedin_cost_per_kwh,
