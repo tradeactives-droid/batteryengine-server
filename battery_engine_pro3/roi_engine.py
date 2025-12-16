@@ -51,7 +51,10 @@ class ROIEngine:
             if payback is None and total_savings >= cfg.battery_cost_eur:
                 payback = year
 
-        roi_percent = (total_savings / cfg.battery_cost_eur) * 100.0
+        roi_percent = (
+            (total_savings - cfg.battery_cost_eur)
+            / cfg.battery_cost_eur
+        ) * 100.0
 
         return ROIResult(
             yearly_saving_eur=cfg.yearly_saving_eur,
