@@ -39,27 +39,28 @@ class CostEngine:
             import_price = None
             export_price = self.cfg.p_export_dyn
 
-        if tariff_type == "dynamisch" and self.cfg.dynamic_prices:
-            # =========================
-            # DYNAMISCH TARIEF
-            # =========================
-            import_cost = sum(
-                kwh * price
-                for kwh, price in zip(import_profile_kwh, self.cfg.dynamic_prices)
-            )
+        # =========================
+        # DYNAMISCH TARIEF
+        # =========================
+        if tariff_type == "dynamisch":
+            if not self.cfg.dynamic_prices:
+                raise ValueError("Dynamisch tarief vereist dynamic_prices")
 
-            export_revenue = exp * export_price if not self.cfg.saldering else 0.0
+        import_cost = sum(
+            kwh * price
+            for kwh, price in zip(import_profile_kwh, self.cfg.dynamic_prices)
+        )
 
-            if self.cfg.saldering:
-                # bij dynamisch + saldering: vereenvoudigd (kan later verfijnd)
-                energy = import_cost
-            else:
-                energy = import_cost - export_revenue
-
+        if self.cfg.saldering:
+            energy = import_cost
         else:
-            # =========================
-            # ENKEL & DAG/NACHT
-            # =========================
+            export_revenue = exp * export_price
+            energy = import_cost - export_revenue
+
+        # =========================
+        # ENKEL & DAG/NACHT
+        # =========================
+        else:
             if self.cfg.saldering:
                 net_import = max(imp - exp, 0.0)
                 energy = net_import * import_price
