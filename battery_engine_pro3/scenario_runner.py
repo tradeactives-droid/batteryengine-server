@@ -59,15 +59,12 @@ class ScenarioRunner:
                 A1_sim.export_profile,
                 "dag_nacht",
             ),
-        }
-
-        # Dynamisch alleen als uurprijzen bestaan
-        if self.tariff_cfg.dynamic_prices:
-            A1_per_tariff["dynamisch"] = cost_engine.compute_cost(
+            "dynamisch": cost_engine.compute_cost(
                 A1_sim.import_profile,
                 A1_sim.export_profile,
                 "dynamisch",
-            )
+            ),
+        }
 
         # A1 tile = gekozen huidig tarief
         A1 = A1_per_tariff[current_tariff]
@@ -88,14 +85,12 @@ class ScenarioRunner:
                 A1_sim.export_profile,
                 "dag_nacht",
             ),
-        }
-
-        if self.tariff_cfg.dynamic_prices:
-            B1["dynamisch"] = cost_engine.compute_cost(
+            "dynamisch": cost_engine.compute_cost(
                 A1_sim.import_profile,
                 A1_sim.export_profile,
                 "dynamisch",
-            )
+            ),
+        }
 
         # =================================================
         # C1 — toekomst met batterij (GEEN saldering)
@@ -127,14 +122,12 @@ class ScenarioRunner:
                     sim_res.export_profile,
                     "dag_nacht",
                 ),
-            }
-
-            if self.tariff_cfg.dynamic_prices:
-                C1["dynamisch"] = cost_engine.compute_cost(
+                "dynamisch": cost_engine.compute_cost(
                     sim_res.import_profile,
                     sim_res.export_profile,
                     "dynamisch",
-                )
+                ),
+            }
 
             # Peak shaving alleen voor BE
             if self.tariff_cfg.country == "BE":
