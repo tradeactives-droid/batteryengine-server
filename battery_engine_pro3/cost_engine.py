@@ -21,9 +21,11 @@ class CostEngine:
         imp = sum(import_profile_kwh)
         exp = sum(export_profile_kwh)
 
-        # =================================================
-        # 1. ENERGIEKOSTEN
-        # =================================================
+        # -------------------------
+        # ENERGIEKOSTEN
+        # -------------------------
+
+        # ENKEL
         if tariff_type == "enkel":
             import_price = self.cfg.p_enkel_imp
             export_price = self.cfg.p_enkel_exp
@@ -34,6 +36,7 @@ class CostEngine:
             else:
                 energy = (imp * import_price) - (exp * export_price)
 
+        # DAG/NACHT (simpel gemiddelde)
         elif tariff_type == "dag_nacht":
             import_price = 0.5 * (self.cfg.p_dag + self.cfg.p_nacht)
             export_price = self.cfg.p_exp_dn
@@ -44,55 +47,54 @@ class CostEngine:
             else:
                 energy = (imp * import_price) - (exp * export_price)
 
+        # DYNAMISCH (uurtarieven)
         elif tariff_type == "dynamisch":
             export_price = self.cfg.p_export_dyn
 
-            # 🔁 Dynamisch: uurprijzen indien beschikbaar,
-            # anders fallback naar enkel-tarief
-            if self.cfg.dynamic_prices:
-                import_cost = sum(
-                    kwh * price
-                    for kwh, price in zip(import_profile_kwh, self.cfg.dynamic_prices)
+            dyn = getattr(self.cfg, "dynamic_prices", None) or []
+            if len(dyn) == 0:
+                raise ValueError("Dynamisch tarief: dynamic_prices ontbreekt of is leeg.")
+            if len(dyn) < len(import_profile_kwh):
+                raise ValueError(
+                    f"Dynamisch tarief: dynamic_prices te kort ({len(dyn)}) voor profiel ({len(import_profile_kwh)})."
                 )
-            else:
-                import_cost = imp * self.cfg.p_enkel_imp
 
             if self.cfg.saldering:
-                energy = import_cost
+                # Per tijdstap salderen: net import = max(import - export, 0)
+                energy = sum(
+                    max(imp_kwh - exp_kwh, 0.0) * price
+                    for imp_kwh, exp_kwh, price in zip(import_profile_kwh, export_profile_kwh, dyn)
+                )
             else:
-                energy = import_cost - (exp * export_price)
+                # Geen saldering: import tegen uurprijs, export tegen vaste vergoeding
+                import_cost = sum(imp_kwh * price for imp_kwh, price in zip(import_profile_kwh, dyn))
+                export_revenue = exp * export_price
+                energy = import_cost - export_revenue
 
         else:
             raise ValueError(f"Onbekend tarieftype: {tariff_type}")
 
-        # =================================================
-        # 2. FEED-IN KOSTEN (alleen zonder saldering)
-        # =================================================
+        # -------------------------
+        # FEED-IN KOSTEN
+        # -------------------------
         feedin = 0.0
         if not self.cfg.saldering and exp > 0:
             feedin += self.cfg.feedin_monthly_cost * 12
             excess = max(0.0, exp - self.cfg.feedin_free_kwh)
             feedin += excess * self.cfg.feedin_price_after_free
 
-        # =================================================
-        # 3. OMVORMER
-        # =================================================
+        # -------------------------
+        # OMVORMER
+        # -------------------------
         inverter = self.cfg.inverter_power_kw * self.cfg.inverter_cost_per_kw
 
-        # =================================================
-        # 4. CAPACITEITSTARIEF (BE)
-        # =================================================
+        # -------------------------
+        # CAPACITEITSTARIEF (BE)
+        # -------------------------
         capacity = 0.0
-        if (
-            self.cfg.country == "BE"
-            and peak_kw_before is not None
-            and peak_kw_after is not None
-        ):
+        if self.cfg.country == "BE" and peak_kw_before is not None and peak_kw_after is not None:
             capacity = (peak_kw_after - peak_kw_before) * self.cfg.capacity_tariff_kw
 
-        # =================================================
-        # 5. TOTAAL
-        # =================================================
         total = energy + feedin + inverter + capacity + self.cfg.vastrecht_year
 
         return ScenarioResult(imp, exp, total)
