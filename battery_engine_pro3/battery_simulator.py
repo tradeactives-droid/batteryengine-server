@@ -83,97 +83,90 @@ class BatterySimulator:
     # MET BATTERIJ (PV + PRIJS-GESTUURDE ARBITRAGE)
     # -------------------------------------------------
     def simulate_with_battery(self) -> SimulationResult:
-        """
-        Fysisch correcte batterij-simulatie.
-
-        Regels:
-        - Batterij levert alleen aan het huis (nooit aan het net)
-        - Export naar het net komt uitsluitend van PV
-        - Batterij kan laden van PV en (bij lage prijs) van het net
-        - Import/export worden pas aan het einde bepaald
-        """
-
         if self.battery is None:
             return self.simulate_no_battery()
 
         batt = self.battery
-        soc = batt.E_min
+        soc = batt.E_min  # start veilig op minimum SoC
 
-        import_profile = []
-        export_profile = []
-        soc_profile = []
+        import_p = []
+        export_p = []
+        soc_p = []
 
+        dt = self.dt  # uren per timestep
         prices = self.prices or []
-        dt = self.dt  # ← altijd via simulator, NIET via load
 
         for i, (load_kwh, pv_kwh) in enumerate(zip(self.load.values, self.pv.values)):
+            price = prices[i] if i < len(prices) else None
 
-            # =========================
-            # 1️⃣ PV → HUIS
-            # =========================
-            pv_to_load = min(load_kwh, pv_kwh)
-            load_remaining = load_kwh - pv_to_load
-            pv_surplus = pv_kwh - pv_to_load
+            import_kwh = 0.0
+            export_kwh = 0.0
 
-            # =========================
-            # 2️⃣ BATTERIJ → HUIS
-            # =========================
-            batt_to_load = 0.0
+            # ==================================================
+            # 1️⃣ PV → DIRECT EIGEN VERBRUIK
+            # ==================================================
+            load_remaining = max(0.0, load_kwh - pv_kwh)
+            pv_surplus = max(0.0, pv_kwh - load_kwh)
+
+            # ==================================================
+            # 2️⃣ BATTERIJ ONTLAADT NAAR LOAD
+            # (alleen eigen verbruik!)
+            # ==================================================
             if load_remaining > 0 and soc > batt.E_min:
-                batt_to_load = min(
+                discharge = min(
                     load_remaining,
                     batt.P_max * dt,
                     soc - batt.E_min,
                 )
-                soc -= batt_to_load
-                load_remaining -= batt_to_load
+                soc -= discharge
+                load_remaining -= discharge
 
-            # =========================
-            # 3️⃣ PV → BATTERIJ
-            # =========================
-            pv_to_batt = 0.0
+            # ==================================================
+            # 3️⃣ BATTERIJ LADEN MET PV-OVERSCHOT
+            # ==================================================
             if pv_surplus > 0 and soc < batt.E_max:
-                pv_to_batt = min(
+                charge = min(
                     pv_surplus,
                     batt.P_max * dt,
                     batt.E_max - soc,
                 )
-                soc += pv_to_batt * batt.eta_charge
-                pv_surplus -= pv_to_batt
+                soc += charge * batt.eta_charge
+                pv_surplus -= charge
 
-            # =========================
-            # 4️⃣ NET → BATTERIJ (ARBITRAGE)
-            # =========================
-            grid_to_batt = 0.0
-            price_now = prices[i] if i < len(prices) else None
-
+            # ==================================================
+            # 4️⃣ PRIJS-GESTUURD NET-LADEN (OPTIONEEL)
+            # Alleen als batterij leeg is EN prijs laag
+            # NOOIT export vanuit batterij
+            # ==================================================
             if (
-                price_now is not None
+                price is not None
                 and self.price_low is not None
-                and price_now < self.price_low
+                and price < self.price_low
                 and soc < batt.E_max
+                and pv_kwh == 0.0  # alleen als er geen PV is
             ):
-                grid_to_batt = min(
+                charge = min(
                     batt.P_max * dt,
                     batt.E_max - soc,
                 )
-                soc += grid_to_batt * batt.eta_charge
+                soc += charge * batt.eta_charge
+                import_kwh += charge
 
-            # =========================
-            # 5️⃣ NETAFHANDELING
-            # =========================
-            import_kwh = load_remaining + grid_to_batt
-            export_kwh = pv_surplus  # ⚠️ batterij exporteert NOOIT
+            # ==================================================
+            # 5️⃣ REST → NET
+            # ==================================================
+            import_kwh += load_remaining
+            export_kwh += pv_surplus
 
-            import_profile.append(import_kwh)
-            export_profile.append(export_kwh)
-            soc_profile.append(soc)
+            import_p.append(import_kwh)
+            export_p.append(export_kwh)
+            soc_p.append(soc)
 
         return SimulationResult(
-            import_kwh=sum(import_profile),
-            export_kwh=sum(export_profile),
-            import_profile=import_profile,
-            export_profile=export_profile,
-            soc_profile=soc_profile,
+            import_kwh=sum(import_p),
+            export_kwh=sum(export_p),
+            import_profile=import_p,
+            export_profile=export_p,
+            soc_profile=soc_p,
             dt_hours=dt,
         )
