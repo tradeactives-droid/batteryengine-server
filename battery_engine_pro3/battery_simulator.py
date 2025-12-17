@@ -76,6 +76,9 @@ class BatterySimulator:
         for l, p in zip(self.load.values, self.pv.values):
             net = l - p
 
+            # 🔶 Dynamische prijs op dit tijdstip
+            price = prices[i] if prices and i < len(prices) else None
+
             if net > 0:  # ontladen
                 deliverable = min(net, batt.P_max)
 
