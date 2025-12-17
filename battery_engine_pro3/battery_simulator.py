@@ -83,60 +83,63 @@ class BatterySimulator:
     # MET BATTERIJ (PV + PRIJS-GESTUURDE ARBITRAGE)
     # -------------------------------------------------
     def simulate_with_battery(self) -> SimulationResult:
-        if self.battery is None:
-            return self.simulate_no_battery()
+    if self.battery is None:
+        return self.simulate_no_battery()
 
-        batt = self.battery
-        soc = batt.E_min
+    batt = self.battery
+    soc = batt.E_min
 
-        import_p: List[float] = []
-        export_p: List[float] = []
-        soc_p: List[float] = []
+    import_p: List[float] = []
+    export_p: List[float] = []
+    soc_p: List[float] = []
 
-        for i, (l, p) in enumerate(zip(self.load.values, self.pv.values)):
-            price = self.prices[i] if self.prices and i < len(self.prices) else None
-            net = l - p  # >0 = load, <0 = PV overschot
+    for i, (l, p) in enumerate(zip(self.load.values, self.pv.values)):
+        price = self.prices[i] if self.prices and i < len(self.prices) else None
 
-            import_kwh = 0.0
-            export_kwh = 0.0
+        # 1️⃣ PV eerst naar load
+        load_remaining = max(0.0, l - p)
+        pv_surplus = max(0.0, p - l)
 
-            # ==================================================
-            # 1️⃣ PRIJS-GESTUURDE ARBITRAGE (LOAD-OFFSET)
-            # ==================================================
-            if (
-                price is not None
-                and self.price_low is not None
-                and self.price_high is not None
-            ):
-                # 🔋 Laden bij lage prijs → extra import
-                if price < self.price_low and soc < batt.E_max:
-                    charge = min(batt.P_max, batt.E_max - soc)
-                    soc += charge * batt.eta_charge
-                    import_kwh += charge
+        import_kwh = 0.0
+        export_kwh = 0.0
 
-                # 🔌 Ontladen bij hoge prijs → minder import
-                elif price > self.price_high and soc > batt.E_min:
-                    discharge = min(batt.P_max, soc - batt.E_min)
-                    soc -= discharge
-                    net -= discharge  # 🔑 load-offset (NIET export!)
+        # 2️⃣ PRIJS-GESTUURDE ARBITRAGE
+        if (
+            price is not None
+            and self.price_low is not None
+            and self.price_high is not None
+        ):
+            # 🔋 Laden bij lage prijs (van net)
+            if price < self.price_low and soc < batt.E_max:
+                charge = min(batt.P_max, batt.E_max - soc)
+                soc += charge * batt.eta_charge
+                import_kwh += charge
 
-            # ==================================================
-            # 2️⃣ NORMALE ENERGIEBALANS
-            # ==================================================
-            if net > 0:
-                import_kwh += net
-            else:
-                export_kwh += -net
+            # 🔌 Ontladen bij hoge prijs (naar load)
+            elif price > self.price_high and soc > batt.E_min:
+                discharge = min(batt.P_max, soc - batt.E_min, load_remaining)
+                soc -= discharge
+                load_remaining -= discharge
 
-            import_p.append(import_kwh)
-            export_p.append(export_kwh)
-            soc_p.append(soc)
+        # 3️⃣ NORMALE BATTERIJ (PV → batterij)
+        if pv_surplus > 0 and soc < batt.E_max:
+            charge = min(pv_surplus, batt.P_max, batt.E_max - soc)
+            soc += charge * batt.eta_charge
+            pv_surplus -= charge
 
-        return SimulationResult(
-            import_kwh=sum(import_p),
-            export_kwh=sum(export_p),
-            import_profile=import_p,
-            export_profile=export_p,
-            soc_profile=soc_p,
-            dt_hours=self.dt,
-        )
+        # 4️⃣ RESTANT → NET
+        import_kwh += load_remaining
+        export_kwh += pv_surplus
+
+        import_p.append(import_kwh)
+        export_p.append(export_kwh)
+        soc_p.append(soc)
+
+    return SimulationResult(
+        import_kwh=sum(import_p),
+        export_kwh=sum(export_p),
+        import_profile=import_p,
+        export_profile=export_p,
+        soc_profile=soc_p,
+        dt_hours=self.dt,
+    )
