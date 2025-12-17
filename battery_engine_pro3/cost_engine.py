@@ -47,7 +47,7 @@ class CostEngine:
             else:
                 energy = (imp * import_price) - (exp * export_price)
 
-        # DYNAMISCH (uurtarieven)
+        # DYNAMISCH
         elif tariff_type == "dynamisch":
             export_price = self.cfg.p_export_dyn
 
@@ -60,14 +60,20 @@ class CostEngine:
                 )
 
             if self.cfg.saldering:
-                # Per tijdstap salderen: net import = max(import - export, 0)
-                energy = sum(
-                    max(imp_kwh - exp_kwh, 0.0) * price
-                    for imp_kwh, exp_kwh, price in zip(import_profile_kwh, export_profile_kwh, dyn)
-                )
+                # ✅ NL-saldering = JAARLIJKS (niet per uur)
+                net_import = max(imp - exp, 0.0)
+
+                # Contract-equivalent: gemiddelde dynamische jaarprijs
+                avg_price = sum(dyn) / len(dyn)
+
+                energy = net_import * avg_price
+
             else:
-                # Geen saldering: import tegen uurprijs, export tegen vaste vergoeding
-                import_cost = sum(imp_kwh * price for imp_kwh, price in zip(import_profile_kwh, dyn))
+                # Geen saldering: import tegen uurprijzen, export tegen vaste vergoeding
+                import_cost = sum(
+                    imp_kwh * price
+                    for imp_kwh, price in zip(import_profile_kwh, dyn)
+                )
                 export_revenue = exp * export_price
                 energy = import_cost - export_revenue
 
