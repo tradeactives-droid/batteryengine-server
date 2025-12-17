@@ -6,6 +6,7 @@ from typing import List
 
 from .battery_model import BatteryModel
 from .types import TimeSeries
+import numpy as np
 
 
 @dataclass
