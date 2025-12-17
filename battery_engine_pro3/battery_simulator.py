@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from .battery_model import BatteryModel
 from .types import TimeSeries
-import numpy as np
 
+
+# ============================================================
+# RESULT OBJECT
+# ============================================================
 
 @dataclass
 class SimulationResult:
@@ -19,12 +22,40 @@ class SimulationResult:
     dt_hours: float
 
 
-class BatterySimulator:
+# ============================================================
+# BATTERY SIMULATOR
+# ============================================================
 
-    def __init__(self, load: TimeSeries, pv: TimeSeries, battery: BatteryModel | None):
+class BatterySimulator:
+    """
+    Simuleert energieflows:
+    - zonder batterij
+    - met batterij
+    - met optionele prijs-gestuurde arbitrage (dynamisch)
+    """
+
+    def __init__(
+        self,
+        load: TimeSeries,
+        pv: TimeSeries,
+        battery: Optional[BatteryModel],
+        prices_dyn: Optional[List[float]] = None,
+    ):
         self.load = load
         self.pv = pv
         self.battery = battery
+        self.prices = prices_dyn
+        self.dt = load.dt_hours
+
+        # Voor arbitrage: percentielen bepalen (veilig, zonder numpy)
+        if self.prices and len(self.prices) > 0:
+            prices_sorted = sorted(self.prices)
+            n = len(prices_sorted)
+            self.price_low = prices_sorted[int(0.30 * n)]   # P30
+            self.price_high = prices_sorted[int(0.75 * n)]  # P75
+        else:
+            self.price_low = None
+            self.price_high = None
 
     # -------------------------------------------------
     # ZONDER BATTERIJ
@@ -32,7 +63,7 @@ class BatterySimulator:
     def simulate_no_battery(self) -> SimulationResult:
         import_p = []
         export_p = []
-        soc = [0.0] * len(self.load.values)
+        soc_p = [0.0] * len(self.load.values)
 
         for l, p in zip(self.load.values, self.pv.values):
             net = l - p
@@ -40,93 +71,83 @@ class BatterySimulator:
             export_p.append(max(0.0, -net))
 
         return SimulationResult(
-            sum(import_p),
-            sum(export_p),
-            import_p,
-            export_p,
-            soc,
-            self.load.dt_hours
+            import_kwh=sum(import_p),
+            export_kwh=sum(export_p),
+            import_profile=import_p,
+            export_profile=export_p,
+            soc_profile=soc_p,
+            dt_hours=self.dt,
         )
 
     # -------------------------------------------------
-    # MET BATTERIJ (TEST-CONFORM MODEL)
+    # MET BATTERIJ (PV + PRIJS-GESTUURDE ARBITRAGE)
     # -------------------------------------------------
     def simulate_with_battery(self) -> SimulationResult:
         if self.battery is None:
             return self.simulate_no_battery()
 
         batt = self.battery
-        soc = batt.initial_soc_kwh
 
-        # 🔶 Dynamische prijsdata (optioneel)
-        prices = getattr(self.load, "prices_dyn", None)
+        soc = batt.E_min   # start veilig op minimum SoC
 
-        import_p = []
-        export_p = []
-        soc_p = []
+        import_p: List[float] = []
+        export_p: List[float] = []
+        soc_p: List[float] = []
 
-        # 🔶 Arbitrage-drempels (alleen als prijzen bestaan)
-        if prices and len(prices) == len(self.load.values):
-            low_thr = np.percentile(prices, 25)   # goedkoop
-            high_thr = np.percentile(prices, 75)  # duur
-        else:
-            low_thr = None
-            high_thr = None
+        for i, (l, p) in enumerate(zip(self.load.values, self.pv.values)):
+            price = self.prices[i] if self.prices and i < len(self.prices) else None
+            net = l - p  # POSITIEF = vraag, NEGATIEF = overschot
 
-        for l, p in zip(self.load.values, self.pv.values):
-            net = l - p
+            # ==================================================
+            # 1️⃣ PRIJS-GESTUURDE ARBITRAGE (DYNAMISCH)
+            # ==================================================
+            if (
+                price is not None
+                and self.price_low is not None
+                and self.price_high is not None
+            ):
+                # 🔋 Laden bij lage prijs
+                if price < self.price_low and soc < batt.E_max:
+                    charge_kw = min(batt.P_max, batt.E_max - soc)
+                    soc += charge_kw * batt.eta_charge
+                    import_p.append(charge_kw)
+                    export_p.append(0.0)
+                    soc_p.append(soc)
+                    continue
 
-            # 🔶 Dynamische prijs op dit tijdstip
-            price = prices[i] if prices and i < len(prices) else None
+                # 🔌 Ontladen bij hoge prijs
+                if price > self.price_high and soc > batt.E_min:
+                    discharge_kw = min(batt.P_max, soc - batt.E_min)
+                    soc -= discharge_kw
+                    import_p.append(0.0)
+                    export_p.append(discharge_kw * batt.eta_discharge)
+                    soc_p.append(soc)
+                    continue
 
-            if net > 0:  # ontladen
-                deliverable = min(net, batt.P_max)
-
-            # 🔶 Extra ontladen bij hoge prijs (arbitrage)
-            if price is not None and high_thr is not None and price > high_thr:
-                deliverable = batt.P_max
-
-                # ❗ GEEN efficiency bij ontladen (test-model)
-                actual_kwh = min(deliverable, soc)
-
-                delivered = actual_kwh
-                soc -= actual_kwh
-
-                import_p.append(max(0.0, net - delivered))
+            # ==================================================
+            # 2️⃣ NORMAAL GEDRAG (PV → LOAD → BATTERIJ)
+            # ==================================================
+            if net > 0:
+                # Ontladen om load te dekken
+                discharge = min(net, batt.P_max, soc - batt.E_min)
+                soc -= discharge
+                import_p.append(max(0.0, net - discharge))
                 export_p.append(0.0)
-
-            else:  # laden (PV of goedkoop net)
+            else:
+                # Laden met PV-overschot
                 surplus = -net
-                charge_kw = min(surplus, batt.P_max)
-
-                # 🔶 Extra laden bij lage prijs (arbitrage)
-                if price is not None and low_thr is not None and price < low_thr:
-                    charge_kw = batt.P_max
-
-                charge_kwh = charge_kw * batt.eta
-                charge_kwh = min(charge_kwh, batt.E_max - soc)
-
-                soc += charge_kwh
-
-                export_p.append(max(0.0, surplus - charge_kwh / batt.eta))
-                import_p.append(max(0.0, charge_kw - surplus))
-
-                # 🔑 efficiency volledig bij laden
-                charge_kwh = charge_kw * batt.eta
-                charge_kwh = min(charge_kwh, batt.E_max - soc)
-
-                soc += charge_kwh
-
-                export_p.append(max(0.0, surplus - charge_kwh / batt.eta))
+                charge = min(surplus, batt.P_max, batt.E_max - soc)
+                soc += charge * batt.eta_charge
                 import_p.append(0.0)
+                export_p.append(max(0.0, surplus - charge))
 
-            soc_p.append(max(soc, batt.E_min))
+            soc_p.append(soc)
 
         return SimulationResult(
-            sum(import_p),
-            sum(export_p),
-            import_p,
-            export_p,
-            soc_p,
-            self.load.dt_hours
+            import_kwh=sum(import_p),
+            export_kwh=sum(export_p),
+            import_profile=import_p,
+            export_profile=export_p,
+            soc_profile=soc_p,
+            dt_hours=self.dt,
         )
