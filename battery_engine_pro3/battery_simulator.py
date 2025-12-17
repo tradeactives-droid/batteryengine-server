@@ -88,9 +88,21 @@ class BatterySimulator:
                 import_p.append(max(0.0, net - delivered))
                 export_p.append(0.0)
 
-            else:  # laden
+            else:  # laden (PV of goedkoop net)
                 surplus = -net
                 charge_kw = min(surplus, batt.P_max)
+
+                # 🔶 Extra laden bij lage prijs (arbitrage)
+                if price is not None and low_thr is not None and price < low_thr:
+                    charge_kw = batt.P_max
+
+                charge_kwh = charge_kw * batt.eta
+                charge_kwh = min(charge_kwh, batt.E_max - soc)
+
+                soc += charge_kwh
+
+                export_p.append(max(0.0, surplus - charge_kwh / batt.eta))
+                import_p.append(max(0.0, charge_kw - surplus))
 
                 # 🔑 efficiency volledig bij laden
                 charge_kwh = charge_kw * batt.eta
