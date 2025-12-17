@@ -93,7 +93,7 @@ class BatterySimulator:
         soc = self.battery.initial_soc_kwh
         dt = self.load.dt_hours
 
-        prices = self.prices_dyn or []
+        prices = self.prices or []
 
         for i, (load_kwh, pv_kwh) in enumerate(zip(self.load.values, self.pv.values)):
             net = load_kwh - pv_kwh
