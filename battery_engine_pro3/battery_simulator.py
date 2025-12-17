@@ -103,7 +103,7 @@ class BatterySimulator:
         export_profile = []
         soc_profile = []
 
-        prices = self.prices_dyn or []
+        prices = self.prices or []
         dt = self.dt  # ← altijd via simulator, NIET via load
 
         for i, (load_kwh, pv_kwh) in enumerate(zip(self.load.values, self.pv.values)):
