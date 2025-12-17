@@ -156,6 +156,28 @@ class ScenarioRunner:
                 peak_info = PeakInfo(monthly_before=[], monthly_after=[])
 
         # =================================================
+        # MAANDELIJKSE KOSTEN (voor ROI-nauwkeurigheid)
+        # =================================================
+
+        def split_by_month(values, dt_hours):
+            """
+            Splitst een tijdreeks in 12 maanden.
+            Aannames:
+            - start op 1 januari
+            - dt_hours constant (bijv. 0.25)
+            """
+            steps_per_day = int(24 / dt_hours)
+              days_per_month = [31,28,31,30,31,30,31,31,30,31,30,31]
+
+            months = []
+            idx = 0
+            for days in days_per_month:
+                steps = days * steps_per_day
+                months.append(values[idx:idx+steps])
+                idx += steps
+                return months
+
+        # =================================================
         # ROI — gebaseerd op huidig tarief (B1 → C1)
         # =================================================
         if self.batt_cfg is not None:
