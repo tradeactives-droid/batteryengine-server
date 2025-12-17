@@ -79,6 +79,10 @@ class BatterySimulator:
             if net > 0:  # ontladen
                 deliverable = min(net, batt.P_max)
 
+            # 🔶 Extra ontladen bij hoge prijs (arbitrage)
+            if price is not None and high_thr is not None and price > high_thr:
+                deliverable = batt.P_max
+
                 # ❗ GEEN efficiency bij ontladen (test-model)
                 actual_kwh = min(deliverable, soc)
 
