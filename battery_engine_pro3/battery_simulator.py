@@ -138,7 +138,10 @@ class BatterySimulator:
             soc_profile.append(soc)
 
         return SimulationResult(
+            import_kwh=sum(import_profile),
+            export_kwh=sum(export_profile),
             import_profile=import_profile,
             export_profile=export_profile,
-            soc_profile=soc_profile
-        )
+            soc_profile=soc_profile,
+            dt_hours=dt,
+            )
