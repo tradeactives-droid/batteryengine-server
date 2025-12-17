@@ -106,7 +106,12 @@ class ScenarioRunner:
                 eta=self.batt_cfg.eta_rt,
             )
 
-            sim_batt = BatterySimulator(self.load, self.pv, battery_model)
+            sim_batt = BatterySimulator(
+                self.load,
+                self.pv,
+                battery_model,
+                prices_dyn=self.tariff_cfg.dynamic_prices,
+            )
             sim_res = sim_batt.simulate_with_battery()
 
             self.tariff_cfg.saldering = False
