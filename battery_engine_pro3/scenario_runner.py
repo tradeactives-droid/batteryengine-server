@@ -34,6 +34,32 @@ class ScenarioRunner:
         self.tariff_cfg = tariff_cfg
         self.batt_cfg = batt_cfg
 
+    # =================================================
+    # HELPER — SPLITS TIJDREEKS PER MAAND
+    # =================================================
+    def split_by_month(self, values, dt_hours):
+        """
+        Splitst een tijdreeks in 12 maanden.
+        Aannames:
+        - start op 1 januari
+        - dt_hours constant (bijv. 0.25)
+        """
+        steps_per_day = int(24 / dt_hours)
+        days_per_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+        months = []
+        idx = 0
+
+        for days in days_per_month:
+            steps = days * steps_per_day
+            months.append(values[idx : idx + steps])
+            idx += steps
+
+        return months
+
+    # =================================================
+    # MAIN RUNNER
+    # =================================================
     def run(self) -> FullScenarioOutput:
 
         current_tariff = self.tariff_cfg.current_tariff
@@ -47,7 +73,6 @@ class ScenarioRunner:
 
         self.tariff_cfg.saldering = True
 
-        # A1 per tarief (voor tariefmatrix)
         A1_per_tariff = {
             "enkel": cost_engine.compute_cost(
                 A1_sim.import_profile,
@@ -66,7 +91,6 @@ class ScenarioRunner:
             ),
         }
 
-        # A1 tile = gekozen huidig tarief
         A1 = A1_per_tariff[current_tariff]
 
         # =================================================
@@ -92,12 +116,37 @@ class ScenarioRunner:
             ),
         }
 
+        # --- B1 maandelijkse kosten ---
+        B1_monthly = {}
+
+        for tariff in B1.keys():
+            imp_months = self.split_by_month(
+                A1_sim.import_profile, self.load.dt_hours
+            )
+            exp_months = self.split_by_month(
+                A1_sim.export_profile, self.load.dt_hours
+            )
+
+            monthly_costs = []
+            for imp_m, exp_m in zip(imp_months, exp_months):
+                monthly_costs.append(
+                    cost_engine.compute_cost(
+                        imp_m,
+                        exp_m,
+                        tariff,
+                    ).total_cost_eur
+                )
+
+            B1_monthly[tariff] = monthly_costs
+
         # =================================================
         # C1 — toekomst met batterij (GEEN saldering)
         # =================================================
         if self.batt_cfg is None:
             C1 = B1
+            C1_monthly = B1_monthly
             peak_info = PeakInfo(monthly_before=[], monthly_after=[])
+
         else:
             battery_model = BatteryModel(
                 E_cap=self.batt_cfg.E,
@@ -134,6 +183,29 @@ class ScenarioRunner:
                 ),
             }
 
+            # --- C1 maandelijkse kosten ---
+            C1_monthly = {}
+
+            for tariff in C1.keys():
+                imp_months = self.split_by_month(
+                    sim_res.import_profile, self.load.dt_hours
+                )
+                exp_months = self.split_by_month(
+                    sim_res.export_profile, self.load.dt_hours
+                )
+
+                monthly_costs = []
+                for imp_m, exp_m in zip(imp_months, exp_months):
+                    monthly_costs.append(
+                        cost_engine.compute_cost(
+                            imp_m,
+                            exp_m,
+                            tariff,
+                        ).total_cost_eur
+                    )
+
+                C1_monthly[tariff] = monthly_costs
+
             # Peak shaving alleen voor BE
             if self.tariff_cfg.country == "BE":
                 monthly_before = PeakOptimizer.compute_monthly_peaks(
@@ -156,29 +228,7 @@ class ScenarioRunner:
                 peak_info = PeakInfo(monthly_before=[], monthly_after=[])
 
         # =================================================
-        # MAANDELIJKSE KOSTEN (voor ROI-nauwkeurigheid)
-        # =================================================
-
-        def split_by_month(values, dt_hours):
-            """
-            Splitst een tijdreeks in 12 maanden.
-            Aannames:
-            - start op 1 januari
-            - dt_hours constant (bijv. 0.25)
-            """
-            steps_per_day = int(24 / dt_hours)
-              days_per_month = [31,28,31,30,31,30,31,31,30,31,30,31]
-
-            months = []
-            idx = 0
-            for days in days_per_month:
-                steps = days * steps_per_day
-                months.append(values[idx:idx+steps])
-                idx += steps
-                return months
-
-        # =================================================
-        # ROI — gebaseerd op huidig tarief (B1 → C1)
+        # ROI — NOG STEEDS JAARLIJKS (volgende stap = maand-ROI)
         # =================================================
         if self.batt_cfg is not None:
             if current_tariff not in C1:
@@ -209,6 +259,8 @@ class ScenarioRunner:
             "A1_per_tariff": A1_per_tariff,
             "B1": B1,
             "C1": C1,
+            "B1_monthly": B1_monthly,
+            "C1_monthly": C1_monthly,
             "roi": roi,
             "peaks": peak_info,
         }
