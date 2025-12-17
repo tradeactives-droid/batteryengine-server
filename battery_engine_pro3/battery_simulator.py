@@ -91,7 +91,7 @@ class BatterySimulator:
         soc_profile = []
 
         soc = self.battery.initial_soc_kwh
-        dt = self.load.dt
+        dt = self.load.dt_hours
 
         prices = self.prices_dyn or []
 
