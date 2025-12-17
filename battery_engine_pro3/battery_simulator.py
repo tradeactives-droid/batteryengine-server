@@ -83,58 +83,90 @@ class BatterySimulator:
     # MET BATTERIJ (PV + PRIJS-GESTUURDE ARBITRAGE)
     # -------------------------------------------------
     def simulate_with_battery(self) -> SimulationResult:
+        """
+        Fysisch correcte batterij-simulatie.
+
+        Regels:
+        - Batterij levert alleen aan het huis (nooit aan het net)
+        - Export naar het net komt uitsluitend van PV
+        - Batterij kan laden van PV en (bij lage prijs) van het net
+        - Import/export worden pas aan het einde bepaald
+        """
+
         if self.battery is None:
             return self.simulate_no_battery()
+
+        batt = self.battery
+        soc = batt.E_min
 
         import_profile = []
         export_profile = []
         soc_profile = []
 
-        soc = self.battery.initial_soc_kwh
-        dt = self.load.dt_hours
-
-        prices = self.prices or []
+        prices = self.prices_dyn or []
+        dt = self.dt  # ← altijd via simulator, NIET via load
 
         for i, (load_kwh, pv_kwh) in enumerate(zip(self.load.values, self.pv.values)):
-            net = load_kwh - pv_kwh
 
-            price_now = prices[i] if i < len(prices) else None
-            price_future = (
-                prices[i + 1] if i + 1 < len(prices) else price_now
-            )
+            # =========================
+            # 1️⃣ PV → HUIS
+            # =========================
+            pv_to_load = min(load_kwh, pv_kwh)
+            load_remaining = load_kwh - pv_to_load
+            pv_surplus = pv_kwh - pv_to_load
 
-            # ==========================
-            # 1️⃣ DIRECT EIGEN VERBRUIK
-            # ==========================
-            if net > 0:
-                discharge_kwh = min(
-                    net,
-                    self.battery.power_kw * dt,
-                    soc - self.battery.E_min
+            # =========================
+            # 2️⃣ BATTERIJ → HUIS
+            # =========================
+            batt_to_load = 0.0
+            if load_remaining > 0 and soc > batt.E_min:
+                batt_to_load = min(
+                    load_remaining,
+                    batt.P_max * dt,
+                    soc - batt.E_min,
                 )
-                soc -= discharge_kwh
-                net -= discharge_kwh
+                soc -= batt_to_load
+                load_remaining -= batt_to_load
 
-            # ==========================
-            # 2️⃣ DYNAMISCHE ARBITRAGE (NET ←→ BATTERIJ)
-            # ==========================
-            if price_now is not None and price_future is not None:
-                if price_future > price_now:
-                    charge_kwh = min(
-                        self.battery.power_kw * dt,
-                        self.battery.E_max - soc
-                    )
-                    soc += charge_kwh
-                    net += charge_kwh
+            # =========================
+            # 3️⃣ PV → BATTERIJ
+            # =========================
+            pv_to_batt = 0.0
+            if pv_surplus > 0 and soc < batt.E_max:
+                pv_to_batt = min(
+                    pv_surplus,
+                    batt.P_max * dt,
+                    batt.E_max - soc,
+                )
+                soc += pv_to_batt * batt.eta_charge
+                pv_surplus -= pv_to_batt
 
-            # ==========================
-            # 3️⃣ NETAFHANDELING
-            # ==========================
-            imp = max(0.0, net)
-            exp = max(0.0, -net)
+            # =========================
+            # 4️⃣ NET → BATTERIJ (ARBITRAGE)
+            # =========================
+            grid_to_batt = 0.0
+            price_now = prices[i] if i < len(prices) else None
 
-            import_profile.append(imp)
-            export_profile.append(exp)
+            if (
+                price_now is not None
+                and self.price_low is not None
+                and price_now < self.price_low
+                and soc < batt.E_max
+            ):
+                grid_to_batt = min(
+                    batt.P_max * dt,
+                    batt.E_max - soc,
+                )
+                soc += grid_to_batt * batt.eta_charge
+
+            # =========================
+            # 5️⃣ NETAFHANDELING
+            # =========================
+            import_kwh = load_remaining + grid_to_batt
+            export_kwh = pv_surplus  # ⚠️ batterij exporteert NOOIT
+
+            import_profile.append(import_kwh)
+            export_profile.append(export_kwh)
             soc_profile.append(soc)
 
         return SimulationResult(
@@ -144,4 +176,4 @@ class BatterySimulator:
             export_profile=export_profile,
             soc_profile=soc_profile,
             dt_hours=dt,
-            )
+        )
