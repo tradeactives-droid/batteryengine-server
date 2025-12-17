@@ -56,7 +56,10 @@ class BatterySimulator:
             return self.simulate_no_battery()
 
         batt = self.battery
-        soc = 0.0
+        soc = batt.initial_soc_kwh
+
+        # 🔶 Dynamische prijsdata (optioneel)
+        prices = getattr(self.load, "prices_dyn", None)
 
         import_p = []
         export_p = []
