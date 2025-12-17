@@ -87,8 +87,7 @@ class BatterySimulator:
             return self.simulate_no_battery()
 
         batt = self.battery
-
-        soc = batt.E_min   # start veilig op minimum SoC
+        soc = batt.E_min
 
         import_p: List[float] = []
         export_p: List[float] = []
@@ -96,51 +95,41 @@ class BatterySimulator:
 
         for i, (l, p) in enumerate(zip(self.load.values, self.pv.values)):
             price = self.prices[i] if self.prices and i < len(self.prices) else None
-            net = l - p  # POSITIEF = vraag, NEGATIEF = overschot
+            net = l - p  # >0 = load, <0 = PV overschot
+
+            import_kwh = 0.0
+            export_kwh = 0.0
 
             # ==================================================
-            # 1️⃣ PRIJS-GESTUURDE ARBITRAGE (DYNAMISCH)
+            # 1️⃣ PRIJS-GESTUURDE ARBITRAGE (LOAD-OFFSET)
             # ==================================================
             if (
                 price is not None
                 and self.price_low is not None
                 and self.price_high is not None
             ):
-                # 🔋 Laden bij lage prijs
+                # 🔋 Laden bij lage prijs → extra import
                 if price < self.price_low and soc < batt.E_max:
-                    charge_kw = min(batt.P_max, batt.E_max - soc)
-                    soc += charge_kw * batt.eta_charge
-                    import_p.append(charge_kw)
-                    export_p.append(0.0)
-                    soc_p.append(soc)
-                    continue
+                    charge = min(batt.P_max, batt.E_max - soc)
+                    soc += charge * batt.eta_charge
+                    import_kwh += charge
 
-                # 🔌 Ontladen bij hoge prijs
-                if price > self.price_high and soc > batt.E_min:
-                    discharge_kw = min(batt.P_max, soc - batt.E_min)
-                    soc -= discharge_kw
-                    import_p.append(0.0)
-                    export_p.append(discharge_kw * batt.eta_discharge)
-                    soc_p.append(soc)
-                    continue
+                # 🔌 Ontladen bij hoge prijs → minder import
+                elif price > self.price_high and soc > batt.E_min:
+                    discharge = min(batt.P_max, soc - batt.E_min)
+                    soc -= discharge
+                    net -= discharge  # 🔑 load-offset (NIET export!)
 
             # ==================================================
-            # 2️⃣ NORMAAL GEDRAG (PV → LOAD → BATTERIJ)
+            # 2️⃣ NORMALE ENERGIEBALANS
             # ==================================================
             if net > 0:
-                # Ontladen om load te dekken
-                discharge = min(net, batt.P_max, soc - batt.E_min)
-                soc -= discharge
-                import_p.append(max(0.0, net - discharge))
-                export_p.append(0.0)
+                import_kwh += net
             else:
-                # Laden met PV-overschot
-                surplus = -net
-                charge = min(surplus, batt.P_max, batt.E_max - soc)
-                soc += charge * batt.eta_charge
-                import_p.append(0.0)
-                export_p.append(max(0.0, surplus - charge))
+                export_kwh += -net
 
+            import_p.append(import_kwh)
+            export_p.append(export_kwh)
             soc_p.append(soc)
 
         return SimulationResult(
