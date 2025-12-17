@@ -65,6 +65,14 @@ class BatterySimulator:
         export_p = []
         soc_p = []
 
+        # 🔶 Arbitrage-drempels (alleen als prijzen bestaan)
+        if prices and len(prices) == len(self.load.values):
+            low_thr = np.percentile(prices, 25)   # goedkoop
+            high_thr = np.percentile(prices, 75)  # duur
+        else:
+            low_thr = None
+            high_thr = None
+
         for l, p in zip(self.load.values, self.pv.values):
             net = l - p
 
