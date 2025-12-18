@@ -184,30 +184,32 @@ class ScenarioRunner:
                 }
 
         # =================================================
-        # JAAR-ROI (blijft bestaan voor tiles)
+        # ROI — PER TARIEF (nodig voor UI-switch)
         # =================================================
+        roi_per_tariff = {}
+
         if self.batt_cfg is not None:
-            tariff = current_tariff if current_tariff in C1 else "enkel"
-
-            yearly_saving = (
-                B1[tariff].total_cost_eur
-                - C1[tariff].total_cost_eur
-            )
-
-            roi = ROIEngine.compute(
-                ROIConfig(
-                    battery_cost_eur=self.batt_cfg.investment_eur,
-                    yearly_saving_eur=yearly_saving,
-                    degradation=self.batt_cfg.degradation_per_year,
-                    horizon_years=self.batt_cfg.lifetime_years,
+            for tariff in ["enkel", "dag_nacht", "dynamisch"]:
+                yearly_saving = (
+                    B1[tariff].total_cost_eur
+                    - C1[tariff].total_cost_eur
                 )
-            )
+
+                roi_per_tariff[tariff] = ROIEngine.compute(
+                    ROIConfig(
+                        battery_cost_eur=self.batt_cfg.investment_eur,
+                        yearly_saving_eur=yearly_saving,
+                        degradation=self.batt_cfg.degradation_per_year,
+                        horizon_years=self.batt_cfg.lifetime_years,
+                    )
+                )
         else:
-            roi = ROIResult(
-                yearly_saving_eur=0.0,
-                payback_years=None,
-                roi_percent=0.0,
-            )
+            for tariff in ["enkel", "dag_nacht", "dynamisch"]:
+                roi_per_tariff[tariff] = ROIResult(
+                    yearly_saving_eur=0.0,
+                    payback_years=None,
+                    roi_percent=0.0,
+                )
 
         return {
             "A1": A1,
@@ -216,7 +218,6 @@ class ScenarioRunner:
             "C1": C1,
             "B1_monthly": B1_monthly,
             "C1_monthly": C1_monthly,
-            "roi": roi,
-            "roi_monthly": roi_monthly,
+            "roi_per_tariff": roi_per_tariff,
             "peaks": peak_info,
         }
