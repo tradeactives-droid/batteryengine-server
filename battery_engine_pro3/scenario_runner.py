@@ -20,7 +20,7 @@ class ScenarioRunner:
     - A1: huidige situatie (met saldering)
     - B1: toekomst zonder batterij (zonder saldering)
     - C1: toekomst met batterij (zonder saldering)
-    Inclusief maandelijkse kosten (voor seizoens-ROI)
+    Inclusief maandelijkse kosten + cumulatieve maand-ROI
     """
 
     def __init__(
@@ -39,12 +39,6 @@ class ScenarioRunner:
     # HELPER — SPLITS TIJDREEKS PER MAAND
     # =================================================
     def split_by_month(self, values: List[float], dt_hours: float) -> List[List[float]]:
-        """
-        Splitst een tijdreeks in 12 maanden.
-        Aannames:
-        - start op 1 januari
-        - dt_hours constant (bijv. 0.25)
-        """
         steps_per_day = int(24 / dt_hours)
         days_per_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
@@ -53,7 +47,7 @@ class ScenarioRunner:
 
         for days in days_per_month:
             steps = days * steps_per_day
-            months.append(values[idx : idx + steps])
+            months.append(values[idx: idx + steps])
             idx += steps
 
         return months
@@ -67,7 +61,7 @@ class ScenarioRunner:
         cost_engine = CostEngine(self.tariff_cfg)
 
         # =================================================
-        # A1 — huidige situatie (GEEN batterij, MET saldering)
+        # A1 — huidige situatie (MET saldering)
         # =================================================
         sim_no = BatterySimulator(self.load, self.pv, battery=None)
         A1_sim = sim_no.simulate_no_battery()
@@ -75,24 +69,14 @@ class ScenarioRunner:
         self.tariff_cfg.saldering = True
 
         A1_per_tariff = {
-            "enkel": cost_engine.compute_cost(
+            tariff: cost_engine.compute_cost(
                 A1_sim.import_profile,
                 A1_sim.export_profile,
-                "enkel",
-            ),
-            "dag_nacht": cost_engine.compute_cost(
-                A1_sim.import_profile,
-                A1_sim.export_profile,
-                "dag_nacht",
-            ),
-            "dynamisch": cost_engine.compute_cost(
-                A1_sim.import_profile,
-                A1_sim.export_profile,
-                "dynamisch",
-            ),
+                tariff,
+            )
+            for tariff in ["enkel", "dag_nacht", "dynamisch"]
         }
 
-        # Tile "Huidige situatie"
         A1 = A1_per_tariff.get(current_tariff, A1_per_tariff["enkel"])
 
         # =================================================
@@ -109,28 +93,15 @@ class ScenarioRunner:
             for tariff in ["enkel", "dag_nacht", "dynamisch"]
         }
 
-        # --- B1 maandelijkse kosten ---
         B1_monthly: Dict[str, List[float]] = {}
+        for tariff in B1:
+            imp_m = self.split_by_month(A1_sim.import_profile, self.load.dt_hours)
+            exp_m = self.split_by_month(A1_sim.export_profile, self.load.dt_hours)
 
-        for tariff in B1.keys():
-            imp_months = self.split_by_month(
-                A1_sim.import_profile, self.load.dt_hours
-            )
-            exp_months = self.split_by_month(
-                A1_sim.export_profile, self.load.dt_hours
-            )
-
-            monthly_costs: List[float] = []
-            for imp_m, exp_m in zip(imp_months, exp_months):
-                monthly_costs.append(
-                    cost_engine.compute_cost(
-                        imp_m,
-                        exp_m,
-                        tariff,
-                    ).total_cost_eur
-                )
-
-            B1_monthly[tariff] = monthly_costs
+            B1_monthly[tariff] = [
+                cost_engine.compute_cost(i, e, tariff).total_cost_eur
+                for i, e in zip(imp_m, exp_m)
+            ]
 
         # =================================================
         # C1 — toekomst met batterij (GEEN saldering)
@@ -156,8 +127,6 @@ class ScenarioRunner:
             )
             sim_res = sim_batt.simulate_with_battery()
 
-            self.tariff_cfg.saldering = False
-
             C1 = {
                 tariff: cost_engine.compute_cost(
                     sim_res.import_profile,
@@ -167,53 +136,55 @@ class ScenarioRunner:
                 for tariff in ["enkel", "dag_nacht", "dynamisch"]
             }
 
-            # --- C1 maandelijkse kosten ---
             C1_monthly: Dict[str, List[float]] = {}
+            for tariff in C1:
+                imp_m = self.split_by_month(sim_res.import_profile, self.load.dt_hours)
+                exp_m = self.split_by_month(sim_res.export_profile, self.load.dt_hours)
 
-            for tariff in C1.keys():
-                imp_months = self.split_by_month(
-                    sim_res.import_profile, self.load.dt_hours
-                )
-                exp_months = self.split_by_month(
-                    sim_res.export_profile, self.load.dt_hours
-                )
+                C1_monthly[tariff] = [
+                    cost_engine.compute_cost(i, e, tariff).total_cost_eur
+                    for i, e in zip(imp_m, exp_m)
+                ]
 
-                monthly_costs: List[float] = []
-                for imp_m, exp_m in zip(imp_months, exp_months):
-                    monthly_costs.append(
-                        cost_engine.compute_cost(
-                            imp_m,
-                            exp_m,
-                            tariff,
-                        ).total_cost_eur
-                    )
-
-                C1_monthly[tariff] = monthly_costs
-
-            # Peak shaving alleen voor BE
-            if self.tariff_cfg.country == "BE":
-                monthly_before = PeakOptimizer.compute_monthly_peaks(
-                    self.load, self.pv
-                )
-                targets = PeakOptimizer.compute_monthly_targets(monthly_before)
-
-                monthly_after, _, _, _ = PeakOptimizer.simulate_with_peak_shaving(
-                    self.load,
-                    self.pv,
-                    battery_model,
-                    targets,
-                )
-
-                peak_info = PeakInfo(
-                    monthly_before=monthly_before,
-                    monthly_after=monthly_after,
-                )
-            else:
-                peak_info = PeakInfo(monthly_before=[], monthly_after=[])
+            peak_info = PeakInfo(monthly_before=[], monthly_after=[])
 
         # =================================================
-        # ROI — NOG STEEDS JAARLIJKS
-        # (Stap 2.2 = maand-cumulatief)
+        # STAP 2.2 — CUMULATIEVE MAAND-ROI + PAYBACK
+        # =================================================
+        roi_monthly: Dict[str, Dict[str, object]] = {}
+
+        if self.batt_cfg is not None:
+            investment = self.batt_cfg.investment_eur
+
+            for tariff in ["enkel", "dag_nacht", "dynamisch"]:
+                monthly_savings = [
+                    b - c
+                    for b, c in zip(B1_monthly[tariff], C1_monthly[tariff])
+                ]
+
+                cumulative = []
+                total = 0.0
+                payback_month = None
+
+                for idx, val in enumerate(monthly_savings):
+                    total += val
+                    cumulative.append(total)
+                    if payback_month is None and total >= investment:
+                        payback_month = idx + 1  # maanden tellen vanaf 1
+
+                roi_monthly[tariff] = {
+                    "monthly_savings": monthly_savings,
+                    "cumulative_savings": cumulative,
+                    "payback_month": payback_month,
+                    "payback_years": (
+                        round(payback_month / 12, 1)
+                        if payback_month is not None
+                        else None
+                    ),
+                }
+
+        # =================================================
+        # JAAR-ROI (blijft bestaan voor tiles)
         # =================================================
         if self.batt_cfg is not None:
             tariff = current_tariff if current_tariff in C1 else "enkel"
@@ -246,5 +217,6 @@ class ScenarioRunner:
             "B1_monthly": B1_monthly,
             "C1_monthly": C1_monthly,
             "roi": roi,
+            "roi_monthly": roi_monthly,
             "peaks": peak_info,
         }
