@@ -250,27 +250,24 @@ def compute_v3(req: ComputeV3Request):
 # ADVICE GENERATOR
 # ============================================================
 
+from typing import Optional
+
 class AdviceContext(BaseModel):
     # Land & contract
     country: str
     current_tariff: str
 
-    # Gekozen batterijconfiguratie (zoals ingevoerd)
+    # Batterijconfiguratie (frontend)
     battery: dict
 
-    # Volledige tariefmatrix uit de engine
-    # (A1, B1, C1 per tarief)
+    # Resultaten uit engine
     tariff_matrix: dict
-
-    # ROI-resultaten per tarief
     roi_per_tariff: dict
 
-    # Door backend vastgestelde conclusies
-    best_tariff_now: str
-    best_tariff_with_battery: str
-
-    # Backend-beoordeling batterij (GEEN AI-logica)
-    battery_assessment: dict
+    # Backend-afgeleide conclusies (OPTIONEEL BIJ REQUEST)
+    best_tariff_now: Optional[str] = None
+    best_tariff_with_battery: Optional[str] = None
+    battery_assessment: Optional[dict] = None
 
 class AdviceRequest(BaseModel):
     context: AdviceContext
@@ -409,6 +406,7 @@ CONCEPTTEKST:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
