@@ -269,6 +269,9 @@ class AdviceContext(BaseModel):
     best_tariff_now: str
     best_tariff_with_battery: str
 
+    # Backend-beoordeling batterij (GEEN AI-logica)
+    battery_assessment: dict
+
 class AdviceRequest(BaseModel):
     context: AdviceContext
     draft_text: str
@@ -377,6 +380,7 @@ CONCEPTTEKST (HERSCHRIJVEN, NIET NEGEREN):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
