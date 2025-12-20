@@ -277,6 +277,34 @@ class AdviceRequest(BaseModel):
 @app.post("/generate_advice")
 def generate_advice(req: AdviceRequest):
 
+    # ===============================
+    # A4 — CONTEXT OPBOUW (FEITEN)
+    # ===============================
+    ctx = req.context
+
+    # 1️⃣ Tariefmatrix ophalen (verwacht structuur uit backend)
+    tariff_matrix = ctx.tariff_matrix
+
+    # 2️⃣ Goedkoopste tarief ZONDER batterij bepalen
+    # (B1 = toekomst zonder batterij)
+    costs_without_battery = {
+        tariff: vals["B1"]
+        for tariff, vals in tariff_matrix.items()
+    }
+    best_tariff_now = min(costs_without_battery, key=costs_without_battery.get)
+
+    # 3️⃣ Goedkoopste tarief MET batterij bepalen
+    # (C1 = toekomst met batterij)
+    costs_with_battery = {
+        tariff: vals["C1"]
+        for tariff, vals in tariff_matrix.items()
+    }
+    best_tariff_with_battery = min(costs_with_battery, key=costs_with_battery.get)
+
+    # 4️⃣ Context verrijken (AI krijgt dit, niet zelf laten afleiden)
+    ctx.best_tariff_now = best_tariff_now
+    ctx.best_tariff_with_battery = best_tariff_with_battery
+
     if client is None:
         return {
             "error": "NO_OPENAI_KEY",
@@ -349,6 +377,7 @@ CONCEPTTEKST (HERSCHRIJVEN, NIET NEGEREN):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
