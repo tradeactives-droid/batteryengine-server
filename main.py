@@ -407,8 +407,12 @@ Goedkoopste tarief MET batterij:
 
 STRUCTUUR (VERPLICHT):
 1. Samenvatting
+   - benoem expliciet of het huidige tarief NIET het goedkoopste is
 2. Tariefanalyse
+   - vergelijk huidig tarief met goedkoopste optie
+   - benoem expliciet of de batterij leidt tot een ander optimaal tarief
 3. Batterijbeoordeling
+   - gebruik uitsluitend backend-beoordeling
 4. Conclusie & advies
 
 CONCEPTTEKST (ALLEEN HERSCHRIJVEN, NIET NEGEREN):
@@ -432,6 +436,7 @@ CONCEPTTEKST (ALLEEN HERSCHRIJVEN, NIET NEGEREN):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
