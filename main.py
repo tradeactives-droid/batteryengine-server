@@ -308,6 +308,48 @@ def generate_advice(req: AdviceRequest):
     ctx.best_tariff_now = best_tariff_now
     ctx.best_tariff_with_battery = best_tariff_with_battery
 
+     # 5️⃣ Batterijbeoordeling (FEITELIJK, GEEN AI)
+    batt = ctx.battery
+
+    E = batt.get("E", 0)
+    P = batt.get("P", 0)
+
+    battery_assessment = {
+        "capacity_label": (
+            "klein" if E < 5 else
+            "middelgroot" if E < 10 else
+            "groot"
+        ),
+        "power_label": (
+            "laag" if P < 3 else
+            "gemiddeld" if P < 6 else
+            "hoog"
+        ),
+        "notes": []
+    }
+
+    if E < 5:
+        battery_assessment["notes"].append(
+            "De gekozen batterijcapaciteit is relatief klein en dekt vooral kortstondig eigen verbruik."
+        )
+
+    if E >= 10:
+        battery_assessment["notes"].append(
+            "De batterijcapaciteit is ruim en kan meerdere laad- en ontlaadcycli per dag ondersteunen."
+        )
+
+    if P < 3:
+        battery_assessment["notes"].append(
+            "Het laad- en ontlaadvermogen is beperkt, wat de flexibiliteit bij pieken of dynamische prijzen kan verminderen."
+        )
+
+    if P >= 6:
+        battery_assessment["notes"].append(
+            "Het hogere laad- en ontlaadvermogen maakt de batterij geschikt voor snelle respons, zoals bij dynamische tarieven."
+        )
+
+    ctx.battery_assessment = battery_assessment    
+
     if client is None:
         return {
             "error": "NO_OPENAI_KEY",
@@ -380,6 +422,7 @@ CONCEPTTEKST (HERSCHRIJVEN, NIET NEGEREN):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
