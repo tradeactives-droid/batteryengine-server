@@ -270,9 +270,8 @@ class AdviceContext(BaseModel):
     best_tariff_with_battery: str
 
 class AdviceRequest(BaseModel):
-    country: str
-    battery: dict
-    results: dict
+    context: AdviceContext
+    draft_text: str
 
 
 @app.post("/generate_advice")
@@ -284,25 +283,53 @@ def generate_advice(req: AdviceRequest):
             "advice": "OpenAI API key ontbreekt — adviesgenerator werkt alleen in productie."
         }
 
+    ctx = req.context
+
     prompt = f"""
-Je bent een professionele energieconsultant gespecialiseerd in thuisbatterijen.
+ROL
+Je bent een gecertificeerde energieconsultant voor thuisbatterijen.
+Je schrijft een professioneel adviesrapport voor een klant.
 
-Genereer een helder, zakelijk adviesrapport gebaseerd op:
+ZEER BELANGRIJKE REGELS (AFWIJKEN = FOUT):
+- Je mag NIET rekenen.
+- Je mag GEEN aannames doen.
+- Je mag GEEN nieuwe cijfers introduceren.
+- Je gebruikt UITSLUITEND de feiten uit het CONTEXT-blok.
+- Je vergelijkt en licht toe, je berekent niets zelf.
 
-Land: {req.country}
-Batterijconfiguratie:
-{req.battery}
+CONTEXT (FEITEN — LEIDEND):
+Land: {ctx.country}
+Huidig tarief: {ctx.current_tariff}
 
-Resultaten:
-{req.results}
+Batterij (gekozen configuratie):
+{ctx.battery}
 
-Strakke structuur:
-1. Executive summary
-2. Financiële analyse
-3. Energetische analyse
-4. Land-specifiek advies (NL/BE)
-5. Aankoopadvies
-6. Samenvatting
+Tariefmatrix (jaarlijkse kosten per scenario):
+{ctx.tariff_matrix}
+
+ROI per tarief:
+{ctx.roi_per_tariff}
+
+Goedkoopste tarief ZONDER batterij: {ctx.best_tariff_now}
+Goedkoopste tarief MET batterij: {ctx.best_tariff_with_battery}
+
+TAKEN:
+1. Herschrijf de aangeleverde concepttekst tot een helder, professioneel eindadvies.
+2. Benoem expliciet:
+   - of een ander tarief gunstiger is dan het huidige
+   - of dynamisch aantrekkelijker wordt mét batterij
+3. Beoordeel of de gekozen batterij (E/P) logisch is:
+   - noem wanneer een kleinere of grotere batterij beter past
+   - baseer dit uitsluitend op de resultaten (geen nieuwe berekeningen)
+4. Schrijf in correct, zakelijk Nederlands.
+5. Structuur:
+   - Samenvatting
+   - Tariefanalyse
+   - Batterijbeoordeling
+   - Conclusie & advies
+
+CONCEPTTEKST (HERSCHRIJVEN, NIET NEGEREN):
+{req.draft_text}
 """
 
     try:
@@ -322,6 +349,7 @@ Strakke structuur:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
