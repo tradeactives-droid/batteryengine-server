@@ -391,7 +391,7 @@ CONCEPTTEKST:
 
     try:
         response = client.chat.completions.create(
-            model="gpt-5.1",
+            model="gpt-4.1",
             messages=[
                 {"role": "system", "content": "Je bent een gecertificeerde energieconsultant gespecialiseerd in thuisbatterijen."},
                 {"role": "user", "content": prompt}
@@ -406,6 +406,7 @@ CONCEPTTEKST:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
