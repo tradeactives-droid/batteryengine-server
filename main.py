@@ -358,66 +358,66 @@ def generate_advice(req: AdviceRequest):
 
     ctx = req.context
 
-prompt = f"""
-ROL
-Je bent een gecertificeerde energieconsultant voor thuisbatterijen.
-Je herschrijft een bestaand advies tot een professioneel eindrapport.
+    prompt = f"""
+    ROL
+    Je bent een gecertificeerde energieconsultant voor thuisbatterijen.
+    Je herschrijft een bestaand advies tot een professioneel eindrapport.
 
-ABSOLUUT VERPLICHTE REGELS (OVERTREDING = FOUT ANTWOORD):
-- Je mag NIET rekenen.
-- Je mag GEEN aannames doen.
-- Je mag GEEN nieuwe cijfers of percentages noemen.
-- Je gebruikt UITSLUITEND de feiten uit het CONTEXT-blok.
-- Je vergelijkt, verklaart en licht toe — je berekent niets zelf.
+    ABSOLUUT VERPLICHTE REGELS (OVERTREDING = FOUT ANTWOORD):
+    - Je mag NIET rekenen.
+    - Je mag GEEN aannames doen.
+    - Je mag GEEN nieuwe cijfers of percentages noemen.
+    - Je gebruikt UITSLUITEND de feiten uit het CONTEXT-blok.
+    - Je vergelijkt, verklaart en licht toe — je berekent niets zelf.
 
-WAT JE WEL MOET DOEN:
-- Vergelijk expliciet tarieven op basis van de tariefmatrix.
-- Benoem expliciet:
-  • of een ander tarief goedkoper is dan het huidige
-  • of dynamisch aantrekkelijker wordt mét batterij
-- Beoordeel de batterijkeuze uitsluitend op basis van:
-  • backend-beoordeling
-  • resultaten per tarief
-- Licht toe wanneer:
-  • een kleinere batterij logischer kan zijn
-  • een grotere batterij meer flexibiliteit biedt
-- Gebruik helder, zakelijk Nederlands (geen marketingtaal).
+    WAT JE WEL MOET DOEN:
+    - Vergelijk expliciet tarieven op basis van de tariefmatrix.
+    - Benoem expliciet:
+      • of een ander tarief goedkoper is dan het huidige
+      • of dynamisch aantrekkelijker wordt mét batterij
+    - Beoordeel de batterijkeuze uitsluitend op basis van:
+      • backend-beoordeling
+      • resultaten per tarief
+    - Licht toe wanneer:
+      • een kleinere batterij logischer kan zijn
+      • een grotere batterij meer flexibiliteit biedt
+    - Gebruik helder, zakelijk Nederlands (geen marketingtaal).
 
-CONTEXT (FEITEN — LEIDEND, NIET INTERPRETEREN):
-Land: {ctx.country}
-Huidig tarief: {ctx.current_tariff}
+    CONTEXT (FEITEN — LEIDEND, NIET INTERPRETEREN):
+    Land: {ctx.country}
+    Huidig tarief: {ctx.current_tariff}
 
-Batterij (ingevoerd):
-{ctx.battery}
+    Batterij (ingevoerd):
+    {ctx.battery}
 
-Backend-beoordeling batterij:
-{ctx.battery_assessment}
+    Backend-beoordeling batterij:
+    {ctx.battery_assessment}
 
-Tariefmatrix (jaarlijkse kosten per scenario):
-{ctx.tariff_matrix}
+    Tariefmatrix (jaarlijkse kosten per scenario):
+    {ctx.tariff_matrix}
 
-ROI per tarief:
-{ctx.roi_per_tariff}
+    ROI per tarief:
+    {ctx.roi_per_tariff}
 
-Goedkoopste tarief ZONDER batterij:
-{ctx.best_tariff_now}
+    Goedkoopste tarief ZONDER batterij:
+    {ctx.best_tariff_now}
 
-Goedkoopste tarief MET batterij:
-{ctx.best_tariff_with_battery}
+    Goedkoopste tarief MET batterij:
+    {ctx.best_tariff_with_battery}
 
-STRUCTUUR (VERPLICHT):
-1. Samenvatting
-   - benoem expliciet of het huidige tarief NIET het goedkoopste is
-2. Tariefanalyse
-   - vergelijk huidig tarief met goedkoopste optie
-   - benoem expliciet of de batterij leidt tot een ander optimaal tarief
-3. Batterijbeoordeling
-   - gebruik uitsluitend backend-beoordeling
-4. Conclusie & advies
+    STRUCTUUR (VERPLICHT):
+    1. Samenvatting
+       - benoem expliciet of het huidige tarief NIET het goedkoopste is
+    2. Tariefanalyse
+       - vergelijk huidig tarief met goedkoopste optie
+       - benoem expliciet of de batterij leidt tot een ander optimaal tarief
+    3. Batterijbeoordeling
+       - gebruik uitsluitend backend-beoordeling
+    4. Conclusie & advies
 
-CONCEPTTEKST (ALLEEN HERSCHRIJVEN, NIET NEGEREN):
-{req.draft_text}
-"""
+    CONCEPTTEKST (ALLEEN HERSCHRIJVEN, NIET NEGEREN):
+    {req.draft_text}
+    """
 
     try:
         response = client.chat.completions.create(
@@ -436,6 +436,7 @@ CONCEPTTEKST (ALLEEN HERSCHRIJVEN, NIET NEGEREN):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
