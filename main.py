@@ -377,6 +377,9 @@ Huidig tarief: {ctx.current_tariff}
 Batterij (gekozen configuratie):
 {ctx.battery}
 
+Backend-beoordeling batterij:
+{ctx.battery_assessment}
+
 Tariefmatrix (jaarlijkse kosten per scenario):
 {ctx.tariff_matrix}
 
@@ -422,6 +425,7 @@ CONCEPTTEKST (HERSCHRIJVEN, NIET NEGEREN):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
