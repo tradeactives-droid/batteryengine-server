@@ -246,7 +246,10 @@ def compute_v3(req: ComputeV3Request):
 class AdviceContext(BaseModel):
     country: str
     current_tariff: str
+
     battery: dict
+    energy_profile: Optional[dict] = None
+
     tariff_matrix: dict
     roi_per_tariff: dict
 
@@ -321,6 +324,21 @@ ABSOLUUT VERPLICHTE REGELS (NIET SCHENDEN)
 - Je mag GEEN nieuwe cijfers, bedragen of percentages introduceren.
 - Je mag GEEN technische of financiële claims doen die niet expliciet volgen uit het CONTEXT-blok.
 - Je gebruikt UITSLUITEND de feiten uit het CONTEXT-blok.
+
+VERPLICHTE INSTRUCTIES OVER HET ENERGIEPROFIEL (CSV-GEBASEERD)
+- Je MOET het energieprofiel expliciet benoemen en duiden.
+- Het energieprofiel omvat onder andere:
+- jaarlijks elektriciteitsverbruik,
+- jaarlijkse zonne-opwek,
+- mate van direct eigen verbruik (zelfconsumptie),
+- en het tijdsverschil tussen piekverbruik en piekopwek.
+- Je MOET toelichten wat deze patronen betekenen voor:
+- teruglevering,
+- netafname,
+- en de functionele rol van een thuisbatterij.
+- Je mag GEEN nieuwe berekeningen uitvoeren.
+- Je mag GEEN percentages of cijfers herinterpreteren.
+- Je mag ALLEEN beschrijven en duiden wat expliciet in het energieprofiel aanwezig is.
 
 CRUCIALE INSTRUCTIES OVER TARIEFSTRUCTUREN
 - Als vaste of traditionele tarieven financieel beperkt gunstig zijn, moet dit expliciet benoemd worden.
@@ -445,5 +463,6 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
