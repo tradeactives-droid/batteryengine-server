@@ -349,22 +349,32 @@ CRUCIALE INSTRUCTIES OVER TARIEFSTRUCTUREN
   - en de technische geschiktheid van de batterij.
 - Dynamische tarieven mogen NIET als garantie worden gepresenteerd, maar WEL als strategische kans.
 
-VERPLICHTE INSTRUCTIES OVER BATTERIJCONFIGURATIE (E & P)
-- Je MOET expliciet ingaan op:
-  - de gekozen opslagcapaciteit (E),
+VERPLICHTE INSTRUCTIES OVER BATTERIJSIZING (E & P — NIET NEGEREN)
+
+- Je MOET afzonderlijk en expliciet oordelen over:
+  - de opslagcapaciteit (E),
   - en het laad/ontlaadvermogen (P).
-- Je beoordeelt of deze configuratie:
-  - goed passend is,
-  - overgedimensioneerd kan zijn,
-  - of juist beperkend kan werken,
-  uitsluitend op basis van de context.
-- Indien de gekozen batterijconfiguratie logisch en passend is, moet dit ook expliciet benoemd worden.
-- Indien alternatieve configuraties mogelijk beter aansluiten bij:
-  - het tarieftype,
-  - het gebruiksdoel (kostensturing vs. zelfconsumptie),
-  - of de mate van actieve sturing,
-  mag dit adviserend worden genoemd, ZONDER cijfers of aannames.
-- Je presenteert optimalisatie altijd als overweging, nooit als verplichting.
+
+- Voor OPSLAGCAPACITEIT (E) moet je altijd één van de volgende kwalificaties gebruiken:
+  - “passend bij het huidige energieprofiel”,
+  - “relatief groot ten opzichte van het energieprofiel”,
+  - of “beperkend ten opzichte van het energieprofiel”.
+
+- Voor LAAD/ONTLAADVERMOGEN (P) moet je altijd één van de volgende kwalificaties gebruiken:
+  - “voldoende passend voor het gebruiksdoel”,
+  - “potentieel limiterend in flexibiliteit”,
+  - of “ruim gedimensioneerd ten opzichte van de toepassing”.
+
+- Je oordeel moet uitsluitend gebaseerd zijn op:
+  - het energieprofiel,
+  - het gekozen tarieftype,
+  - en de backend-classificatie van de batterijconfiguratie.
+
+- Indien de huidige configuratie logisch en goed aansluit bij de situatie,
+  moet dit expliciet en ondubbelzinnig benoemd worden.
+
+- Indien optimalisatie mogelijk is, mag dit uitsluitend adviserend worden genoemd
+  en uitsluitend als overweging, zonder cijfers, aannames of herberekeningen.
 
 TOON & STIJL
 - Professioneel
@@ -373,13 +383,65 @@ TOON & STIJL
 - Geen marketingtaal
 - Geen verkoopdruk
 
-STRUCTUUR (VERPLICHT AANHOUDEN)
-1. Managementsamenvatting
-2. Financiële duiding
-3. Technische beoordeling & batterijconfiguratie
-4. Tariefstrategie & marktcontext
-5. Conclusie & aanbevolen vervolgstappen
-6. Disclaimer
+STRUCTUUR VAN HET ADVIESRAPPORT (ABSOLUUT VERPLICHT)
+
+Je MOET het adviesrapport exact volgens onderstaande structuur opstellen.
+Afwijken van volgorde, titels of het samenvoegen van secties is NIET toegestaan.
+
+Gebruik exact deze genummerde koppen:
+
+1. Managementsamenvatting  
+- Korte, zakelijke samenvatting van het totale advies.
+- Maximaal 2 alinea’s.
+- Geen details, geen herhaling, geen nieuwe informatie.
+- Benoem expliciet:
+  - of het huidige tarief financieel gunstig of beperkt gunstig is,
+  - en of dynamische tarieven als strategisch alternatief relevant zijn.
+- Positioneer het rapport expliciet als besluitondersteunend.
+
+2. Financiële duiding  
+- Verduidelijk waarom de businesscase wel of niet sluit.
+- Maak een helder onderscheid tussen:
+  - vaste / traditionele tarieven
+  - en dynamische tarieven.
+- Geen bedragen of nieuwe cijfers toevoegen.
+- Gebruik uitsluitend contextuele uitleg.
+
+3. Technische beoordeling & batterijconfiguratie  
+- Beschrijf de batterijconfiguratie (E, P, DoD, efficiëntie).
+- Geef expliciet oordeel over:
+  - opslagcapaciteit (E),
+  - laad/ontlaadvermogen (P),
+  volgens de verplichte kwalificaties.
+- Koppel de technische eigenschappen aan:
+  - het energieprofiel,
+  - het tarieftype,
+  - en de mate van actieve sturing.
+- Benoem expliciet of de huidige configuratie logisch en passend is.
+
+4. Tariefstrategie & marktcontext  
+- Beschrijf de rol van tariefstructuren in het rendement van thuisbatterijen.
+- Benoem expliciet:
+  - waarom vaste tarieven vaak beperkt voordeel bieden,
+  - en waarom dynamische tarieven strategische kansen kunnen bieden.
+- Geen garanties, geen voorspellingen.
+
+5. Conclusie & aanbevolen vervolgstappen  
+- Vat het advies samen in relationele vorm:
+  - tariefkeuze,
+  - batterijconfiguratie,
+  - energieprofiel.
+- Benoem expliciet:
+  - of de huidige configuratie geschikt is,
+  - en welke vervolgstappen logisch zijn.
+- Formuleer vervolgstappen altijd als overweging, nooit als verplichting.
+
+6. Disclaimer  
+- Benoem dat resultaten afhankelijk zijn van:
+  - marktontwikkelingen,
+  - regelgeving,
+  - contractvoorwaarden.
+- Geen nieuwe informatie toevoegen.
 
 INHOUDELIJKE RICHTLIJNEN PER SECTIE
 
@@ -466,6 +528,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
