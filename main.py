@@ -502,6 +502,9 @@ Huidig tarief: {ctx.current_tariff}
 Energieprofiel (op basis van meetdata uit CSV-bestanden):
 {ctx.energy_profile}
 
+Extra energieverbruikers (opgegeven door gebruiker):
+{ctx.extra_consumers}
+
 Batterij (ingevoerd):
 {ctx.battery}
 
@@ -541,6 +544,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
