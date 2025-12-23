@@ -249,6 +249,7 @@ class AdviceContext(BaseModel):
 
     battery: dict
     energy_profile: Optional[dict] = None
+    extra_consumers: Optional[dict] = None
 
     tariff_matrix: dict
     roi_per_tariff: dict
@@ -540,6 +541,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
