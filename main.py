@@ -389,7 +389,7 @@ INHOUDELIJKE RICHTLIJNEN PER SECTIE
 - Introduceer dynamische tarieven expliciet als strategisch alternatief indien relevant.
 - Positioneer het rapport als besluitondersteunend.
 
-2. Financiële duiding
+2. Analyse huidig energieverbruik en opwek (energieprofiel)
 - Leg uit waarom de businesscase wel of niet sluit.
 - Maak duidelijk onderscheid tussen vaste en dynamische tarieven.
 - Vermijd absolute uitspraken; gebruik context en nuance.
@@ -423,6 +423,9 @@ INHOUDELIJKE RICHTLIJNEN PER SECTIE
 CONTEXT (FEITEN — LEIDEND):
 Land: {ctx.country}
 Huidig tarief: {ctx.current_tariff}
+
+Energieprofiel (op basis van meetdata uit CSV-bestanden):
+{ctx.energy_profile}
 
 Batterij (ingevoerd):
 {ctx.battery}
@@ -463,6 +466,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
