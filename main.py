@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime, timedelta
+from typing import Optional
 
 # OpenAI (mag falen als KEY ontbreekt — client blijft dan None)
 from openai import OpenAI
@@ -25,7 +26,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-    "https://thuisbatterij-calculator-web.onrender.com"
+        "https://thuisbatterij-calculator-web.onrender.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -38,11 +39,6 @@ try:
     client = OpenAI()
 except Exception:
     pass
-
-
-@app.options("/{rest_of_path:path}")
-async def preflight_handler():
-    return {}
 
 
 # ============================================================
@@ -187,7 +183,7 @@ def compute_v3(req: ComputeV3Request):
     if not req.load_kwh or not req.pv_kwh:
         return {"error": "LOAD_OR_PV_EMPTY"}
 
-    # 2) Resolutie & timestamps (TimeSeries wordt door andere delen gebruikt)
+    # 2) Resolutie & timestamps
     n = min(len(req.load_kwh), len(req.pv_kwh))
     dt = detect_resolution(req.load_kwh)
 
@@ -196,17 +192,13 @@ def compute_v3(req: ComputeV3Request):
 
     _load_ts = TimeSeries(timestamps, req.load_kwh[:n], dt)
     _pv_ts = TimeSeries(timestamps, req.pv_kwh[:n], dt)
-    # NB: _load_ts/_pv_ts staan hier bewust “unused” zodat je later makkelijk ScenarioRunner kunt her-activeren,
-    # maar ze breken niks. Wil je ze weg: kan ook.
 
-    # Omvormerkosten: UI is €/kW/maand, engine verwacht €/kW/jaar
     inverter_cost_per_kw_year = (
         (req.inverter_cost_per_kw_month * 12.0)
         if req.inverter_cost_per_kw_month is not None
         else req.inverter_cost_per_kw
-    )    
-    
-    # 3) Engine input model bouwen
+    )
+
     engine_input = ComputeV3Input(
         load_kwh=req.load_kwh[:n],
         pv_kwh=req.pv_kwh[:n],
@@ -226,7 +218,7 @@ def compute_v3(req: ComputeV3Request):
         vastrecht=req.vastrecht_year,
 
         battery_cost=req.battery_cost,
-        battery_degradation=req.battery_degradation,  # → wordt downstream als degradation_per_year gebruikt
+        battery_degradation=req.battery_degradation,
         battery_lifetime_years=req.battery_lifetime_years,
 
         feedin_monthly_cost=req.feedin_monthly_cost,
@@ -243,7 +235,6 @@ def compute_v3(req: ComputeV3Request):
         current_tariff=req.current_tariff,
     )
 
-    # 4) Engine uitvoeren
     result = BatteryEnginePro3.compute(engine_input)
     return result
 
@@ -252,24 +243,17 @@ def compute_v3(req: ComputeV3Request):
 # ADVICE GENERATOR
 # ============================================================
 
-from typing import Optional
-
 class AdviceContext(BaseModel):
-    # Land & contract
     country: str
     current_tariff: str
-
-    # Batterijconfiguratie (frontend)
     battery: dict
-
-    # Resultaten uit engine
     tariff_matrix: dict
     roi_per_tariff: dict
 
-    # Backend-afgeleide conclusies (OPTIONEEL BIJ REQUEST)
     best_tariff_now: Optional[str] = None
     best_tariff_with_battery: Optional[str] = None
     battery_assessment: Optional[dict] = None
+
 
 class AdviceRequest(BaseModel):
     context: AdviceContext
@@ -279,73 +263,44 @@ class AdviceRequest(BaseModel):
 @app.post("/generate_advice")
 def generate_advice(req: AdviceRequest):
 
-    # ===============================
-    # A4 — CONTEXT OPBOUW (FEITEN)
-    # ===============================
     ctx = req.context
-
-    # 1️⃣ Tariefmatrix ophalen
     tariff_matrix = ctx.tariff_matrix
 
-    # 2️⃣ Goedkoopste tarief ZONDER batterij (B1)
+    # Goedkoopste tarief zonder batterij
     costs_without_battery = {
-        tariff: vals["B1"]
+        tariff: vals.get("without_battery")
         for tariff, vals in tariff_matrix.items()
+        if isinstance(vals, dict) and vals.get("without_battery") is not None
     }
-    ctx.best_tariff_now = min(costs_without_battery, key=costs_without_battery.get)
+    ctx.best_tariff_now = (
+        min(costs_without_battery, key=costs_without_battery.get)
+        if costs_without_battery else None
+    )
 
-    # 3️⃣ Goedkoopste tarief MET batterij (C1)
+    # Goedkoopste tarief met batterij
     costs_with_battery = {
-        tariff: vals["C1"]
+        tariff: vals.get("with_battery")
         for tariff, vals in tariff_matrix.items()
+        if isinstance(vals, dict) and vals.get("with_battery") is not None
     }
-    ctx.best_tariff_with_battery = min(costs_with_battery, key=costs_with_battery.get)
+    ctx.best_tariff_with_battery = (
+        min(costs_with_battery, key=costs_with_battery.get)
+        if costs_with_battery else None
+    )
 
-    # 5️⃣ Batterijbeoordeling (FEITELIJK, GEEN AI)
     batt = ctx.battery
     E = batt.get("E", 0)
     P = batt.get("P", 0)
 
-    battery_assessment = {
-        "capacity_label": (
-            "klein" if E < 5 else
-            "middelgroot" if E < 10 else
-            "groot"
-        ),
-        "power_label": (
-            "laag" if P < 3 else
-            "gemiddeld" if P < 6 else
-            "hoog"
-        ),
+    ctx.battery_assessment = {
+        "capacity_label": "klein" if E < 5 else "middelgroot" if E < 10 else "groot",
+        "power_label": "laag" if P < 3 else "gemiddeld" if P < 6 else "hoog",
         "notes": []
     }
 
-    if E < 5:
-        battery_assessment["notes"].append(
-            "De gekozen batterijcapaciteit is relatief klein en dekt vooral kortstondig eigen verbruik."
-        )
-
-    if E >= 10:
-        battery_assessment["notes"].append(
-            "De batterijcapaciteit is ruim en kan meerdere laad- en ontlaadcycli per dag ondersteunen."
-        )
-
-    if P < 3:
-        battery_assessment["notes"].append(
-            "Het laad- en ontlaadvermogen is beperkt, wat de flexibiliteit bij pieken of dynamische prijzen kan verminderen."
-        )
-
-    if P >= 6:
-        battery_assessment["notes"].append(
-            "Het hogere laad- en ontlaadvermogen maakt de batterij geschikt voor snelle respons, zoals bij dynamische tarieven."
-        )
-
-    ctx.battery_assessment = battery_assessment
-
     if client is None:
         return {
-            "error": "NO_OPENAI_KEY",
-            "advice": "OpenAI API key ontbreekt — adviesgenerator werkt alleen in productie."
+            "advice": req.draft_text
         }
 
     prompt = f"""
@@ -353,21 +308,12 @@ ROL
 Je bent een gecertificeerde energieconsultant voor thuisbatterijen.
 Je herschrijft een bestaand advies tot een professioneel eindrapport.
 
-ABSOLUUT VERPLICHTE REGELS:
-- Je mag NIET rekenen.
-- Je mag GEEN aannames doen.
-- Je mag GEEN nieuwe cijfers of percentages noemen.
-- Je gebruikt UITSLUITEND de feiten uit het CONTEXT-blok.
-
 CONTEXT:
 Land: {ctx.country}
 Huidig tarief: {ctx.current_tariff}
 
-Batterij (ingevoerd):
+Batterij:
 {ctx.battery}
-
-Backend-beoordeling batterij:
-{ctx.battery_assessment}
 
 Tariefmatrix:
 {ctx.tariff_matrix}
@@ -375,19 +321,7 @@ Tariefmatrix:
 ROI per tarief:
 {ctx.roi_per_tariff}
 
-Goedkoopste tarief zonder batterij:
-{ctx.best_tariff_now}
-
-Goedkoopste tarief met batterij:
-{ctx.best_tariff_with_battery}
-
-STRUCTUUR:
-1. Samenvatting
-2. Tariefanalyse
-3. Batterijbeoordeling
-4. Conclusie & advies
-
-CONCEPTTEKST:
+Concepttekst:
 {req.draft_text}
 """
 
@@ -408,21 +342,3 @@ CONCEPTTEKST:
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
