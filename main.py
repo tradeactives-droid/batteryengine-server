@@ -398,6 +398,14 @@ TOON & STIJL
 
 STRUCTUUR VAN HET ADVIESRAPPORT (ABSOLUUT VERPLICHT)
 
+OPMAAKREGELS (VERPLICHT):
+- Schrijf per sectie meerdere korte alinea’s
+- Elke alinea bestaat uit maximaal 3 tot 4 zinnen
+- Na elke alinea MOET een lege regel staan
+- Gebruik géén opsommingstekens
+- Gebruik geen markdown, alleen platte tekst met witregels
+= Gebruik geen em dash
+
 Je MOET het adviesrapport exact volgens onderstaande structuur opstellen.
 Afwijken van volgorde, titels of het samenvoegen van secties is NIET toegestaan.
 
@@ -544,6 +552,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
