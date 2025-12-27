@@ -499,6 +499,11 @@ tot elkaar verhouden binnen uw situatie, zowel met als zonder thuisbatterij.
   - contractvoorwaarden.
 - Geen nieuwe informatie toevoegen.
 
+NA sectie 6 (Disclaimer) mag GEEN aanvullende tekst, toelichting,
+samenvatting, tabelintroductie of herhaling meer volgen.
+
+Het advies moet EINDIGEN na de Disclaimer.
+
 INHOUDELIJKE RICHTLIJNEN PER SECTIE
 
 1. Managementsamenvatting
@@ -590,6 +595,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
