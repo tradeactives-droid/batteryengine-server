@@ -446,6 +446,8 @@ Gebruik exact deze genummerde koppen:
   - waarom vaste tarieven vaak beperkt voordeel bieden,
   - en waarom dynamische tarieven strategische kansen kunnen bieden.
 - Geen garanties, geen voorspellingen.
+- Sluit deze sectie ALTIJD af met exact de volgende tekst op een eigen regel:
+[[TARIEFMATRIX]]
 
 5. Conclusie & aanbevolen vervolgstappen  
 - Vat het advies samen in relationele vorm:
@@ -552,6 +554,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
