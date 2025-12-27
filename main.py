@@ -258,6 +258,8 @@ class AdviceContext(BaseModel):
     best_tariff_with_battery: Optional[str] = None
     battery_assessment: Optional[dict] = None
 
+    saldering_context: Optional[dict] = None
+
 
 class AdviceRequest(BaseModel):
     context: AdviceContext
@@ -312,6 +314,22 @@ def generate_advice(req: AdviceRequest):
         else "ruim gedimensioneerd ten opzichte van de toepassing"
     ),
     "notes": []
+}
+
+    ctx.saldering_context = {
+    "current_situation": (
+        "De huidige situatie is gebaseerd op de geldende salderingsregeling, "
+        "waarbij teruggeleverde zonnestroom wordt verrekend met afgenomen elektriciteit."
+    ),
+    "future_scenarios": (
+        "De doorgerekende scenario’s zonder batterij en met batterij "
+        "representeren een situatie zonder salderingsregeling."
+    ),
+    "policy_impact": (
+        "In een situatie zonder salderingsregeling wordt teruglevering financieel "
+        "anders behandeld, waardoor vaste en traditionele tarieven "
+        "relatief ongunstiger uitvallen bij hoge teruglevering."
+    )
 }
 
     if client is None:
@@ -554,6 +572,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
