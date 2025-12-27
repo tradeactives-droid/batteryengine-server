@@ -475,6 +475,11 @@ Gebruik exact deze genummerde koppen:
   - en waarom dynamische tarieven strategische kansen kunnen bieden.
 - Geen garanties, geen voorspellingen.
 - Sluit deze sectie ALTIJD af met exact de volgende tekst op een eigen regel:
+
+Vergelijking van tariefstructuren
+Onderstaande vergelijking laat zien hoe de verschillende tariefstructuren zich
+tot elkaar verhouden binnen uw situatie, zowel met als zonder thuisbatterij.
+Deze resultaten vormen de onderbouwing van de tariefduiding in dit advies.
 [[TARIEFMATRIX]]
 
 5. Conclusie & aanbevolen vervolgstappen  
@@ -585,6 +590,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
