@@ -476,13 +476,13 @@ Gebruik exact deze genummerde koppen:
 - Geen garanties, geen voorspellingen.
 - Sluit deze sectie ALTIJD af met exact de volgende tekst op een eigen regel:
 
-Vergelijking van tariefstructuren
-Onderstaande vergelijking laat zien hoe de verschillende tariefstructuren zich
+5. Vergelijking van tariefstructuren
+- Onderstaande vergelijking laat zien hoe de verschillende tariefstructuren zich
 tot elkaar verhouden binnen uw situatie, zowel met als zonder thuisbatterij.
-Deze resultaten vormen de onderbouwing van de tariefduiding in dit advies.
+- Deze resultaten vormen de onderbouwing van de tariefduiding in dit advies.
 [[TARIEFMATRIX]]
 
-5. Conclusie & aanbevolen vervolgstappen  
+6. Conclusie & aanbevolen vervolgstappen  
 - Vat het advies samen in relationele vorm:
   - tariefkeuze,
   - batterijconfiguratie,
@@ -492,7 +492,7 @@ Deze resultaten vormen de onderbouwing van de tariefduiding in dit advies.
   - en welke vervolgstappen logisch zijn.
 - Formuleer vervolgstappen altijd als overweging, nooit als verplichting.
 
-6. Disclaimer  
+7. Disclaimer  
 - Benoem dat resultaten afhankelijk zijn van:
   - marktontwikkelingen,
   - regelgeving,
@@ -590,6 +590,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
