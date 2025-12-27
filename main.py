@@ -380,6 +380,16 @@ CRUCIALE INSTRUCTIES OVER TARIEFSTRUCTUREN
   - en de technische geschiktheid van de batterij.
 - Dynamische tarieven mogen NIET als garantie worden gepresenteerd, maar WEL als strategische kans.
 
+VERPLICHTE INSTRUCTIES OVER SALDERING
+
+- Je MOET expliciet benoemen dat:
+  - de huidige situatie gebaseerd is op saldering,
+  - en dat de doorgerekende toekomstscenario’s een situatie zonder saldering representeren.
+- Je MOET toelichten dat:
+  - vaste en traditionele tarieven in deze context
+    structureel ongunstiger uitvallen bij hoge teruglevering.
+- Je mag GEEN bedragen of percentages noemen.
+
 VERPLICHTE INSTRUCTIES OVER BATTERIJSIZING (E & P — NIET NEGEREN)
 
 - Je MOET afzonderlijk en expliciet oordelen over:
@@ -575,6 +585,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
