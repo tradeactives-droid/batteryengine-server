@@ -527,6 +527,9 @@ CONTEXT (FEITEN — LEIDEND):
 Land: {ctx.country}
 Huidig tarief: {ctx.current_tariff}
 
+Salderingscontext:
+{ctx.saldering_context}
+
 Energieprofiel (op basis van meetdata uit CSV-bestanden):
 {ctx.energy_profile}
 
@@ -572,6 +575,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
