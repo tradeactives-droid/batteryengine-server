@@ -163,6 +163,17 @@ class BatterySimulator:
             import_kwh += load_remaining
             export_kwh += pv_surplus
 
+            # =========================
+            # NUMERIEKE GUARDRAILS
+            # =========================
+            soc = min(max(soc, batt.E_min), batt.E_max)
+
+            if load_remaining < 0:
+                load_remaining = 0.0
+
+            if pv_surplus < 0:
+                pv_surplus = 0.0
+            
             import_p.append(import_kwh)
             export_p.append(export_kwh)
             soc_p.append(soc)
