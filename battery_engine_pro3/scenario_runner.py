@@ -30,6 +30,74 @@ def _peak_to_dict(p: PeakInfo) -> dict:
         "monthly_after": list(p.monthly_after),
     }
 
+def assess_battery(
+    E: float,
+    P: float,
+    energy_profile: dict,
+    has_ev: bool,
+    has_heatpump: bool
+) -> dict:
+    """
+    Technische beoordeling van batterij-dimensionering.
+    GEEN aannames, GEEN financiële uitspraken.
+    """
+
+    assessment = {
+        "capacity_fit": "unknown",
+        "power_fit": "unknown",
+        "primary_use": "unknown",
+        "notes": []
+    }
+
+    # Veiligheid
+    if E <= 0 or P <= 0:
+        assessment["notes"].append("Geen actieve batterijconfiguratie.")
+        return assessment
+
+    yearly_load = energy_profile.get("yearly_load_kwh", 0)
+    peak_kw = energy_profile.get("peak_load_kw", 0)
+
+    # --- Capaciteit ---
+    if yearly_load > 0:
+        hours_equivalent = E / (yearly_load / 365)
+
+        if hours_equivalent < 2:
+            assessment["capacity_fit"] = "small"
+            assessment["notes"].append(
+                "Batterijcapaciteit is relatief klein t.o.v. dagverbruik."
+            )
+        elif hours_equivalent > 6:
+            assessment["capacity_fit"] = "large"
+            assessment["notes"].append(
+                "Batterijcapaciteit is relatief groot t.o.v. dagverbruik."
+            )
+        else:
+            assessment["capacity_fit"] = "adequate"
+
+    # --- Vermogen ---
+    if peak_kw > 0:
+        power_ratio = P / peak_kw
+
+        if power_ratio < 0.25:
+            assessment["power_fit"] = "undersized"
+            assessment["notes"].append(
+                "Laad/ontlaadvermogen is laag t.o.v. piekbelasting."
+            )
+        elif power_ratio > 0.75:
+            assessment["power_fit"] = "oversized"
+            assessment["notes"].append(
+                "Laad/ontlaadvermogen is hoog t.o.v. piekbelasting."
+            )
+        else:
+            assessment["power_fit"] = "adequate"
+
+    # --- Primair gebruik ---
+    if has_ev or has_heatpump:
+        assessment["primary_use"] = "load_shifting"
+    else:
+        assessment["primary_use"] = "self_consumption"
+
+    return assessment
 
 FullScenarioOutput = Dict[str, object]
 
