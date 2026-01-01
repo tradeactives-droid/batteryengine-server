@@ -10,6 +10,26 @@ from .cost_engine import CostEngine
 from .peak_optimizer import PeakOptimizer
 from .roi_engine import ROIEngine, ROIConfig
 
+def _scenario_result_to_dict(sr: ScenarioResult) -> dict:
+    return {
+        "import_kwh": float(sr.import_kwh),
+        "export_kwh": float(sr.export_kwh),
+        "total_cost_eur": float(sr.total_cost_eur),
+    }
+
+def _roi_to_dict(roi: ROIResult) -> dict:
+    return {
+        "yearly_saving_eur": float(roi.yearly_saving_eur),
+        "payback_years": roi.payback_years,
+        "roi_percent": float(roi.roi_percent),
+    }
+
+def _peak_to_dict(p: PeakInfo) -> dict:
+    return {
+        "monthly_before": list(p.monthly_before),
+        "monthly_after": list(p.monthly_after),
+    }
+
 
 FullScenarioOutput = Dict[str, object]
 
