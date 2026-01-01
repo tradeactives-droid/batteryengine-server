@@ -294,25 +294,6 @@ def generate_advice(req: AdviceRequest):
         if costs_with_battery else None
     )
 
-    batt = ctx.battery
-    E = batt.get("E", 0)
-    P = batt.get("P", 0)
-
-    ctx.battery_assessment = {
-    "E_assessment": (
-        "beperkend ten opzichte van het energieprofiel"
-        if E < 5
-        else "passend bij het huidige energieprofiel"
-        if E < 10
-        else "relatief groot ten opzichte van het energieprofiel"
-    ),
-    "P_assessment": (
-        "potentieel limiterend in flexibiliteit"
-        if P < 3
-        else "voldoende passend voor het gebruiksdoel"
-        if P < 6
-        else "ruim gedimensioneerd ten opzichte van de toepassing"
-    ),
     "notes": []
 }
 
@@ -595,6 +576,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": str(e),
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
+
 
 
 
