@@ -312,13 +312,33 @@ class ScenarioRunner:
             }
         
         return {
-            "A1": A1,
-            "A1_per_tariff": A1_per_tariff,
-            "B1": B1,
-            "C1": C1,
+            "A1": _scenario_result_to_dict(A1),
+
+            "A1_per_tariff": {
+                k: _scenario_result_to_dict(v)
+                for k, v in A1_per_tariff.items()
+            },
+
+            "B1": {
+                k: _scenario_result_to_dict(v)
+                for k, v in B1.items()
+            },
+
+            "C1": {
+                k: _scenario_result_to_dict(v)
+                for k, v in C1.items()
+            },
+
             "B1_monthly": B1_monthly,
             "C1_monthly": C1_monthly,
-            "roi_per_tariff": roi_per_tariff,
-            "peaks": peak_info,
+
+            "roi_per_tariff": {
+                k: _roi_to_dict(v)
+                for k, v in roi_per_tariff.items()
+            },
+
+            "peaks": _peak_to_dict(peak_info),
+
             "energy_profile": energy_profile,
+            "battery_assessment": battery_assessment,
         }
