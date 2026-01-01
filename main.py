@@ -577,8 +577,33 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "advice": "Er is een fout opgetreden bij het genereren van het advies."
         }
 
+    # === TARIEFMATRIX TOKEN CHECK ===
+    token = "[[TARIEFMATRIX]]"
+    token_count = content.count(token)
 
+    if token_count != 1:
+        return {
+            "error": f"TARIEFMATRIX_TOKEN_INVALID(count={token_count})",
+            "advice": req.draft_text
+        }
 
+    required_sections = [
+        "1. Managementsamenvatting",
+        "2. Financiële duiding",
+        "3. Technische beoordeling & batterijconfiguratie",
+        "4. Tariefstrategie & marktcontext",
+        "5. Vergelijking van tariefstructuren",
+        "6. Conclusie & aanbevolen vervolgstappen",
+        "7. Disclaimer",
+    ]
+
+    missing = [s for s in required_sections if s not in content]
+
+    if missing:
+        return {
+            "error": f"ADVICE_SECTIONS_MISSING({', '.join(missing)})",
+            "advice": req.draft_text
+        }
 
 
 
