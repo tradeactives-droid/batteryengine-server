@@ -256,4 +256,5 @@ class ScenarioRunner:
             "C1_monthly": C1_monthly,
             "roi_per_tariff": roi_per_tariff,
             "peaks": peak_info,
+            "energy_profile": energy_profile,
         }
