@@ -117,6 +117,7 @@ class ScenarioRunner:
                 P_max=self.batt_cfg.P,
                 dod=self.batt_cfg.DoD,
                 eta=self.batt_cfg.eta_rt,
+                initial_soc_frac=0.5
             )
 
             sim_batt = BatterySimulator(
