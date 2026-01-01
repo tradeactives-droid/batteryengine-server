@@ -110,16 +110,21 @@ class BatterySimulator:
 
             # ==================================================
             # 2️⃣ BATTERIJ ONTLAADT NAAR LOAD
-            # (alleen eigen verbruik!)
+            # (rekening houden met ontlaadefficiëntie)
             # ==================================================
             if load_remaining > 0 and soc > batt.E_min:
-                discharge = min(
-                    load_remaining,
+
+                # Max bruikbare energie richting load
+                max_deliverable = min(
                     batt.P_max * dt,
-                    soc - batt.E_min,
+                    (soc - batt.E_min) * batt.eta_discharge
                 )
-                soc -= discharge
-                load_remaining -= discharge
+
+                delivered = min(load_remaining, max_deliverable)
+
+                # SoC daalt meer dan geleverd vanwege efficiëntie
+                soc -= delivered / batt.eta_discharge
+                    load_remaining -= delivered
 
             # ==================================================
             # 3️⃣ BATTERIJ LADEN MET PV-OVERSCHOT
