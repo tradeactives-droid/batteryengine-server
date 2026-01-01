@@ -211,6 +211,42 @@ class ScenarioRunner:
                     roi_percent=0.0,
                 )
 
+        # =================================================
+        # ENERGY PROFILE SUMMARY (backend facts for advice)
+        # NL-only: gebaseerd op meetdata (load/pv) en basisflows zonder batterij
+        # =================================================
+        total_load_kwh = sum(self.load.values)
+        total_pv_kwh = sum(self.pv.values)
+
+        direct_self_consumption_kwh = 0.0
+        pv_export_kwh = 0.0
+
+        for l, p in zip(self.load.values, self.pv.values):
+            direct_self_consumption_kwh += min(l, p)
+            pv_export_kwh += max(p - l, 0.0)
+
+        # Piekuren op uurniveau (werkt voor uur- en kwartierdata)
+        steps_per_hour = int(round(1.0 / self.load.dt_hours))
+        hourly_load = [0.0] * 24
+        hourly_pv = [0.0] * 24
+
+        for i, (l, p) in enumerate(zip(self.load.values, self.pv.values)):
+            hour = int((i / steps_per_hour) % 24)
+            hourly_load[hour] += l
+            hourly_pv[hour] += p
+
+        peak_load_hour = max(range(24), key=lambda h: hourly_load[h])
+        peak_pv_hour = max(range(24), key=lambda h: hourly_pv[h])
+
+        energy_profile = {
+            "annual_load_kwh": total_load_kwh,
+            "annual_pv_kwh": total_pv_kwh,
+            "direct_self_consumption_kwh": direct_self_consumption_kwh,
+            "pv_export_kwh": pv_export_kwh,
+            "peak_load_hour": peak_load_hour,
+            "peak_pv_hour": peak_pv_hour,
+        }
+        
         return {
             "A1": A1,
             "A1_per_tariff": A1_per_tariff,
