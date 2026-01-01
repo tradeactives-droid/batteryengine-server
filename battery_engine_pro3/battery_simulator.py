@@ -87,7 +87,7 @@ class BatterySimulator:
             return self.simulate_no_battery()
 
         batt = self.battery
-        soc = batt.E_min  # start veilig op minimum SoC
+        soc = batt.initial_soc_kwh
 
         import_p = []
         export_p = []
