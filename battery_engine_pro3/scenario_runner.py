@@ -336,48 +336,16 @@ class ScenarioRunner:
             "peak_pv_hour": peak_pv_hour,
         }
 
-        # =================================================
-        # BATTERY ASSESSMENT (backend classification)
-        # NL-only: profiel-gedreven kwalificatie voor rapportage
-        # =================================================
-        if self.batt_cfg is None:
-            battery_assessment = {
-                "E_assessment": "beperkend ten opzichte van het energieprofiel",
-                "P_assessment": "potentieel limiterend in flexibiliteit",
-                "notes": [],
-            }
-        else:
-            E = float(getattr(self.batt_cfg, "E", 0.0) or 0.0)
-            P = float(getattr(self.batt_cfg, "P", 0.0) or 0.0)
-
-            # Gebruik PV-export als praktische indicator voor opslagbehoefte (zonder advies-rekenwerk)
-            export_per_day = (pv_export_kwh / 365.0) if pv_export_kwh > 0 else 0.0
-
-            # E-kwalificatie (verplicht label)
-            if E <= 0.0:
-                E_assessment = "beperkend ten opzichte van het energieprofiel"
-            elif E < max(2.0, export_per_day * 0.5):
-                E_assessment = "beperkend ten opzichte van het energieprofiel"
-            elif E > 8.0 and E > export_per_day * 2.0:
-                E_assessment = "relatief groot ten opzichte van het energieprofiel"
-            else:
-                E_assessment = "passend bij het huidige energieprofiel"
-
-            # P-kwalificatie (verplicht label)
-            if P <= 0.0:
-                P_assessment = "potentieel limiterend in flexibiliteit"
-            elif P < 2.5:
-                P_assessment = "potentieel limiterend in flexibiliteit"
-            elif P > 6.0:
-                P_assessment = "ruim gedimensioneerd ten opzichte van de toepassing"
-            else:
-                P_assessment = "voldoende passend voor het gebruiksdoel"
-
-            battery_assessment = {
-                "E_assessment": E_assessment,
-                "P_assessment": P_assessment,
-                "notes": [],
-            }
+        battery_assessment = assess_battery(
+            E=float(getattr(self.batt_cfg, "E", 0.0) or 0.0),
+            P=float(getattr(self.batt_cfg, "P", 0.0) or 0.0),
+            energy_profile={
+                 "yearly_load_kwh": total_load_kwh,
+                "peak_load_kw": max(self.load.values) / self.load.dt_hours
+            },
+            has_ev=getattr(self.batt_cfg, "has_ev", False),
+            has_heatpump=getattr(self.batt_cfg, "has_heatpump", False),
+        )
         
         return {
             "A1": _scenario_result_to_dict(A1),
