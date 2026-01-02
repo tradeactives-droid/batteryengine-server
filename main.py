@@ -319,8 +319,6 @@ def generate_advice(req: AdviceRequest):
         if costs_with_battery else None
     )
 
-    "notes": []
-
     ctx.saldering_context = {
     "current_situation": (
         "De huidige situatie is gebaseerd op de geldende salderingsregeling, "
@@ -351,15 +349,15 @@ def generate_advice(req: AdviceRequest):
     )
 
     try:
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=1200,
-        temperature=0.3,
-    )
+        response = client.chat.completions.create(
+            model="gpt-4.1",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1200,
+            temperature=0.3,
+        )
 
     content = response.choices[0].message.content
 
@@ -399,6 +397,7 @@ except Exception as e:
         "error": str(e),
         "advice": ""
     }
+
 
 
 
