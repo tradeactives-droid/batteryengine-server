@@ -288,6 +288,16 @@ def generate_advice(req: AdviceRequest):
 
         content = response.choices[0].message.content
 
+        # === GUARDRAIL 1: TARIEFMATRIX TOKEN ===
+        token = "[[TARIEFMATRIX]]"
+        token_count = content.count(token)
+
+        if token_count != 1:
+            return {
+                "error": f"TARIEFMATRIX_TOKEN_INVALID(count={token_count})",
+                "advice": content
+            }
+        
         return {"advice": content}
 
     except Exception as e:
@@ -295,6 +305,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
