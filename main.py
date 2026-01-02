@@ -364,6 +364,24 @@ def generate_advice(req: AdviceRequest):
                 "advice": ""
             }
 
+        required_sections = [
+            "1. Managementsamenvatting",
+            "2. Financiële duiding",
+            "3. Technische beoordeling & batterijconfiguratie",
+            "4. Tariefstrategie & marktcontext",
+            "5. Vergelijking van tariefstructuren",
+            "6. Conclusie & aanbevolen vervolgstappen",
+            "7. Disclaimer",
+        ]
+
+        missing = [s for s in required_sections if s not in content]
+
+        if missing:
+            return {
+                "error": f"ADVICE_SECTIONS_MISSING({', '.join(missing)})",
+                "advice": ""
+            }
+
         return {"advice": content}
 
     except Exception as e:
@@ -371,27 +389,6 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
-
-    # === SECTIE CHECK ===
-    required_sections = [
-        "1. Managementsamenvatting",
-        "2. Financiële duiding",
-        "3. Technische beoordeling & batterijconfiguratie",
-        "4. Tariefstrategie & marktcontext",
-        "5. Vergelijking van tariefstructuren",
-        "6. Conclusie & aanbevolen vervolgstappen",
-        "7. Disclaimer",
-    ]
-
-    missing = [s for s in required_sections if s not in content]
-
-    if missing:
-        return {
-            "error": f\"ADVICE_SECTIONS_MISSING({', '.join(missing)})\",
-            "advice": ""
-        }
-
-    return {"advice": content}
 
 
 
