@@ -124,7 +124,7 @@ class BatterySimulator:
 
                 # SoC daalt meer dan geleverd vanwege efficiëntie
                 soc -= delivered / batt.eta_discharge
-                    load_remaining -= delivered
+                load_remaining -= delivered
 
             # ==================================================
             # 3️⃣ BATTERIJ LADEN MET PV-OVERSCHOT
