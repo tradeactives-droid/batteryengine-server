@@ -320,7 +320,6 @@ def generate_advice(req: AdviceRequest):
     )
 
     "notes": []
-}
 
     ctx.saldering_context = {
     "current_situation": (
@@ -400,6 +399,7 @@ except Exception as e:
         "error": str(e),
         "advice": ""
     }
+
 
 
 
