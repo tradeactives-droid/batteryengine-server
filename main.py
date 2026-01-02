@@ -32,11 +32,15 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-client = None
-try:
-    client = OpenAI()
-except Exception:
-    pass
+from openai import OpenAI
+import os
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY ontbreekt in environment")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 # ============================================================
@@ -262,4 +266,5 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
