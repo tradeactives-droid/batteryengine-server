@@ -357,11 +357,10 @@ def generate_advice(req: AdviceRequest):
 
         content = response.choices[0].message.content
 
-        token = "[[TARIEFMATRIX]]"
         if content.count(token) != 1:
             return {
                 "error": "TARIEFMATRIX_TOKEN_INVALID",
-                "advice": ""
+                "advice": content
             }
 
         required_sections = [
@@ -379,7 +378,7 @@ def generate_advice(req: AdviceRequest):
         if missing:
             return {
                 "error": f"ADVICE_SECTIONS_MISSING({', '.join(missing)})",
-                "advice": ""
+                "advice": content
             }
 
         return {"advice": content}
@@ -389,6 +388,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
