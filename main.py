@@ -10,10 +10,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 import json
 
-# OpenAI (mag falen als KEY ontbreekt — client blijft dan None)
 from openai import OpenAI
 
-# Engine imports
 from battery_engine_pro3.types import TimeSeries
 from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
 
@@ -34,7 +32,6 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# OpenAI client — veilig i.v.m. CI-tests (geen key → client=None)
 client = None
 try:
     client = OpenAI()
@@ -57,43 +54,30 @@ def _process_csv_text(raw: str) -> list[float]:
         return []
 
     raw = str(raw)
-    lines = [ln for ln in raw.splitlines() if ln.strip() != ""]
-    if len(lines) == 0:
+    lines = [ln for ln in raw.splitlines() if ln.strip()]
+    if not lines:
         return []
 
-    delim = ";"
-    if ";" not in raw and "," in raw:
-        delim = ","
+    delim = ";" if ";" in raw else ","
+    rows = [[c.strip() for c in ln.split(delim)] for ln in lines]
 
-    rows = []
-    for ln in lines:
-        rows.append([c.strip() for c in ln.split(delim)])
-
-    # Header verwijderen indien aanwezig
     if any(ch.isalpha() for ch in rows[0][0]):
         rows = rows[1:]
 
-    floats = []
+    values = []
     for r in rows:
         for c in r:
-            c = c.replace(",", ".")
             try:
-                floats.append(float(c))
+                values.append(float(c.replace(",", ".")))
                 break
             except Exception:
                 continue
 
-    if len(floats) < 10:
-        return []
-
-    return floats
+    return values if len(values) >= 10 else []
 
 
 def detect_resolution(load: list[float]) -> float:
-    """>= 30.000 punten → kwartierwaarden (0.25 uur), anders uurwaarden."""
-    if len(load) >= 30000:
-        return 0.25
-    return 1.0
+    return 0.25 if len(load) >= 30000 else 1.0
 
 
 @app.post("/parse_csv")
@@ -101,69 +85,49 @@ def parse_csv(req: ParseCSVRequest):
     load = _process_csv_text(req.load_file)
     pv = _process_csv_text(req.pv_file)
 
-    MIN_POINTS = 20000
-    if len(load) < MIN_POINTS or len(pv) < MIN_POINTS:
-        return {"load_kwh": [], "pv_kwh": [], "prices_dyn": [], "error": "NOT_ENOUGH_DATA_FOR_FLUVIUS"}
+    if len(load) < 20000 or len(pv) < 20000:
+        return {"error": "NOT_ENOUGH_DATA"}
 
-    prices_raw = req.prices_file if req.prices_file is not None else ""
-    prices = _process_csv_text(prices_raw) if prices_raw.strip() != "" else []
-
-    if not load or not pv:
-        return {"load_kwh": [], "pv_kwh": [], "prices_dyn": [], "error": "INVALID_LOAD_PV"}
-
+    prices = _process_csv_text(req.prices_file)
     n = min(len(load), len(pv))
-    load = load[:n]
-    pv = pv[:n]
-
-    if prices and len(prices) == n:
-        prices_dyn = prices
-    else:
-        prices_dyn = []
 
     return {
-        "load_kwh": load,
-        "pv_kwh": pv,
-        "prices_dyn": prices_dyn
+        "load_kwh": load[:n],
+        "pv_kwh": pv[:n],
+        "prices_dyn": prices[:n] if len(prices) == n else []
     }
 
 
 # ============================================================
-# COMPUTE_V3 ENDPOINT (Pro 3)
+# COMPUTE V3
 # ============================================================
 
 class ComputeV3Request(BaseModel):
-    # PROFIELEN
     load_kwh: list[float]
     pv_kwh: list[float]
-    prices_dyn: list[float] | None = None
+    prices_dyn: Optional[list[float]] = None
 
-    # BATTERIJ
     E: float
     P: float
     DoD: float
     eta_rt: float
+
     battery_cost: float
     battery_degradation: float
-    battery_lifetime_years: int = 15
+    battery_lifetime_years: int
 
-    # TARIEF / LAND
     country: str
     current_tariff: str
 
-    # TARIEVEN
     p_enkel_imp: float
     p_enkel_exp: float
-
     p_dag: float
     p_nacht: float
     p_exp_dn: float
-
     p_export_dyn: float
 
-    # VASTRECHT
     vastrecht_year: float
 
-    # TERUGLEVERKOSTEN / OMVORMER
     feedin_monthly_cost: float = 0.0
     feedin_cost_per_kwh: float = 0.0
     feedin_free_kwh: float = 0.0
@@ -171,34 +135,18 @@ class ComputeV3Request(BaseModel):
 
     inverter_power_kw: float = 0.0
     inverter_cost_per_kw: float = 0.0
-    inverter_cost_per_kw_month: float | None = None
+    inverter_cost_per_kw_month: Optional[float] = None
 
-    # BE — capaciteitstarief
     capacity_tariff_kw: float = 0.0
 
 
 @app.post("/compute_v3")
 def compute_v3(req: ComputeV3Request):
-
-    # 1) Validatie
     if not req.load_kwh or not req.pv_kwh:
         return {"error": "LOAD_OR_PV_EMPTY"}
 
-    # 2) Resolutie & timestamps
     n = min(len(req.load_kwh), len(req.pv_kwh))
     dt = detect_resolution(req.load_kwh)
-
-    start = datetime(2025, 1, 1)
-    timestamps = [start + timedelta(hours=dt * i) for i in range(n)]
-
-    _load_ts = TimeSeries(timestamps, req.load_kwh[:n], dt)
-    _pv_ts = TimeSeries(timestamps, req.pv_kwh[:n], dt)
-
-    inverter_cost_per_kw_year = (
-        (req.inverter_cost_per_kw_month * 12.0)
-        if req.inverter_cost_per_kw_month is not None
-        else req.inverter_cost_per_kw
-    )
 
     engine_input = ComputeV3Input(
         load_kwh=req.load_kwh[:n],
@@ -228,16 +176,18 @@ def compute_v3(req: ComputeV3Request):
         feedin_price_after_free=req.feedin_price_after_free,
 
         inverter_power_kw=req.inverter_power_kw,
-        inverter_cost_per_kw_year=inverter_cost_per_kw_year,
+        inverter_cost_per_kw_year=(
+            req.inverter_cost_per_kw_month * 12
+            if req.inverter_cost_per_kw_month
+            else req.inverter_cost_per_kw
+        ),
 
         capacity_tariff_kw_year=req.capacity_tariff_kw,
-
         country=req.country,
         current_tariff=req.current_tariff,
     )
 
-    result = BatteryEnginePro3.compute(engine_input)
-    return result
+    return BatteryEnginePro3.compute(engine_input)
 
 
 # ============================================================
@@ -258,7 +208,6 @@ class AdviceContext(BaseModel):
     best_tariff_now: Optional[str] = None
     best_tariff_with_battery: Optional[str] = None
     battery_assessment: Optional[dict] = None
-
     saldering_context: Optional[dict] = None
 
 
@@ -266,85 +215,29 @@ class AdviceRequest(BaseModel):
     context: AdviceContext
     draft_text: str
 
+
 SYSTEM_PROMPT = """
 Je bent een onafhankelijk energieadviesbureau.
 Je baseert je uitsluitend op de aangeleverde feiten.
 Je doet GEEN aannames en introduceert GEEN nieuwe cijfers.
-
-STRUCTUUR — VERPLICHT:
-Gebruik exact deze secties en nummering:
-
-1. Managementsamenvatting
-2. Financiële duiding
-3. Technische beoordeling & batterijconfiguratie
-4. Tariefstrategie & marktcontext
-5. Vergelijking van tariefstructuren
-[[TARIEFMATRIX]]
-6. Conclusie & aanbevolen vervolgstappen
-7. Disclaimer
-
-REGELS:
-- Gebruik ALLEEN de aangeleverde context
-- Verzin GEEN technische of financiële aannames
-- Plaats [[TARIEFMATRIX]] exact één keer
-- Verplaats of hernoem GEEN secties
-- Schrijf professioneel, neutraal en adviserend
+Gebruik exact de opgegeven secties.
 """
+
 
 @app.post("/generate_advice")
 def generate_advice(req: AdviceRequest):
-
     ctx = req.context
-    tariff_matrix = ctx.tariff_matrix
 
-    # goedkoopste tarieven
-    costs_without_battery = {
-        tariff: vals.get("without_battery")
-        for tariff, vals in tariff_matrix.items()
-        if isinstance(vals, dict) and vals.get("without_battery") is not None
-    }
-    ctx.best_tariff_now = (
-        min(costs_without_battery, key=costs_without_battery.get)
-        if costs_without_battery else None
-    )
-
-    costs_with_battery = {
-        tariff: vals.get("with_battery")
-        for tariff, vals in tariff_matrix.items()
-        if isinstance(vals, dict) and vals.get("with_battery") is not None
-    }
-    ctx.best_tariff_with_battery = (
-        min(costs_with_battery, key=costs_with_battery.get)
-        if costs_with_battery else None
-    )
-
-    ctx.saldering_context = {
-        "current_situation": (
-            "De huidige situatie is gebaseerd op de geldende salderingsregeling, "
-            "waarbij teruggeleverde zonnestroom wordt verrekend met afgenomen elektriciteit."
-        ),
-        "future_scenarios": (
-            "De doorgerekende scenario’s zonder batterij en met batterij "
-            "representeren een situatie zonder salderingsregeling."
-        ),
-        "policy_impact": (
-            "In een situatie zonder salderingsregeling wordt teruglevering financieel "
-            "anders behandeld."
-        )
-    }
+    if ctx.battery is None:
+        ctx.battery = {}
 
     if client is None:
-        return {"advice": ""}
+        return {"advice": "OpenAI client niet beschikbaar."}
 
-    ctx_dict = ctx.model_dump() if hasattr(ctx, "model_dump") else ctx.dict()
-
-    token = "[[TARIEFMATRIX]]"
+    ctx_dict = ctx.model_dump()
 
     prompt = (
-        "SCHRIJF NU HET VOLLEDIGE ADVIESRAPPORT.\n\n"
-        "Je mag uitsluitend de onderstaande feiten gebruiken.\n"
-        "Je moet alle verplichte secties exact volgen.\n"
-        "Je moet [[TARIEFMATRIX]] exact één keer opnemen.\n\n"
+        "Gebruik uitsluitend de onderstaande feiten om het volledige adviesrapport te schrijven.\n\n"
         "FEITEN (JSON):\n"
         + json.dumps(ctx_dict, ensure_ascii=False, indent=2)
     )
@@ -361,61 +254,10 @@ def generate_advice(req: AdviceRequest):
         )
 
         content = response.choices[0].message.content
-
-        # === GUARDRAILS TIJDELIJK UITGESCHAKELD ===
-        # token = "[[TARIEFMATRIX]]"
-        # if content.count(token) != 1:
-        #     return {
-        #         "error": "TARIEFMATRIX_TOKEN_INVALID",
-        #         "advice": ""
-        #     }
-
-        # required_sections = [
-        #     "1. Managementsamenvatting",
-        #     "2. Financiële duiding",
-        #     "3. Technische beoordeling & batterijconfiguratie",
-        #     "4. Tariefstrategie & marktcontext",
-        #     "5. Vergelijking van tariefstructuren",
-        #     "6. Conclusie & aanbevolen vervolgstappen",
-        #     "7. Disclaimer",
-        # ]
-
-        # missing = [s for s in required_sections if s not in content]
-
-        # if missing:
-        #     return {
-        #         "error": f"ADVICE_SECTIONS_MISSING({', '.join(missing)})",
-        #         "advice": ""
-        #     }
-
         return {"advice": content}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    except Exception as e:
+        return {
+            "error": str(e),
+            "advice": ""
+        }
