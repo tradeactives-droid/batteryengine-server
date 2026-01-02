@@ -214,6 +214,9 @@ class AdviceContext(BaseModel):
     battery_assessment: Optional[dict] = None
     saldering_context: Optional[dict] = None
 
+    data_sources: Optional[dict] = None
+    calculation_method: Optional[dict] = None
+    cost_components: Optional[dict] = None
 
 class AdviceRequest(BaseModel):
     context: AdviceContext
@@ -330,6 +333,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
