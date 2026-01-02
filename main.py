@@ -584,23 +584,54 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
 """
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4.1",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=1200,
-            temperature=0.3,
-        )
-        return {"advice": response.choices[0].message.content}
+    response = client.chat.completions.create(
+        model="gpt-4.1",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=1200,
+        temperature=0.3,
+    )
 
-    except Exception as e:
+    content = response.choices[0].message.content
+
+    # === TARIEFMATRIX TOKEN CHECK ===
+    token = "[[TARIEFMATRIX]]"
+    token_count = content.count(token)
+
+    if token_count != 1:
         return {
-            "error": str(e),
-            "advice": "Er is een fout opgetreden bij het genereren van het advies."
+            "error": f"TARIEFMATRIX_TOKEN_INVALID(count={token_count})",
+            "advice": ""
         }
 
+    # === SECTIE CHECK ===
+    required_sections = [
+        "1. Managementsamenvatting",
+        "2. Financiële duiding",
+        "3. Technische beoordeling & batterijconfiguratie",
+        "4. Tariefstrategie & marktcontext",
+        "5. Vergelijking van tariefstructuren",
+        "6. Conclusie & aanbevolen vervolgstappen",
+        "7. Disclaimer",
+    ]
+
+    missing = [s for s in required_sections if s not in content]
+
+    if missing:
+        return {
+            "error": f\"ADVICE_SECTIONS_MISSING({', '.join(missing)})\",
+            "advice": ""
+        }
+
+    return {"advice": content}
+
+except Exception as e:
+    return {
+        "error": str(e),
+        "advice": ""
+    }
     # === TARIEFMATRIX TOKEN CHECK ===
     token = "[[TARIEFMATRIX]]"
     token_count = content.count(token)
@@ -628,6 +659,7 @@ CONCEPTTEKST (MAG WORDEN HERSCHREVEN, VERBETERD EN GESTRUCTUREERD):
             "error": f"ADVICE_SECTIONS_MISSING({', '.join(missing)})",
             "advice": req.draft_text
         }
+
 
 
 
