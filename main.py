@@ -265,7 +265,12 @@ def generate_advice(req: AdviceRequest):
     ctx_dict = ctx.model_dump()
 
     prompt = (
-        "Gebruik uitsluitend de onderstaande feiten om het volledige adviesrapport te schrijven.\n\n"
+        "GENEREER NU HET ADVIESRAPPORT.\n"
+        "VOLG DE STRUCTUUR UIT DE SYSTEM INSTRUCTIES LETTERLIJK.\n"
+        "SCHRIJF GEEN ANDERE KOPPEN OF TEKST.\n"
+        "GEBRUIK GEEN MARKDOWN.\n"
+        "BEGIN DIRECT MET '1. Managementsamenvatting'.\n"
+        "EINDIG NA '7. Disclaimer'.\n\n"
         "FEITEN (JSON):\n"
         + json.dumps(ctx_dict, ensure_ascii=False, indent=2)
     )
@@ -290,6 +295,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
