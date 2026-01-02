@@ -297,6 +297,25 @@ def generate_advice(req: AdviceRequest):
                 "error": f"TARIEFMATRIX_TOKEN_INVALID(count={token_count})",
                 "advice": content
             }
+
+        # === GUARDRAIL 2: SECTIESTRUCTUUR (NIET BLOKKEREND) ===
+        required_sections = [
+            "1. Managementsamenvatting",
+            "2. Financiële duiding",
+            "3. Technische beoordeling & batterijconfiguratie",
+            "4. Tariefstrategie & marktcontext",
+            "5. Vergelijking van tariefstructuren",
+            "6. Conclusie & aanbevolen vervolgstappen",
+            "7. Disclaimer",
+        ]
+
+        missing_sections = [s for s in required_sections if s not in content]
+
+        if missing_sections:
+            return {
+                "error": f"SECTIONS_MISSING({', '.join(missing_sections)})",
+                "advice": content
+            }
         
         return {"advice": content}
 
@@ -305,6 +324,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
