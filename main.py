@@ -339,9 +339,12 @@ def generate_advice(req: AdviceRequest):
     ctx_dict = ctx.model_dump() if hasattr(ctx, "model_dump") else ctx.dict()
 
     prompt = (
-        "Feiten (JSON):\n"
+        "SCHRIJF NU HET VOLLEDIGE ADVIESRAPPORT.\n\n"
+        "Je mag uitsluitend de onderstaande feiten gebruiken.\n"
+        "Je moet alle verplichte secties exact volgen.\n"
+        "Je moet [[TARIEFMATRIX]] exact één keer opnemen.\n\n"
+        "FEITEN (JSON):\n"
         + json.dumps(ctx_dict, ensure_ascii=False, indent=2)
-        + "\n\nGebruik deze feiten om het adviesrapport te schrijven conform de instructies."
     )
 
     try:
@@ -388,6 +391,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
