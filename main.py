@@ -388,13 +388,20 @@ def generate_advice(req: AdviceRequest):
                 "advice": ""
             }
 
-        return {"advice": content}
+        return {
+            "advice": content,
+            "debug": {
+                "length": len(content),
+                "has_token": "[[TARIEFMATRIX]]" in content
+            }
+        }
 
     except Exception as e:
         return {
             "error": str(e),
             "advice": ""
         }
+
 
 
 
