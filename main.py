@@ -221,10 +221,34 @@ class AdviceRequest(BaseModel):
 
 
 SYSTEM_PROMPT = """
-Je bent een onafhankelijk energieadviesbureau.
-Je baseert je uitsluitend op de aangeleverde feiten.
-Je doet GEEN aannames en introduceert GEEN nieuwe cijfers.
-Gebruik exact de opgegeven secties.
+JE MOET JE EXACT AAN ONDERSTAANDE STRUCTUUR HOUDEN.
+AFWIJKING IS NIET TOEGESTAAN.
+
+FORMATREGELS (ABSOLUUT):
+- Gebruik GEEN Markdown (#, ##, ###)
+- Gebruik GEEN eigen koppen
+- Gebruik GEEN inleiding, samenvatting of aanbevelingen buiten de structuur
+- Schrijf niets vóór sectie 1
+- Schrijf niets ná sectie 7
+
+VERPLICHTE STRUCTUUR (LETTERLIJK OVERNEMEN, ZONDER WIJZIGING):
+
+1. Managementsamenvatting
+2. Financiële duiding
+3. Technische beoordeling & batterijconfiguratie
+4. Tariefstrategie & marktcontext
+5. Vergelijking van tariefstructuren
+[[TARIEFMATRIX]]
+6. Conclusie & aanbevolen vervolgstappen
+7. Disclaimer
+
+INHOUDSREGELS:
+- Baseer je UITSLUITEND op de aangeleverde JSON-feiten
+- Introduceer GEEN aannames
+- Introduceer GEEN nieuwe cijfers
+- Plaats [[TARIEFMATRIX]] EXACT één keer en op een eigen regel
+- Verplaats of hernoem GEEN secties
+- Schrijf professioneel, neutraal en adviserend
 """
 
 
@@ -266,5 +290,6 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
