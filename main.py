@@ -248,7 +248,7 @@ class AdviceContext(BaseModel):
     country: str
     current_tariff: str
 
-    battery: dict
+    battery: Optional[dict] = None
     energy_profile: Optional[dict] = None
     extra_consumers: Optional[dict] = None
 
@@ -401,6 +401,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
