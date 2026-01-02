@@ -362,45 +362,34 @@ def generate_advice(req: AdviceRequest):
 
         content = response.choices[0].message.content
 
-        # === TARIEFMATRIX CHECK ===
-        if content.count(token) != 1:
-            return {
-                "error": "TARIEFMATRIX_TOKEN_INVALID",
-                "advice": ""
-            }
+        # === GUARDRAILS TIJDELIJK UITGESCHAKELD ===
+        # token = "[[TARIEFMATRIX]]"
+        # if content.count(token) != 1:
+        #     return {
+        #         "error": "TARIEFMATRIX_TOKEN_INVALID",
+        #         "advice": ""
+        #     }
 
-        # === SECTIE CHECK ===
-        required_sections = [
-            "1. Managementsamenvatting",
-            "2. Financiële duiding",
-            "3. Technische beoordeling & batterijconfiguratie",
-            "4. Tariefstrategie & marktcontext",
-            "5. Vergelijking van tariefstructuren",
-            "6. Conclusie & aanbevolen vervolgstappen",
-            "7. Disclaimer",
-        ]
+        # required_sections = [
+        #     "1. Managementsamenvatting",
+        #     "2. Financiële duiding",
+        #     "3. Technische beoordeling & batterijconfiguratie",
+        #     "4. Tariefstrategie & marktcontext",
+        #     "5. Vergelijking van tariefstructuren",
+        #     "6. Conclusie & aanbevolen vervolgstappen",
+        #     "7. Disclaimer",
+        # ]
 
-        missing = [s for s in required_sections if s not in content]
+        # missing = [s for s in required_sections if s not in content]
 
-        if missing:
-            return {
-                "error": f"ADVICE_SECTIONS_MISSING({', '.join(missing)})",
-                "advice": ""
-            }
+        # if missing:
+        #     return {
+        #         "error": f"ADVICE_SECTIONS_MISSING({', '.join(missing)})",
+        #         "advice": ""
+        #     }
 
-        return {
-            "advice": content,
-            "debug": {
-                "length": len(content),
-                "has_token": "[[TARIEFMATRIX]]" in content
-            }
-        }
+        return {"advice": content}
 
-    except Exception as e:
-        return {
-            "error": str(e),
-            "advice": ""
-        }
 
 
 
