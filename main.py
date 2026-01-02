@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import Optional
+import json
 
 # OpenAI (mag falen als KEY ontbreekt — client blijft dan None)
 from openai import OpenAI
@@ -659,6 +660,7 @@ except Exception as e:
             "error": f"ADVICE_SECTIONS_MISSING({', '.join(missing)})",
             "advice": req.draft_text
         }
+
 
 
 
