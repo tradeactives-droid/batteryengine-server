@@ -297,7 +297,7 @@ def generate_advice(req: AdviceRequest):
     ctx = req.context
     tariff_matrix = ctx.tariff_matrix
 
-    # Goedkoopste tarief zonder batterij
+    # goedkoopste tarieven
     costs_without_battery = {
         tariff: vals.get("without_battery")
         for tariff, vals in tariff_matrix.items()
@@ -308,7 +308,6 @@ def generate_advice(req: AdviceRequest):
         if costs_without_battery else None
     )
 
-    # Goedkoopste tarief met batterij
     costs_with_battery = {
         tariff: vals.get("with_battery")
         for tariff, vals in tariff_matrix.items()
@@ -320,25 +319,22 @@ def generate_advice(req: AdviceRequest):
     )
 
     ctx.saldering_context = {
-    "current_situation": (
-        "De huidige situatie is gebaseerd op de geldende salderingsregeling, "
-        "waarbij teruggeleverde zonnestroom wordt verrekend met afgenomen elektriciteit."
-    ),
-    "future_scenarios": (
-        "De doorgerekende scenario’s zonder batterij en met batterij "
-        "representeren een situatie zonder salderingsregeling."
-    ),
-    "policy_impact": (
-        "In een situatie zonder salderingsregeling wordt teruglevering financieel "
-        "anders behandeld, waardoor vaste en traditionele tarieven "
-        "relatief ongunstiger uitvallen bij hoge teruglevering."
-    )
-}
+        "current_situation": (
+            "De huidige situatie is gebaseerd op de geldende salderingsregeling, "
+            "waarbij teruggeleverde zonnestroom wordt verrekend met afgenomen elektriciteit."
+        ),
+        "future_scenarios": (
+            "De doorgerekende scenario’s zonder batterij en met batterij "
+            "representeren een situatie zonder salderingsregeling."
+        ),
+        "policy_impact": (
+            "In een situatie zonder salderingsregeling wordt teruglevering financieel "
+            "anders behandeld."
+        )
+    }
 
     if client is None:
-        return {
-            "advice": ""
-        }
+        return {"advice": ""}
 
     ctx_dict = ctx.model_dump() if hasattr(ctx, "model_dump") else ctx.dict()
 
@@ -359,15 +355,20 @@ def generate_advice(req: AdviceRequest):
             temperature=0.3,
         )
 
-    content = response.choices[0].message.content
+        content = response.choices[0].message.content
 
-    # === TARIEFMATRIX TOKEN CHECK ===
-    token = "[[TARIEFMATRIX]]"
-    token_count = content.count(token)
+        token = "[[TARIEFMATRIX]]"
+        if content.count(token) != 1:
+            return {
+                "error": "TARIEFMATRIX_TOKEN_INVALID",
+                "advice": ""
+            }
 
-    if token_count != 1:
+        return {"advice": content}
+
+    except Exception as e:
         return {
-            "error": f"TARIEFMATRIX_TOKEN_INVALID(count={token_count})",
+            "error": str(e),
             "advice": ""
         }
 
@@ -392,11 +393,6 @@ def generate_advice(req: AdviceRequest):
 
     return {"advice": content}
 
-except Exception as e:
-    return {
-        "error": str(e),
-        "advice": ""
-    }
 
 
 
