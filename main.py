@@ -254,6 +254,7 @@ def generate_advice(req: AdviceRequest):
         )
 
         content = response.choices[0].message.content
+
         return {"advice": content}
 
     except Exception as e:
@@ -261,3 +262,4 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
