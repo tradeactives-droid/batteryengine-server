@@ -338,6 +338,8 @@ def generate_advice(req: AdviceRequest):
 
     ctx_dict = ctx.model_dump() if hasattr(ctx, "model_dump") else ctx.dict()
 
+    token = "[[TARIEFMATRIX]]"
+
     prompt = (
         "SCHRIJF NU HET VOLLEDIGE ADVIESRAPPORT.\n\n"
         "Je mag uitsluitend de onderstaande feiten gebruiken.\n"
@@ -349,7 +351,7 @@ def generate_advice(req: AdviceRequest):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt}
@@ -360,12 +362,14 @@ def generate_advice(req: AdviceRequest):
 
         content = response.choices[0].message.content
 
+        # === TARIEFMATRIX CHECK ===
         if content.count(token) != 1:
             return {
                 "error": "TARIEFMATRIX_TOKEN_INVALID",
-                "advice": content
+                "advice": ""
             }
 
+        # === SECTIE CHECK ===
         required_sections = [
             "1. Managementsamenvatting",
             "2. Financiële duiding",
@@ -381,7 +385,7 @@ def generate_advice(req: AdviceRequest):
         if missing:
             return {
                 "error": f"ADVICE_SECTIONS_MISSING({', '.join(missing)})",
-                "advice": content
+                "advice": ""
             }
 
         return {"advice": content}
@@ -391,6 +395,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
