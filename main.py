@@ -449,7 +449,6 @@ def generate_advice(req: AdviceRequest):
         # 🔁 TARIEFMATRIX INJECTIE (BACKEND-LEIDEND)
         # ============================
 
-        try:
             if "[[TARIEFMATRIX]]" in content:
                 tariff_text = build_tariff_matrix_text(ctx_dict)
 
@@ -524,6 +523,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
