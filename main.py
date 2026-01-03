@@ -322,42 +322,6 @@ def generate_advice(req: AdviceRequest):
 
         content = response.choices[0].message.content
 
-        # ============================
-        # 🔁 TARIEFMATRIX — BACKEND INJECTIE
-        # ============================
-
-        token = "[[TARIEFMATRIX]]"
-
-        # Als token ontbreekt, injecteer hem automatisch na sectie 5-titel
-        if token not in content:
-            marker = "5. Vergelijking van tariefstructuren"
-            if marker in content:
-                content = content.replace(
-                    marker,
-                    marker + "\n" + token,
-                    1
-                )
-            else:
-                return {
-                    "error": "TARIEFMATRIX_MARKER_NOT_FOUND",
-                    "advice": content
-                }
-
-        # Veiligheidscheck: nu moet hij exact 1x voorkomen
-        if content.count(token) != 1:
-            return {
-                "error": f"TARIEFMATRIX_TOKEN_INVALID_AFTER_INJECT(count={content.count(token)})",
-                "advice": content
-            }
-
-        tariff_text = build_tariff_matrix_text(ctx_dict)
-
-        content = content.replace(token, tariff_text, 1)
-
-        # We injecteren GEEN matrixtekst in het advies.
-        # Token dient alleen als anker en wordt daarna verwijderd.
-        content = content.replace(token, "", 1)
-
         return {
             "advice": content.strip()
         }
@@ -367,6 +331,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
