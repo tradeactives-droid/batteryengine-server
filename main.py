@@ -261,6 +261,46 @@ INHOUDSREGELS:
 - Schrijf professioneel, neutraal en adviserend
 """
 
+def _fmt_eur(value):
+    try:
+        return f"€ {float(value):.2f}".replace(".", ",")
+    except Exception:
+        return "–"
+
+
+def build_tariff_matrix_text(ctx: dict) -> str:
+    """
+    Bouwt de tariefmatrix als leesbare tekst voor de consument,
+    uitsluitend op basis van backend-feiten (JSON).
+    """
+
+    # Verwachte structuur:
+    # ctx["tariff_matrix"] of ctx["A1_per_tariff"]
+    matrix = ctx.get("tariff_matrix", {})
+
+    lines = []
+    lines.append("Tariefmatrix — jaarlijkse kosten")
+    lines.append("")
+    lines.append("Scenario                    Enkel        Dag/Nacht     Dynamisch")
+
+    def row(label, data):
+        return (
+            f"{label:<27}"
+            f"{_fmt_eur(data.get('enkel', {}).get('total_cost_eur')):<13}"
+            f"{_fmt_eur(data.get('dag_nacht', {}).get('total_cost_eur')):<13}"
+            f"{_fmt_eur(data.get('dynamisch', {}).get('total_cost_eur'))}"
+        )
+
+    if "A1_per_tariff" in ctx:
+        lines.append(row("Huidige situatie", ctx["A1_per_tariff"]))
+
+    if "B1" in ctx:
+        lines.append(row("Zonder batterij", ctx["B1"]))
+
+    if "C1" in ctx:
+        lines.append(row("Met batterij", ctx["C1"]))
+
+    return "\n".join(lines)
 
 @app.post("/generate_advice")
 def generate_advice(req: AdviceRequest):
@@ -407,6 +447,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
