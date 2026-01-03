@@ -288,6 +288,37 @@ def generate_advice(req: AdviceRequest):
     ctx = req.context
     ctx_dict = ctx.model_dump()
 
+    # ============================
+    # BIJLAGE A — DATABRONNEN & UITGANGSPUNTEN
+    # ============================
+
+    ctx_dict["appendix_A"] = {
+        "verbruiksdata": (
+            "Het elektriciteitsverbruik is gebaseerd op door de gebruiker aangeleverde "
+            "CSV-meetreeksen. Deze meetreeksen vormen de basis voor het vaststellen van "
+            "het jaarlijkse verbruik, piekbelastingen en het tijdsprofiel van de afname."
+        ),
+        "opwekdata": (
+            "De zonne-energieproductie is gebaseerd op aangeleverde CSV-bestanden met "
+            "meetwaarden van PV-opwek. Deze data is gebruikt om directe zelfconsumptie, "
+            "teruglevering en overschotten te bepalen."
+        ),
+        "tariefdata": (
+            "De energietarieven zijn afkomstig uit de door de gebruiker ingevoerde "
+            "tariefinstellingen, inclusief import- en exporttarieven per tariefstructuur."
+        ),
+        "batterijgegevens": (
+            "De batterijconfiguratie is gebaseerd op de opgegeven capaciteit (kWh) en "
+            "het maximale laad- en ontlaadvermogen (kW). Deze parameters bepalen de "
+            "technische inzet van de batterij in de simulatie."
+        ),
+        "algemene_uitgangspunten": (
+            "Alle berekeningen zijn uitgevoerd op basis van historische meetdata. "
+            "Er zijn geen aannames gedaan over toekomstig gedrag, prijsevoluties "
+            "of wijzigingen in regelgeving."
+        ),
+    }
+    
     prompt = (
         "Schrijf het volledige energieadviesrapport.\n\n"
         "JE MOET JE STRIKT HOUDEN AAN DE STRUCTUUR EN REGELS UIT DE SYSTEM PROMPT.\n\n"
@@ -331,6 +362,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
