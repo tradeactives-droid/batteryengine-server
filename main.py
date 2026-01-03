@@ -6,13 +6,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime, timedelta
 from typing import Optional
 import json
+import os
 
 from openai import OpenAI
 
-from battery_engine_pro3.types import TimeSeries
 from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
 
 
@@ -31,9 +30,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
-from openai import OpenAI
-import os
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -150,7 +146,6 @@ def compute_v3(req: ComputeV3Request):
         return {"error": "LOAD_OR_PV_EMPTY"}
 
     n = min(len(req.load_kwh), len(req.pv_kwh))
-    dt = detect_resolution(req.load_kwh)
 
     engine_input = ComputeV3Input(
         load_kwh=req.load_kwh[:n],
@@ -218,82 +213,15 @@ class AdviceContext(BaseModel):
     calculation_method: Optional[dict] = None
     cost_components: Optional[dict] = None
 
+
 class AdviceRequest(BaseModel):
     context: AdviceContext
     draft_text: str
 
+
 # ============================================================
-# TARIEFMATRIX — BACKEND TEKSTGENERATOR
+# TARIEFMATRIX — FORMATTEERHULP
 # ============================================================
-
-def build_tariff_matrix_text(ctx_dict):
-    tariff_matrix = ctx_dict.get("tariff_matrix", {})
-
-    if not tariff_matrix:
-        return "Er zijn geen tariefresultaten beschikbaar om te vergelijken."
-
-    lines = []
-    lines.append("Overzicht van de jaarlijkse energiekosten per tariefstructuur:")
-    lines.append("")
-
-    for tariff_name, values in tariff_matrix.items():
-        total_cost = values.get("total_cost_eur")
-
-        if total_cost is None:
-            continue
-
-        # Netjes leesbaar voor consument
-        if tariff_name == "enkel":
-            label = "Enkel tarief"
-        elif tariff_name == "dag_nacht":
-            label = "Dag- en nachttarief"
-        elif tariff_name == "dynamisch":
-            label = "Dynamisch tarief"
-        else:
-            label = tariff_name
-
-        lines.append(f"- {label}: jaarlijkse kosten circa € {round(total_cost, 2)}")
-
-    return "\n".join(lines)
-
-
-SYSTEM_PROMPT = """
-JE MOET JE EXACT AAN ONDERSTAANDE STRUCTUUR HOUDEN.
-AFWIJKING IS NIET TOEGESTAAN.
-
-FORMATREGELS (ABSOLUUT):
-- Gebruik GEEN Markdown (#, ##, ###)
-- Gebruik GEEN eigen koppen
-- Gebruik GEEN inleiding, samenvatting of aanbevelingen buiten de structuur
-- Schrijf niets vóór sectie 1
-- Na sectie 7 MOET je de bijlagen toevoegen (zie hieronder). Schrijf daarna niets meer.
-
-VERPLICHTE STRUCTUUR (LETTERLIJK OVERNEMEN, ZONDER WIJZIGING):
-
-1. Managementsamenvatting
-2. Financiële duiding
-3. Technische beoordeling & batterijconfiguratie
-4. Tariefstrategie & marktcontext
-5. Vergelijking van tariefstructuren
-[[TARIEFMATRIX]]
-6. Conclusie & aanbevolen vervolgstappen
-7. Disclaimer
-
-BIJLAGEN — VERPLICHT (NA SECTIE 7, IN DEZE VOLGORDE, ZONDER MARKDOWN):
-
-Bijlage A — Databronnen & uitgangspunten
-Bijlage B — Rekenmethodiek & scenario-opzet
-Bijlage C — Kostencomponenten & tariefverwerking
-Bijlage D — Beperkingen & scope
-
-INHOUDSREGELS:
-- Baseer je UITSLUITEND op de aangeleverde JSON-feiten
-- Introduceer GEEN aannames
-- Introduceer GEEN nieuwe cijfers
-- Plaats [[TARIEFMATRIX]] EXACT één keer en op een eigen regel
-- Verplaats of hernoem GEEN secties
-- Schrijf professioneel, neutraal en adviserend
-"""
 
 def _fmt_eur(value):
     try:
@@ -303,15 +231,6 @@ def _fmt_eur(value):
 
 
 def build_tariff_matrix_text(ctx: dict) -> str:
-    """
-    Bouwt de tariefmatrix als leesbare tekst voor de consument,
-    uitsluitend op basis van backend-feiten (JSON).
-    """
-
-    # Verwachte structuur:
-    # ctx["tariff_matrix"] of ctx["A1_per_tariff"]
-    matrix = ctx.get("tariff_matrix", {})
-
     lines = []
     lines.append("Tariefmatrix — jaarlijkse kosten")
     lines.append("")
@@ -327,87 +246,49 @@ def build_tariff_matrix_text(ctx: dict) -> str:
 
     if "A1_per_tariff" in ctx:
         lines.append(row("Huidige situatie", ctx["A1_per_tariff"]))
-
     if "B1" in ctx:
         lines.append(row("Zonder batterij", ctx["B1"]))
-
     if "C1" in ctx:
         lines.append(row("Met batterij", ctx["C1"]))
 
     return "\n".join(lines)
 
+
+SYSTEM_PROMPT = """
+JE MOET JE EXACT AAN ONDERSTAANDE STRUCTUUR HOUDEN.
+AFWIJKING IS NIET TOEGESTAAN.
+
+FORMATREGELS (ABSOLUUT):
+- Gebruik GEEN Markdown
+- Schrijf niets vóór sectie 1
+- Na sectie 7 MOET je de bijlagen toevoegen
+
+VERPLICHTE STRUCTUUR:
+
+1. Managementsamenvatting
+2. Financiële duiding
+3. Technische beoordeling & batterijconfiguratie
+4. Tariefstrategie & marktcontext
+5. Vergelijking van tariefstructuren
+[[TARIEFMATRIX]]
+6. Conclusie & aanbevolen vervolgstappen
+7. Disclaimer
+
+Bijlage A — Databronnen & uitgangspunten
+Bijlage B — Rekenmethodiek & scenario-opzet
+Bijlage C — Kostencomponenten & tariefverwerking
+Bijlage D — Beperkingen & scope
+"""
+
+
 @app.post("/generate_advice")
 def generate_advice(req: AdviceRequest):
     ctx = req.context
-
-    if ctx.battery is None:
-        ctx.battery = {}
-
-    # ============================
-    # ✅ BIJLAGEN-FACTS (backend)
-    # ============================
-
-    # Bijlage A — Databronnen & uitgangspunten
-    ctx.data_sources = {
-        "profiles": {
-            "load_kwh": "CSV (meetreeks)",
-            "pv_kwh": "CSV (meetreeks)",
-            "prices_dyn": "CSV (uurprijzen) of leeg indien niet bruikbaar",
-        },
-        "country": ctx.country,
-        "current_tariff": ctx.current_tariff,
-        "battery_input": ctx.battery or {},
-        "resolution_rule": ">= 30000 punten → kwartier (0.25u), anders uur (1.0u)",
-    }
-
-    # Bijlage B — Rekenmethodiek & scenario-opzet
-    ctx.calculation_method = {
-        "scenarios": {
-            "A1": "Huidige situatie (met saldering in engine)",
-            "B1": "Toekomst zonder batterij (zonder saldering in engine)",
-            "C1": "Toekomst met batterij (zonder saldering in engine)",
-        },
-        "battery_dispatch": "regel-gebaseerd (zie battery_simulator.py)",
-        "dynamic_pricing": "uurprijzen indien aanwezig; anders niet toegepast",
-        "saldering_handling": "saldering True in A1; False in B1/C1",
-    }
-
-    # Bijlage C — Kostencomponenten & tariefverwerking
-    ctx.cost_components = {
-        "energy_costs": "import * tarief - export * vergoeding (afhankelijk van saldering)",
-        "fixed_costs": "vastrecht_year",
-        "feed_in_costs": "feedin_monthly_cost + staffel (boven feedin_free_kwh)",
-        "inverter_costs": "inverter_power_kw * inverter_cost_per_kw(jaar)",
-        "capacity_tariff_BE": "alleen BE: verschil piek * capaciteitstarief",
-        "roi_method": "ROIEngine: jaarlijkse besparing met degradatie over horizon",
-    }
-    
-    if client is None:
-        return {"advice": "OpenAI client niet beschikbaar."}
-
     ctx_dict = ctx.model_dump()
 
     prompt = (
         "Schrijf het volledige energieadviesrapport.\n\n"
-        "JE MOET JE STRIKT HOUDEN AAN DE STRUCTUUR EN REGELS UIT DE SYSTEM PROMPT.\n\n"
-        "VERBODEN:\n"
-        "- Markdown, opsommingen of opmaak\n"
-        "- Nieuwe cijfers, bedragen of percentages die NIET expliciet in de JSON-feiten staan"
-        "- Zelf berekende of afgeleide waarden die niet letterlijk in de JSON aanwezig zijn"
-        "- Aannames, garanties of aanbevelingen die niet expliciet uit de feiten volgen\n"
-        "- Inleidingen, samenvattingen of teksten buiten de 7 secties\n\n"
-        "VERPLICHT:\n"
-        "- Begin exact met '1. Managementsamenvatting'\n"
-        "- IEDERE SECTIE (1 t/m 7) MOET INHOUDELIJK WORDEN UITGEWERKT IN VOLLEDIGE ALINEA’S"
-        "- Sectie 5 mag GEEN tabellen of cijfers bevatten en moet uitsluitend de door de backend aangeleverde tariefmatrix duiden"
-        "- HET IS NIET TOEGESTAAN OM ALLEEN TITELS OF KOPPEN TE GEVEN"
-        "- IEDERE BIJLAGE (A t/m D) MOET WORDEN UITGEWERKT MET UITLEG"
-        "- Na '7. Disclaimer' MOET je direct de bijlagen A t/m D toevoegen\n"
-        "- Gebruik voor bijlagen alleen uitleg op basis van de JSON-feiten\n"
-        "- Schrijf geen tekst meer na Bijlage D\n"
-        "- Gebruik uitsluitend beschrijvende en duidende taal\n"
-        "- Baseer je uitsluitend op de aangeleverde JSON-feiten\n\n"
-        "FEITEN (JSON):\n"
+        "Baseer je uitsluitend op deze feiten:\n\n"
         + json.dumps(ctx_dict, ensure_ascii=False, indent=2)
     )
 
@@ -416,7 +297,7 @@ def generate_advice(req: AdviceRequest):
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
             max_tokens=1200,
             temperature=0.3,
@@ -425,94 +306,24 @@ def generate_advice(req: AdviceRequest):
         content = response.choices[0].message.content
 
         # ============================
-        # ✅ GUARDRAIL — TARIEFMATRIX MOET VERVANGEN ZIJN
+        # 🔁 TARIEFMATRIX — BACKEND INJECTIE
         # ============================
 
-        if "[[TARIEFMATRIX]]" in content:
+        token = "[[TARIEFMATRIX]]"
+
+        if content.count(token) != 1:
             return {
-                "error": "TARIEFMATRIX_NOT_REPLACED",
+                "error": f"TARIEFMATRIX_TOKEN_INVALID(count={content.count(token)})",
                 "advice": content
             }
 
-        # ============================
-        # 🛑 GUARDRAIL — TARIEFMATRIX TOKEN AANWEZIGHEID
-        # (controle vóór backend-vervanging)
-        # ============================
+        tariff_text = build_tariff_matrix_text(ctx_dict)
 
-        if content.count("[[TARIEFMATRIX]]") != 1:
-            return {
-                "error": "TARIEFMATRIX_TOKEN_INVALID_BEFORE_REPLACEMENT",
-                "advice": content
-            }
-
-        # ============================
-        # 🔁 TARIEFMATRIX INJECTIE (BACKEND-LEIDEND)
-        # ============================
-
-            if "[[TARIEFMATRIX]]" in content:
-                tariff_text = build_tariff_matrix_text(ctx_dict)
-
-                content = content.replace(
-                    "[[TARIEFMATRIX]]",
-                    tariff_text,
-                    1
-                )
-
-        # ============================
-        # 🛑 GUARDRAIL — TARIEFMATRIX TOKEN VERWIJDERD
-        # (controle na backend-vervanging)
-        # ============================
-
-        if "[[TARIEFMATRIX]]" in content:
-            return {
-                "error": "TARIEFMATRIX_TOKEN_STILL_PRESENT_AFTER_REPLACEMENT",
-                "advice": content
-            }
-
-        except Exception as e:
-            return {
-                "error": f"TARIEFMATRIX_REPLACEMENT_FAILED({str(e)})",
-                "advice": content
-            }
-
-        # === GUARDRAIL 2: SECTIESTRUCTUUR (NIET BLOKKEREND) ===
-        required_sections = [
-            "1. Managementsamenvatting",
-            "2. Financiële duiding",
-            "3. Technische beoordeling & batterijconfiguratie",
-            "4. Tariefstrategie & marktcontext",
-            "5. Vergelijking van tariefstructuren",
-            "6. Conclusie & aanbevolen vervolgstappen",
-            "7. Disclaimer",
-        ]
-
-        missing_sections = [s for s in required_sections if s not in content]
-
-        if missing_sections:
-            return {
-                "error": f"SECTIONS_MISSING({', '.join(missing_sections)})",
-                "advice": content
-            }
-
-        # === GUARDRAIL 3: BIJLAGEN (NIET BLOKKEREND) ===
-        required_attachments = [
-            "Bijlage A — Databronnen & uitgangspunten",
-            "Bijlage B — Rekenmethodiek & scenario-opzet",
-            "Bijlage C — Kostencomponenten & tariefverwerking",
-            "Bijlage D — Beperkingen & scope",
-        ]
-
-        missing_attachments = [a for a in required_attachments if a not in content]
-
-        if missing_attachments:
-            return {
-                "warning": f"ATTACHMENTS_MISSING({', '.join(missing_attachments)})",
-                "advice": content
-            }
-        
-        # ============================
-        # OUTPUT — ÉÉN VELD (FRONTEND-LEIDEND)
-        # ============================
+        content = content.replace(
+            token,
+            tariff_text,
+            1
+        )
 
         return {
             "advice": content.strip()
@@ -523,26 +334,3 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
