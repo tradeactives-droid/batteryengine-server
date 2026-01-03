@@ -399,6 +399,7 @@ def generate_advice(req: AdviceRequest):
         "VERPLICHT:\n"
         "- Begin exact met '1. Managementsamenvatting'\n"
         "- IEDERE SECTIE (1 t/m 7) MOET INHOUDELIJK WORDEN UITGEWERKT IN VOLLEDIGE ALINEA’S"
+        "- Sectie 5 mag GEEN tabellen of cijfers bevatten en moet uitsluitend de door de backend aangeleverde tariefmatrix duiden"
         "- HET IS NIET TOEGESTAAN OM ALLEEN TITELS OF KOPPEN TE GEVEN"
         "- IEDERE BIJLAGE (A t/m D) MOET WORDEN UITGEWERKT MET UITLEG"
         "- Na '7. Disclaimer' MOET je direct de bijlagen A t/m D toevoegen\n"
@@ -523,6 +524,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
