@@ -388,6 +388,34 @@ def generate_advice(req: AdviceRequest):
             "de hoogste gemeten vermogensafname binnen de berekende periode."
         ),
     }
+
+    # ============================
+    # BIJLAGE D — BEPERKINGEN & SCOPE
+    # ============================
+
+    ctx_dict["appendix_D"] = {
+        "modelmatige_benadering": (
+            "Dit advies is gebaseerd op een modelmatige berekening van energieverbruik, "
+            "opwekking en batterijgedrag. Werkelijke resultaten kunnen afwijken door "
+            "gedragsveranderingen, weersinvloeden en technische beperkingen."
+        ),
+        "geen_garantie": (
+            "De gepresenteerde uitkomsten geven een indicatie op basis van ingevoerde "
+            "gegevens en vormen geen garantie voor toekomstige besparingen of rendement."
+        ),
+        "tarief_en_marktveranderingen": (
+            "Energieprijzen, contractvoorwaarden en regelgeving kunnen in de toekomst "
+            "wijzigen en zijn niet voorspelbaar binnen deze analyse."
+        ),
+        "technische_implementatie": (
+            "De daadwerkelijke prestaties van een batterij zijn afhankelijk van installatie, "
+            "aansturing, onderhoud en compatibiliteit met bestaande systemen."
+        ),
+        "geen_vervangend_advies": (
+            "Dit rapport is bedoeld als besluitondersteunend hulpmiddel en vervangt geen "
+            "persoonlijk advies van een installateur, leverancier of energieadviseur."
+        ),
+    }
     
     prompt = (
         "Schrijf het volledige energieadviesrapport.\n\n"
@@ -432,6 +460,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
