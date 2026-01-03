@@ -232,7 +232,7 @@ FORMATREGELS (ABSOLUUT):
 - Gebruik GEEN eigen koppen
 - Gebruik GEEN inleiding, samenvatting of aanbevelingen buiten de structuur
 - Schrijf niets vóór sectie 1
-- Schrijf niets ná sectie 7
+- Na sectie 7 MOET je de bijlagen toevoegen (zie hieronder). Schrijf daarna niets meer.
 
 VERPLICHTE STRUCTUUR (LETTERLIJK OVERNEMEN, ZONDER WIJZIGING):
 
@@ -244,6 +244,13 @@ VERPLICHTE STRUCTUUR (LETTERLIJK OVERNEMEN, ZONDER WIJZIGING):
 [[TARIEFMATRIX]]
 6. Conclusie & aanbevolen vervolgstappen
 7. Disclaimer
+
+BIJLAGEN — VERPLICHT (NA SECTIE 7, IN DEZE VOLGORDE, ZONDER MARKDOWN):
+
+Bijlage A — Databronnen & uitgangspunten
+Bijlage B — Rekenmethodiek & scenario-opzet
+Bijlage C — Kostencomponenten & tariefverwerking
+Bijlage D — Beperkingen & scope
 
 INHOUDSREGELS:
 - Baseer je UITSLUITEND op de aangeleverde JSON-feiten
@@ -262,6 +269,45 @@ def generate_advice(req: AdviceRequest):
     if ctx.battery is None:
         ctx.battery = {}
 
+    # ============================
+    # ✅ BIJLAGEN-FACTS (backend)
+    # ============================
+
+    # Bijlage A — Databronnen & uitgangspunten
+    ctx.data_sources = {
+        "profiles": {
+            "load_kwh": "CSV (meetreeks)",
+            "pv_kwh": "CSV (meetreeks)",
+            "prices_dyn": "CSV (uurprijzen) of leeg indien niet bruikbaar",
+        },
+        "country": ctx.country,
+        "current_tariff": ctx.current_tariff,
+        "battery_input": ctx.battery or {},
+        "resolution_rule": ">= 30000 punten → kwartier (0.25u), anders uur (1.0u)",
+    }
+
+    # Bijlage B — Rekenmethodiek & scenario-opzet
+    ctx.calculation_method = {
+        "scenarios": {
+            "A1": "Huidige situatie (met saldering in engine)",
+            "B1": "Toekomst zonder batterij (zonder saldering in engine)",
+            "C1": "Toekomst met batterij (zonder saldering in engine)",
+        },
+        "battery_dispatch": "regel-gebaseerd (zie battery_simulator.py)",
+        "dynamic_pricing": "uurprijzen indien aanwezig; anders niet toegepast",
+        "saldering_handling": "saldering True in A1; False in B1/C1",
+    }
+
+    # Bijlage C — Kostencomponenten & tariefverwerking
+    ctx.cost_components = {
+        "energy_costs": "import * tarief - export * vergoeding (afhankelijk van saldering)",
+        "fixed_costs": "vastrecht_year",
+        "feed_in_costs": "feedin_monthly_cost + staffel (boven feedin_free_kwh)",
+        "inverter_costs": "inverter_power_kw * inverter_cost_per_kw(jaar)",
+        "capacity_tariff_BE": "alleen BE: verschil piek * capaciteitstarief",
+        "roi_method": "ROIEngine: jaarlijkse besparing met degradatie over horizon",
+    }
+    
     if client is None:
         return {"advice": "OpenAI client niet beschikbaar."}
 
@@ -277,7 +323,9 @@ def generate_advice(req: AdviceRequest):
         "- Inleidingen, samenvattingen of teksten buiten de 7 secties\n\n"
         "VERPLICHT:\n"
         "- Begin exact met '1. Managementsamenvatting'\n"
-        "- Eindig exact na '7. Disclaimer'\n"
+        "- Na '7. Disclaimer' MOET je direct de bijlagen A t/m D toevoegen\n"
+        "- Gebruik voor bijlagen alleen uitleg op basis van de JSON-feiten\n"
+        "- Schrijf geen tekst meer na Bijlage D\n"
         "- Gebruik uitsluitend beschrijvende en duidende taal\n"
         "- Baseer je uitsluitend op de aangeleverde JSON-feiten\n\n"
         "FEITEN (JSON):\n"
@@ -325,6 +373,22 @@ def generate_advice(req: AdviceRequest):
                 "error": f"SECTIONS_MISSING({', '.join(missing_sections)})",
                 "advice": content
             }
+
+        # === GUARDRAIL 3: BIJLAGEN (NIET BLOKKEREND) ===
+        required_attachments = [
+            "Bijlage A — Databronnen & uitgangspunten",
+            "Bijlage B — Rekenmethodiek & scenario-opzet",
+            "Bijlage C — Kostencomponenten & tariefverwerking",
+            "Bijlage D — Beperkingen & scope",
+        ]
+
+        missing_attachments = [a for a in required_attachments if a not in content]
+
+        if missing_attachments:
+            return {
+                "warning": f"ATTACHMENTS_MISSING({', '.join(missing_attachments)})",
+                "advice": content
+            }
         
         return {"advice": content}
 
@@ -333,6 +397,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
