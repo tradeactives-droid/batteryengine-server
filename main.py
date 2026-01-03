@@ -260,6 +260,7 @@ AFWIJKING IS NIET TOEGESTAAN.
 
 FORMATREGELS (ABSOLUUT):
 - Gebruik GEEN Markdown
+- In sectie 5 mag je GEEN tariefmatrix/tabel/kolommen opnemen en GEEN koptekst zoals "Tariefmatrix — jaarlijkse kosten"
 - Schrijf niets vóór sectie 1
 - Na sectie 7 MOET je de bijlagen toevoegen
 
@@ -365,6 +366,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
