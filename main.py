@@ -288,10 +288,25 @@ def generate_advice(req: AdviceRequest):
 
     prompt = (
         "Schrijf het volledige energieadviesrapport.\n\n"
-        "Baseer je uitsluitend op deze feiten:\n\n"
+        "JE MOET JE STRIKT HOUDEN AAN DE STRUCTUUR EN REGELS UIT DE SYSTEM PROMPT.\n\n"
+
+        "VERBODEN:\n"
+        "- Tabellen, matrixen, schema’s of kolomindelingen in welke vorm dan ook\n"
+        "- Opsommingen met streepjes, bullets of genummerde lijsten\n"
+        "- Markdown of pseudo-Markdown\n"
+        "- Zelf bedachte of afgeleide cijfers\n"
+        "- Aanbevelingen die niet expliciet uit de feiten volgen\n\n"
+
+        "VERPLICHT:\n"
+        "- Iedere sectie (1 t/m 7) moet bestaan uit lopende tekst in volledige alinea’s\n"
+        "- Sectie 5 mag GEEN cijfers of tabellen bevatten en moet alleen duiden wat de tariefmatrix laat zien\n"
+        "- De tariefmatrix zelf wordt uitsluitend door de backend ingevoegd\n"
+        "- Iedere bijlage (A t/m D) moet inhoudelijk worden uitgewerkt in minimaal één alinea\n"
+        "- Schrijf niets meer na Bijlage D\n\n"
+
+        "FEITEN (JSON):\n"
         + json.dumps(ctx_dict, ensure_ascii=False, indent=2)
     )
-
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -334,3 +349,4 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
