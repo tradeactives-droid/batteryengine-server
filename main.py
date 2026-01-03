@@ -450,14 +450,19 @@ def generate_advice(req: AdviceRequest):
         # ============================
 
         try:
-            tariff_text = build_tariff_matrix_text(ctx_dict)
+            if "[[TARIEFMATRIX]]" in content:
+                tariff_text = build_tariff_matrix_text(ctx_dict)
 
-            # Vervang exact één keer
-            content = content.replace(
-                "[[TARIEFMATRIX]]",
-                tariff_text,
-                1
-            )
+                content = content.replace(
+                    "[[TARIEFMATRIX]]",
+                    tariff_text,
+                    1
+                )
+        except Exception as e:
+            return {
+                "error": f"TARIEFMATRIX_REPLACEMENT_FAILED({str(e)})",
+                "advice": content
+            }
 
         # ============================
         # 🛑 GUARDRAIL — TARIEFMATRIX TOKEN VERWIJDERD
@@ -524,6 +529,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
