@@ -352,13 +352,9 @@ def generate_advice(req: AdviceRequest):
 
         content = content.replace(token, tariff_text, 1)
 
-        tariff_text = build_tariff_matrix_text(ctx_dict)
-
-        content = content.replace(
-            token,
-            tariff_text,
-            1
-        )
+        # We injecteren GEEN matrixtekst in het advies.
+        # Token dient alleen als anker en wordt daarna verwijderd.
+        content = content.replace(token, "", 1)
 
         return {
             "advice": content.strip()
@@ -369,5 +365,6 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
