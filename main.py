@@ -391,21 +391,11 @@ def generate_advice(req: AdviceRequest):
             }
         
         # ============================
-        # OUTPUT OPSPLITSEN
+        # OUTPUT — ÉÉN VELD (FRONTEND-LEIDEND)
         # ============================
 
-        split_token = "Bijlage A — Databronnen & uitgangspunten"
-
-        if split_token in content:
-            main_report, appendices = content.split(split_token, 1)
-            appendices = split_token + appendices
-        else:
-            main_report = content
-            appendices = ""
-
         return {
-            "advice_main": main_report.strip(),
-            "advice_appendices": appendices.strip(),
+            "advice": content.strip()
         }
 
     except Exception as e:
@@ -413,6 +403,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
