@@ -435,6 +435,17 @@ def generate_advice(req: AdviceRequest):
         "- Iedere bijlage (A t/m D) moet inhoudelijk worden uitgewerkt in minimaal één alinea\n"
         "- Schrijf niets meer na Bijlage D\n\n"
 
+        "BIJLAGEN (CONSUMENTGERICHT, MAAR COMPLEET):\n"
+        "- Leg in gewone taal uit hoe de berekening werkt en hoe de uitkomsten tot stand komen.\n"
+        "- Gebruik géén technische termen zonder uitleg.\n"
+        "- Je mag cijfers alleen noemen als ze letterlijk in de JSON staan.\n"
+        "- Leg uit wat de scenario’s betekenen (A1/B1/C1) en waarom ze worden vergeleken.\n"
+        "- Leg uit welke invoer de gebruiker zelf heeft opgegeven (batterij, tarieven, vastrecht, terugleverkosten).\n"
+        "- Leg uit hoe saldering is meegenomen in A1, en waarom B1/C1 zonder saldering zijn.\n"
+        "- Leg uit hoe de batterij wordt ingezet op hoofdlijnen (laden bij overschot, ontladen bij verbruik), zonder code of technische details.\n"
+        "- Leg uit welke kostencomponenten zijn meegenomen (energie-import/export, vastrecht, terugleverkosten, omvormerkosten, capaciteitstarief indien BE).\n"
+        "- In Bijlage D: benoem beperkingen van de berekening (kwaliteit CSV, toekomstprijzen onzeker, gedrag kan wijzigen), zonder nieuwe aannames.\n\n"
+
         "FEITEN (JSON):\n"
         + json.dumps(ctx_dict, ensure_ascii=False, indent=2)
     )
@@ -445,7 +456,7 @@ def generate_advice(req: AdviceRequest):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=1200,
+            max_tokens=2200,
             temperature=0.3,
         )
 
@@ -460,6 +471,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
