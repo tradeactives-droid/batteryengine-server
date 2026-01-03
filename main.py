@@ -425,6 +425,25 @@ def generate_advice(req: AdviceRequest):
 
         content = response.choices[0].message.content
 
+        # ============================
+        # 🔁 TARIEFMATRIX INJECTIE (BACKEND-LEIDEND)
+        # ============================
+
+        try:
+            tariff_text = build_tariff_matrix_text(ctx_dict)
+
+            # Vervang exact één keer
+            content = content.replace(
+                "[[TARIEFMATRIX]]",
+                tariff_text,
+                1
+            )
+        except Exception as e:
+            return {
+                "error": f"TARIEFMATRIX_REPLACEMENT_FAILED({str(e)})",
+                "advice": content
+            }
+
         # === GUARDRAIL 1: TARIEFMATRIX TOKEN ===
         token = "[[TARIEFMATRIX]]"
         token_count = content.count(token)
@@ -483,6 +502,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
