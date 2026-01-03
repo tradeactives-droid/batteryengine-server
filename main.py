@@ -323,6 +323,9 @@ def generate_advice(req: AdviceRequest):
         "- Inleidingen, samenvattingen of teksten buiten de 7 secties\n\n"
         "VERPLICHT:\n"
         "- Begin exact met '1. Managementsamenvatting'\n"
+        "- IEDERE SECTIE (1 t/m 7) MOET INHOUDELIJK WORDEN UITGEWERKT IN VOLLEDIGE ALINEA’S"
+        "- HET IS NIET TOEGESTAAN OM ALLEEN TITELS OF KOPPEN TE GEVEN"
+        "- IEDERE BIJLAGE (A t/m D) MOET WORDEN UITGEWERKT MET UITLEG"
         "- Na '7. Disclaimer' MOET je direct de bijlagen A t/m D toevoegen\n"
         "- Gebruik voor bijlagen alleen uitleg op basis van de JSON-feiten\n"
         "- Schrijf geen tekst meer na Bijlage D\n"
@@ -403,6 +406,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
