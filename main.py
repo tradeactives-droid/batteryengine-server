@@ -355,6 +355,39 @@ def generate_advice(req: AdviceRequest):
             "wanneer uurprijzen beschikbaar zijn."
         ),
     }
+
+    # ============================
+    # BIJLAGE C — KOSTENCOMPONENTEN & TARIEFVERWERKING
+    # ============================
+
+    ctx_dict["appendix_C"] = {
+        "energiekosten": (
+            "De energiekosten bestaan uit elektriciteit die uit het net wordt afgenomen "
+            "en elektriciteit die wordt teruggeleverd. De kosten worden berekend op basis "
+            "van de geldende tarieven per scenario."
+        ),
+        "import_en_export": (
+            "Netafname en teruglevering worden afzonderlijk geregistreerd. Afhankelijk "
+            "van de tariefstructuur en het scenario worden deze volumes verrekend volgens "
+            "vaste of dynamische tarieven."
+        ),
+        "vastrecht": (
+            "Vaste kosten zoals vastrecht worden meegenomen als jaarlijkse kostenpost, "
+            "onafhankelijk van het daadwerkelijke elektriciteitsverbruik."
+        ),
+        "terugleverkosten": (
+            "Indien van toepassing worden kosten voor teruglevering meegenomen, zoals "
+            "maandelijkse bijdragen of staffels boven een vrijgestelde hoeveelheid."
+        ),
+        "inverter_en_vermogen": (
+            "Wanneer relevant worden kosten voor omvormervermogen meegenomen op basis "
+            "van het opgegeven vermogen en bijbehorende kostengrondslag."
+        ),
+        "capaciteitstarief": (
+            "Voor landen waar een capaciteitstarief geldt, wordt rekening gehouden met "
+            "de hoogste gemeten vermogensafname binnen de berekende periode."
+        ),
+    }
     
     prompt = (
         "Schrijf het volledige energieadviesrapport.\n\n"
@@ -399,6 +432,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
