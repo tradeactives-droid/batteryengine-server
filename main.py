@@ -431,6 +431,8 @@ def generate_advice(req: AdviceRequest):
 
         "VERPLICHT:\n"
         "- Iedere sectie (1 t/m 7) moet bestaan uit lopende tekst in volledige alinea’s\n"
+        "- Na iedere sectietitel moet EXACT één lege regel volgen\n"
+        "- Lange alinea’s moeten worden opgesplitst in leesblokken van circa 3 tot 4 zinnen, gescheiden door een lege regel\n"
         "- Sectie 5 mag GEEN cijfers of tabellen bevatten en moet alleen duiden wat de tariefmatrix laat zien\n"
         "- De tariefmatrix zelf wordt uitsluitend door de backend ingevoegd\n"
         "- Iedere bijlage (A t/m D) moet inhoudelijk worden uitgewerkt in minimaal één alinea\n"
@@ -472,6 +474,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
