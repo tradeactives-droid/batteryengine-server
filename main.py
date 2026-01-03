@@ -318,6 +318,43 @@ def generate_advice(req: AdviceRequest):
             "of wijzigingen in regelgeving."
         ),
     }
+
+    # ============================
+    # BIJLAGE B — REKENMETHODIEK & SCENARIO-OPZET
+    # ============================
+
+    ctx_dict["appendix_B"] = {
+        "scenario_definitie": (
+            "Er zijn meerdere scenario’s doorgerekend om de impact van tariefstructuren "
+            "en batterij-inzet inzichtelijk te maken. Elk scenario gebruikt dezelfde "
+            "verbruiks- en opwekdata, zodat de uitkomsten onderling vergelijkbaar zijn."
+        ),
+        "scenario_A1": (
+            "Scenario A1 beschrijft de huidige situatie zonder wijzigingen. Hierbij "
+            "wordt gerekend met de bestaande tariefstructuur en zonder actieve inzet "
+            "van een thuisbatterij."
+        ),
+        "scenario_B1": (
+            "Scenario B1 simuleert een toekomstige situatie zonder batterij, waarbij "
+            "saldering niet wordt toegepast. Dit scenario laat zien wat het effect is "
+            "van veranderende regelgeving zonder technische compensatie."
+        ),
+        "scenario_C1": (
+            "Scenario C1 beschrijft een situatie met thuisbatterij, eveneens zonder "
+            "saldering. De batterij wordt ingezet om zelfconsumptie te verhogen en "
+            "netafname te beperken binnen de technische grenzen van het systeem."
+        ),
+        "batterij_dispatch": (
+            "De batterij wordt regel-gebaseerd aangestuurd. Dit betekent dat de batterij "
+            "laadt bij overschot aan zonneproductie en ontlaadt bij elektriciteitsvraag, "
+            "zonder optimalisatie op basis van prijsvoorspellingen."
+        ),
+        "tariefverwerking": (
+            "Voor elk scenario zijn de relevante tariefstructuren toegepast zoals "
+            "aangeleverd in de invoer. Dynamische tarieven worden alleen gebruikt "
+            "wanneer uurprijzen beschikbaar zijn."
+        ),
+    }
     
     prompt = (
         "Schrijf het volledige energieadviesrapport.\n\n"
@@ -362,6 +399,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
