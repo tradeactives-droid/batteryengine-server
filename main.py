@@ -222,6 +222,42 @@ class AdviceRequest(BaseModel):
     context: AdviceContext
     draft_text: str
 
+# ============================================================
+# TARIEFMATRIX — BACKEND TEKSTGENERATOR
+# ============================================================
+
+def build_tariff_matrix_text(ctx: dict) -> str:
+    """
+    Genereert een vaste, consument-leesbare tariefvergelijking
+    op basis van reeds berekende backend-feiten.
+    """
+
+    tariff_matrix = ctx.get("tariff_matrix", {})
+    roi_per_tariff = ctx.get("roi_per_tariff", {})
+
+    lines = []
+    lines.append("Vergelijking van jaarlijkse energiekosten per tariefstructuur.")
+
+    for tariff, data in tariff_matrix.items():
+        total_cost = data.get("total_cost_eur")
+
+        roi = roi_per_tariff.get(tariff, {})
+        saving = roi.get("yearly_saving_eur")
+
+        if total_cost is None:
+            continue
+
+        label = tariff.replace("_", " ").capitalize()
+
+        line = f"{label}: jaarlijkse kosten {round(total_cost, 2)} euro"
+
+        if saving is not None and saving > 0:
+            line += f", met een jaarlijkse besparing van {round(saving, 2)} euro ten opzichte van de situatie zonder batterij."
+
+        lines.append(line)
+
+    return "\n".join(lines)
+
 
 SYSTEM_PROMPT = """
 JE MOET JE EXACT AAN ONDERSTAANDE STRUCTUUR HOUDEN.
@@ -447,6 +483,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
