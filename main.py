@@ -226,35 +226,33 @@ class AdviceRequest(BaseModel):
 # TARIEFMATRIX — BACKEND TEKSTGENERATOR
 # ============================================================
 
-def build_tariff_matrix_text(ctx: dict) -> str:
-    """
-    Genereert een vaste, consument-leesbare tariefvergelijking
-    op basis van reeds berekende backend-feiten.
-    """
+def build_tariff_matrix_text(ctx_dict):
+    tariff_matrix = ctx_dict.get("tariff_matrix", {})
 
-    tariff_matrix = ctx.get("tariff_matrix", {})
-    roi_per_tariff = ctx.get("roi_per_tariff", {})
+    if not tariff_matrix:
+        return "Er zijn geen tariefresultaten beschikbaar om te vergelijken."
 
     lines = []
-    lines.append("Vergelijking van jaarlijkse energiekosten per tariefstructuur.")
+    lines.append("Overzicht van de jaarlijkse energiekosten per tariefstructuur:")
+    lines.append("")
 
-    for tariff, data in tariff_matrix.items():
-        total_cost = data.get("total_cost_eur")
-
-        roi = roi_per_tariff.get(tariff, {})
-        saving = roi.get("yearly_saving_eur")
+    for tariff_name, values in tariff_matrix.items():
+        total_cost = values.get("total_cost_eur")
 
         if total_cost is None:
             continue
 
-        label = tariff.replace("_", " ").capitalize()
+        # Netjes leesbaar voor consument
+        if tariff_name == "enkel":
+            label = "Enkel tarief"
+        elif tariff_name == "dag_nacht":
+            label = "Dag- en nachttarief"
+        elif tariff_name == "dynamisch":
+            label = "Dynamisch tarief"
+        else:
+            label = tariff_name
 
-        line = f"{label}: jaarlijkse kosten {round(total_cost, 2)} euro"
-
-        if saving is not None and saving > 0:
-            line += f", met een jaarlijkse besparing van {round(saving, 2)} euro ten opzichte van de situatie zonder batterij."
-
-        lines.append(line)
+        lines.append(f"- {label}: jaarlijkse kosten circa € {round(total_cost, 2)}")
 
     return "\n".join(lines)
 
@@ -515,6 +513,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
