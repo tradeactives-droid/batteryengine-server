@@ -424,6 +424,16 @@ def generate_advice(req: AdviceRequest):
         content = response.choices[0].message.content
 
         # ============================
+        # ✅ GUARDRAIL — TARIEFMATRIX MOET VERVANGEN ZIJN
+        # ============================
+
+        if "[[TARIEFMATRIX]]" in content:
+            return {
+                "error": "TARIEFMATRIX_NOT_REPLACED",
+                "advice": content
+            }
+
+        # ============================
         # 🛑 GUARDRAIL — TARIEFMATRIX TOKEN AANWEZIGHEID
         # (controle vóór backend-vervanging)
         # ============================
@@ -513,6 +523,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
