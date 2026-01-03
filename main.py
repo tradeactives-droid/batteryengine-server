@@ -260,7 +260,9 @@ AFWIJKING IS NIET TOEGESTAAN.
 
 FORMATREGELS (ABSOLUUT):
 - Gebruik GEEN Markdown
-- In sectie 5 mag je GEEN tariefmatrix/tabel/kolommen opnemen en GEEN koptekst zoals "Tariefmatrix — jaarlijkse kosten"
+- Gebruik GEEN tabellen, kolommen, kopjes of matrix-structuren
+- Schrijf GEEN woorden zoals "Tariefmatrix", "Scenario", "Enkel", "Dag/Nacht", "Dynamisch" als losse regels of koppen
+- In sectie 5 mag ALLEEN beschrijvende lopende tekst staan
 - Schrijf niets vóór sectie 1
 - Na sectie 7 MOET je de bijlagen toevoegen
 
@@ -271,7 +273,6 @@ VERPLICHTE STRUCTUUR:
 3. Technische beoordeling & batterijconfiguratie
 4. Tariefstrategie & marktcontext
 5. Vergelijking van tariefstructuren
-[[TARIEFMATRIX]]
 6. Conclusie & aanbevolen vervolgstappen
 7. Disclaimer
 
@@ -366,6 +367,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
