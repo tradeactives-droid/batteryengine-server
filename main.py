@@ -326,11 +326,31 @@ def generate_advice(req: AdviceRequest):
 
         token = "[[TARIEFMATRIX]]"
 
+        # Als token ontbreekt, injecteer hem automatisch na sectie 5-titel
+        if token not in content:
+            marker = "5. Vergelijking van tariefstructuren"
+            if marker in content:
+                content = content.replace(
+                    marker,
+                    marker + "\n" + token,
+                    1
+                )
+            else:
+                return {
+                    "error": "TARIEFMATRIX_MARKER_NOT_FOUND",
+                    "advice": content
+                }
+
+        # Veiligheidscheck: nu moet hij exact 1x voorkomen
         if content.count(token) != 1:
             return {
-                "error": f"TARIEFMATRIX_TOKEN_INVALID(count={content.count(token)})",
+                "error": f"TARIEFMATRIX_TOKEN_INVALID_AFTER_INJECT(count={content.count(token)})",
                 "advice": content
             }
+
+        tariff_text = build_tariff_matrix_text(ctx_dict)
+
+        content = content.replace(token, tariff_text, 1)
 
         tariff_text = build_tariff_matrix_text(ctx_dict)
 
@@ -349,4 +369,5 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
