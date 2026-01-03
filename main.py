@@ -458,11 +458,6 @@ def generate_advice(req: AdviceRequest):
                     tariff_text,
                     1
                 )
-        except Exception as e:
-            return {
-                "error": f"TARIEFMATRIX_REPLACEMENT_FAILED({str(e)})",
-                "advice": content
-            }
 
         # ============================
         # 🛑 GUARDRAIL — TARIEFMATRIX TOKEN VERWIJDERD
@@ -529,6 +524,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
