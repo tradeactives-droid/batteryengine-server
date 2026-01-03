@@ -318,7 +318,8 @@ def generate_advice(req: AdviceRequest):
         "JE MOET JE STRIKT HOUDEN AAN DE STRUCTUUR EN REGELS UIT DE SYSTEM PROMPT.\n\n"
         "VERBODEN:\n"
         "- Markdown, opsommingen of opmaak\n"
-        "- Nieuwe cijfers, bedragen, percentages of berekeningen\n"
+        "- Nieuwe cijfers, bedragen of percentages die NIET expliciet in de JSON-feiten staan"
+        "- Zelf berekende of afgeleide waarden die niet letterlijk in de JSON aanwezig zijn"
         "- Aannames, garanties of aanbevelingen die niet expliciet uit de feiten volgen\n"
         "- Inleidingen, samenvattingen of teksten buiten de 7 secties\n\n"
         "VERPLICHT:\n"
@@ -406,6 +407,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
