@@ -426,6 +426,17 @@ def generate_advice(req: AdviceRequest):
         content = response.choices[0].message.content
 
         # ============================
+        # 🛑 GUARDRAIL — TARIEFMATRIX TOKEN AANWEZIGHEID
+        # (controle vóór backend-vervanging)
+        # ============================
+
+        if content.count("[[TARIEFMATRIX]]") != 1:
+            return {
+                "error": "TARIEFMATRIX_TOKEN_INVALID_BEFORE_REPLACEMENT",
+                "advice": content
+            }
+
+        # ============================
         # 🔁 TARIEFMATRIX INJECTIE (BACKEND-LEIDEND)
         # ============================
 
@@ -438,19 +449,21 @@ def generate_advice(req: AdviceRequest):
                 tariff_text,
                 1
             )
-        except Exception as e:
+
+        # ============================
+        # 🛑 GUARDRAIL — TARIEFMATRIX TOKEN VERWIJDERD
+        # (controle na backend-vervanging)
+        # ============================
+
+        if "[[TARIEFMATRIX]]" in content:
             return {
-                "error": f"TARIEFMATRIX_REPLACEMENT_FAILED({str(e)})",
+                "error": "TARIEFMATRIX_TOKEN_STILL_PRESENT_AFTER_REPLACEMENT",
                 "advice": content
             }
 
-        # === GUARDRAIL 1: TARIEFMATRIX TOKEN ===
-        token = "[[TARIEFMATRIX]]"
-        token_count = content.count(token)
-
-        if token_count != 1:
+        except Exception as e:
             return {
-                "error": f"TARIEFMATRIX_TOKEN_INVALID(count={token_count})",
+                "error": f"TARIEFMATRIX_REPLACEMENT_FAILED({str(e)})",
                 "advice": content
             }
 
@@ -502,6 +515,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
