@@ -264,7 +264,8 @@ FORMATREGELS (ABSOLUUT):
 - Schrijf GEEN woorden zoals "Tariefmatrix", "Scenario", "Enkel", "Dag/Nacht", "Dynamisch" als losse regels of koppen
 - In sectie 5 mag ALLEEN beschrijvende lopende tekst staan
 - Schrijf niets vóór sectie 1
-- Na sectie 7 MOET je de bijlagen A t/m D toevoegen en daarna onmiddellijk stoppen (geen extra tekst).
+STOPREGEL:
+- Na "Bijlage D — Beperkingen & scope" mag er niets meer volgen.
 
 VERPLICHTE STRUCTUUR:
 
@@ -471,6 +472,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
