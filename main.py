@@ -596,6 +596,7 @@ def generate_advice(req: AdviceRequest):
         )
 
         content = response.choices[0].message.content
+        content = enforce_max_4_sentences_per_paragraph(content)
 
         content = format_advice_text(content)
 
@@ -608,6 +609,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
