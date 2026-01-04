@@ -433,6 +433,7 @@ def generate_advice(req: AdviceRequest):
         "- Iedere sectie (1 t/m 7) moet bestaan uit lopende tekst in volledige alinea’s\n"
         "- Na elke 3 tot maximaal 4 volledige zinnen MOET je een lege regel invoegen (witregel) zodat korte, leesbare alinea’s ontstaan\n"
         "- Na iedere sectietitel moet EXACT één lege regel volgen\n"
+        "- Tussen de laatste alinea van een sectie en de volgende sectietitel MOETEN EXACT twee lege regels staan\n"
         "- Lange alinea’s moeten worden opgesplitst in leesblokken van circa 3 tot 4 zinnen, gescheiden door een lege regel\n"
         "- Sectie 5 mag GEEN cijfers of tabellen bevatten en moet alleen duiden wat de tariefmatrix laat zien\n"
         "- De tariefmatrix zelf wordt uitsluitend door de backend ingevoegd\n"
@@ -475,6 +476,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
