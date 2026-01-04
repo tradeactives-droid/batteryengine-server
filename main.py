@@ -253,6 +253,46 @@ def build_tariff_matrix_text(ctx: dict) -> str:
 
     return "\n".join(lines)
 
+import re
+
+def enforce_max_4_sentences_per_paragraph(text: str) -> str:
+    lines = text.split("\n")
+    output = []
+    buffer = []
+
+    def flush_buffer():
+        if not buffer:
+            return
+        paragraph = " ".join(buffer).strip()
+        sentences = re.split(r'(?<=[.!?])\s+', paragraph)
+
+        for i in range(0, len(sentences), 4):
+            chunk = " ".join(sentences[i:i+4]).strip()
+            if chunk:
+                output.append(chunk)
+                output.append("")  # <-- witregel NA max 4 zinnen
+
+        buffer.clear()
+
+    for line in lines:
+        line = line.strip()
+
+        # Nieuwe sectietitel → buffer eerst flushen
+        if re.match(r'^\d+\.\s', line) or line.startswith("Bijlage"):
+            flush_buffer()
+            output.append(line)
+            output.append("")  # witregel NA titel
+            continue
+
+        if line == "":
+            flush_buffer()
+            continue
+
+        buffer.append(line)
+
+    flush_buffer()
+
+    return "\n".join(output).strip()
 
 SYSTEM_PROMPT = """
 JE MOET JE EXACT AAN ONDERSTAANDE STRUCTUUR HOUDEN.
@@ -568,6 +608,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
