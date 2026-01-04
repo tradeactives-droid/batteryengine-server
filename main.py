@@ -557,6 +557,8 @@ def generate_advice(req: AdviceRequest):
 
         content = response.choices[0].message.content
 
+        content = format_advice_text(content)
+
         return {
             "advice": content.strip()
         }
@@ -566,6 +568,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
