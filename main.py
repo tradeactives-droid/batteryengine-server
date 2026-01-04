@@ -283,6 +283,96 @@ Bijlage C — Kostencomponenten & tariefverwerking
 Bijlage D — Beperkingen & scope
 """
 
+import re
+
+TITLE_RE = re.compile(r"^\d+\.\s+.+$")
+APPENDIX_RE = re.compile(r"^Bijlage\s+[A-D]\s+—\s+.+$")
+
+def _is_title(line: str) -> bool:
+    line = line.strip()
+    return bool(TITLE_RE.match(line) or APPENDIX_RE.match(line))
+
+def _split_sentences(text: str) -> list[str]:
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return []
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    return [p.strip() for p in parts if p.strip()]
+
+def _chunk_sentences(sentences: list[str], max_n: int = 4) -> list[str]:
+    # hard: 4 zinnen max per alinea (dus 3-4 meestal, laatste mag korter)
+    chunks = []
+    i = 0
+    while i < len(sentences):
+        chunk = " ".join(sentences[i:i+max_n]).strip()
+        if chunk:
+            chunks.append(chunk)
+        i += max_n
+    return chunks
+
+def format_advice_text(raw: str) -> str:
+    """
+    GARANTIE:
+    - Na elke titel: EXACT 1 lege regel
+    - Tussen laatste alinea van sectie en volgende titel: EXACT 2 lege regels
+    - Binnen secties: alinea's van max 4 zinnen, gescheiden door 1 lege regel
+    """
+    if not raw:
+        return ""
+
+    raw = raw.replace("\r\n", "\n").replace("\r", "\n")
+
+    # split in regels, trim, haal lege regels weg (we bouwen ze zelf opnieuw op)
+    lines = [ln.strip() for ln in raw.split("\n")]
+    lines = [ln for ln in lines if ln != ""]
+
+    out = []
+    buffer_lines = []
+
+    def flush_text():
+        nonlocal buffer_lines
+        if not buffer_lines:
+            return
+
+        text = " ".join(buffer_lines).strip()
+        buffer_lines = []
+        if not text:
+            return
+
+        sentences = _split_sentences(text)
+        paragraphs = _chunk_sentences(sentences, max_n=4)
+
+        for p in paragraphs:
+            out.append(p)
+            out.append("")  # 1 witregel tussen alinea's
+
+    for ln in lines:
+        if _is_title(ln):
+            # sluit eerst tekst af
+            flush_text()
+
+            # ✅ exact 2 witregels vóór de volgende titel
+            if out:
+                while out and out[-1] == "":
+                    out.pop()
+                out.append("")
+                out.append("")
+
+            # titel zelf
+            out.append(ln)
+
+            # ✅ exact 1 witregel na de titel
+            out.append("")
+        else:
+            buffer_lines.append(ln)
+
+    flush_text()
+
+    # cleanup eind
+    while out and out[-1] == "":
+        out.pop()
+
+    return "\n".join(out).strip()
 
 @app.post("/generate_advice")
 def generate_advice(req: AdviceRequest):
@@ -476,6 +566,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
