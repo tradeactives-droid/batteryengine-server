@@ -16,7 +16,7 @@ from .scenario_runner import ScenarioRunner
 class ComputeV3Input:
     load_kwh: list[float]
     pv_kwh: list[float]
-    prices_dyn: list[float]
+    prices_dyn: list[float] | None
 
     # Tarieven
     p_enkel_imp: float
