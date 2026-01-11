@@ -244,6 +244,108 @@ def compute_v3(req: ComputeV3Request):
 
     return BatteryEnginePro3.compute(engine_input)
 
+@app.post("/compute_v3_profile")
+def compute_v3_profile(req: ComputeV3ProfileRequest):
+    # -----------------------------
+    # 1) Maak synthetische profielen
+    # -----------------------------
+    dt_hours = 1.0
+    ts_load, load_vals = generate_load_profile_kwh(
+        annual_load_kwh=req.annual_load_kwh,
+        household_profile=req.household_profile,
+        has_heatpump=req.has_heatpump,
+        has_ev=req.has_ev,
+        dt_hours=dt_hours,
+        year=2025,
+    )
+    _, pv_vals = generate_pv_profile_kwh(
+        annual_pv_kwh=req.annual_pv_kwh,
+        dt_hours=dt_hours,
+        year=2025,
+    )
+
+    n = min(len(load_vals), len(pv_vals))
+    load_vals = load_vals[:n]
+    pv_vals = pv_vals[:n]
+
+    # -----------------------------
+    # 2) “Niet bekend” gedrag
+    # -----------------------------
+    eta_rt = req.eta_rt if (req.eta_rt is not None and req.eta_rt > 0) else 1.0
+    degradation = req.battery_degradation if (req.battery_degradation is not None and req.battery_degradation >= 0) else 0.0
+
+    # -----------------------------
+    # 3) Dynamische prijzen modelleren
+    # (zodat CostEngine niet hoeft te veranderen)
+    # -----------------------------
+    prices_dyn = generate_dynamic_prices_eur_per_kwh(
+        avg_price=req.dyn_avg_import_price,
+        spread=req.dyn_spread,
+        cheap_hours_per_day=req.dyn_cheap_hours_per_day,
+        dt_hours=dt_hours,
+        year=2025,
+    )
+    prices_dyn = prices_dyn[:n]
+
+    engine_input = ComputeV3Input(
+        load_kwh=load_vals,
+        pv_kwh=pv_vals,
+        prices_dyn=prices_dyn,  # <-- nu altijd aanwezig als model, geen CSV meer
+
+        p_enkel_imp=req.p_enkel_imp,
+        p_enkel_exp=req.p_enkel_exp,
+        p_dag=req.p_dag,
+        p_nacht=req.p_nacht,
+        p_exp_dn=req.p_exp_dn,
+        p_export_dyn=req.p_export_dyn,
+
+        E=req.E,
+        P=req.P,
+        DoD=req.DoD,
+        eta_rt=eta_rt,
+        vastrecht=req.vastrecht_year,
+
+        battery_cost=req.battery_cost,
+        battery_degradation=degradation,
+        battery_lifetime_years=req.battery_lifetime_years,
+
+        feedin_monthly_cost=req.feedin_monthly_cost,
+        feedin_cost_per_kwh=req.feedin_cost_per_kwh,
+        feedin_free_kwh=req.feedin_free_kwh,
+        feedin_price_after_free=req.feedin_price_after_free,
+
+        inverter_power_kw=req.inverter_power_kw,
+        inverter_cost_per_kw_year=(
+            req.inverter_cost_per_kw_month * 12
+            if req.inverter_cost_per_kw_month
+            else req.inverter_cost_per_kw
+        ),
+
+        capacity_tariff_kw_year=req.capacity_tariff_kw,
+        country=req.country,
+        current_tariff=req.current_tariff,
+    )
+
+    result = BatteryEnginePro3.compute(engine_input)
+
+    # metadata teruggeven voor “transparantie”
+    result["calculation_method"] = {
+        "mode": "profile_based",
+        "dt_hours": dt_hours,
+        "household_profile": req.household_profile,
+        "modifiers": {
+            "has_heatpump": req.has_heatpump,
+            "has_ev": req.has_ev,
+        },
+        "assumptions": {
+            "eta_rt_included": req.eta_rt is not None,
+            "battery_degradation_included": req.battery_degradation is not None,
+            "dynamic_prices_source": "model",
+        }
+    }
+
+    return result
+
 
 # ============================================================
 # ADVICE GENERATOR
@@ -665,6 +767,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
