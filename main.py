@@ -14,6 +14,12 @@ from openai import OpenAI
 
 from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
 
+from battery_engine_pro3.profile_generator import (
+    generate_load_profile_kwh,
+    generate_pv_profile_kwh,
+    generate_dynamic_prices_eur_per_kwh,
+)
+
 
 # ============================================================
 # FASTAPI INIT
@@ -609,6 +615,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
