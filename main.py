@@ -145,6 +145,56 @@ class ComputeV3Request(BaseModel):
 
     capacity_tariff_kw: float = 0.0
 
+class ComputeV3ProfileRequest(BaseModel):
+    # NIEUWE INPUT (zonder CSV)
+    annual_load_kwh: float
+    annual_pv_kwh: float
+
+    household_profile: str  # bijv: "alleenstaand_werkend" | "gezin_kinderen" | "thuiswerker"
+    has_heatpump: bool = False
+    has_ev: bool = False
+
+    # Dynamisch (zonder prices.csv): model-parameters
+    dyn_avg_import_price: float = 0.28
+    dyn_spread: float = 0.10
+    dyn_cheap_hours_per_day: int = 8
+
+    # Batterij (zelfde als nu)
+    E: float
+    P: float
+    DoD: float
+
+    # RTE en degradatie: optioneel (None = “niet bekend”)
+    eta_rt: Optional[float] = None
+    battery_degradation: Optional[float] = None
+
+    battery_cost: float
+    battery_lifetime_years: int
+
+    country: str
+    current_tariff: str
+
+    # Tarieven (zelfde als nu)
+    p_enkel_imp: float
+    p_enkel_exp: float
+    p_dag: float
+    p_nacht: float
+    p_exp_dn: float
+    p_export_dyn: float
+
+    vastrecht_year: float
+
+    feedin_monthly_cost: float = 0.0
+    feedin_cost_per_kwh: float = 0.0
+    feedin_free_kwh: float = 0.0
+    feedin_price_after_free: float = 0.0
+
+    inverter_power_kw: float = 0.0
+    inverter_cost_per_kw: float = 0.0
+    inverter_cost_per_kw_month: Optional[float] = None
+
+    capacity_tariff_kw: float = 0.0
+
 
 @app.post("/compute_v3")
 def compute_v3(req: ComputeV3Request):
@@ -615,6 +665,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
