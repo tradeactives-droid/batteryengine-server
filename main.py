@@ -581,69 +581,112 @@ def generate_advice(req: AdviceRequest):
     # BIJLAGE A — DATABRONNEN & UITGANGSPUNTEN
     # ============================
 
-    ctx_dict["appendix_A"] = {
-        "verbruiksdata": (
-            "Het elektriciteitsverbruik is gebaseerd op door de gebruiker aangeleverde "
-            "CSV-meetreeksen. Deze meetreeksen vormen de basis voor het vaststellen van "
-            "het jaarlijkse verbruik, piekbelastingen en het tijdsprofiel van de afname."
-        ),
-        "opwekdata": (
-            "De zonne-energieproductie is gebaseerd op aangeleverde CSV-bestanden met "
-            "meetwaarden van PV-opwek. Deze data is gebruikt om directe zelfconsumptie, "
-            "teruglevering en overschotten te bepalen."
-        ),
-        "tariefdata": (
-            "De energietarieven zijn afkomstig uit de door de gebruiker ingevoerde "
-            "tariefinstellingen, inclusief import- en exporttarieven per tariefstructuur."
-        ),
-        "batterijgegevens": (
-            "De batterijconfiguratie is gebaseerd op de opgegeven capaciteit (kWh) en "
-            "het maximale laad- en ontlaadvermogen (kW). Deze parameters bepalen de "
-            "technische inzet van de batterij in de simulatie."
-        ),
-        "algemene_uitgangspunten": (
-            "Alle berekeningen zijn uitgevoerd op basis van historische meetdata. "
-            "Er zijn geen aannames gedaan over toekomstig gedrag, prijsevoluties "
-            "of wijzigingen in regelgeving."
-        ),
-    }
+    calc_mode = (ctx_dict.get("calculation_method") or {}).get("mode", "csv_based")
+
+    if calc_mode == "profile_based":
+        ctx_dict["appendix_A"] = {
+            "verbruiksdata": (
+                "Het elektriciteitsverbruik is gebaseerd op het door de gebruiker opgegeven "
+                "jaarlijkse verbruik in combinatie met een standaard dagprofiel. Dit profiel "
+                "vertaalt het jaarverbruik naar een realistische verdeling over de dag."
+            ),
+            "opwekdata": (
+                "De zonne-energieproductie is gebaseerd op de opgegeven jaarlijkse opwek. "
+                "Hiervoor wordt een gestandaardiseerd opwekprofiel gebruikt dat rekening "
+                "houdt met seizoensinvloeden en dag-nacht variatie."
+            ),
+            "profielkeuze": (
+                "Het gekozen huishouden- of woningprofiel bepaalt wanneer elektriciteit "
+                "wordt verbruikt. Hiermee wordt het tijdsprofiel van de afname benaderd "
+                "zonder gebruik te maken van individuele meetdata."
+            ),
+            "tariefdata": (
+                "De energietarieven zijn gebaseerd op door de gebruiker ingevoerde "
+                "contractwaarden, zoals vaste tarieven of gemodelleerde dynamische prijzen."
+            ),
+            "algemene_uitgangspunten": (
+                "De berekening is gebaseerd op een modelmatige benadering. De resultaten "
+                "geven een indicatie op basis van aannames en standaardprofielen."
+            ),
+        }
+    else:
+        ctx_dict["appendix_A"] = {
+            "verbruiksdata": (
+                "Het elektriciteitsverbruik is gebaseerd op door de gebruiker aangeleverde "
+                "CSV-meetreeksen. Deze meetreeksen vormen de basis voor het vaststellen van "
+                "het jaarlijkse verbruik, piekbelastingen en het tijdsprofiel van de afname."
+            ),
+            "opwekdata": (
+                "De zonne-energieproductie is gebaseerd op aangeleverde CSV-bestanden met "
+                "meetwaarden van PV-opwek. Deze data is gebruikt om directe zelfconsumptie, "
+                "teruglevering en overschotten te bepalen."
+            ),
+            "tariefdata": (
+                "De energietarieven zijn afkomstig uit de door de gebruiker ingevoerde "
+                "tariefinstellingen, inclusief import- en exporttarieven per tariefstructuur."
+            ),
+            "batterijgegevens": (
+                "De batterijconfiguratie is gebaseerd op de opgegeven capaciteit (kWh) en "
+                "het maximale laad- en ontlaadvermogen (kW). Deze parameters bepalen de "
+                "technische inzet van de batterij in de simulatie."
+            ),
+            "algemene_uitgangspunten": (
+                "Alle berekeningen zijn uitgevoerd op basis van historische meetdata."
+            ),
+        }
 
     # ============================
     # BIJLAGE B — REKENMETHODIEK & SCENARIO-OPZET
     # ============================
 
-    ctx_dict["appendix_B"] = {
-        "scenario_definitie": (
-            "Er zijn meerdere scenario’s doorgerekend om de impact van tariefstructuren "
-            "en batterij-inzet inzichtelijk te maken. Elk scenario gebruikt dezelfde "
-            "verbruiks- en opwekdata, zodat de uitkomsten onderling vergelijkbaar zijn."
-        ),
-        "scenario_A1": (
-            "Scenario A1 beschrijft de huidige situatie zonder wijzigingen. Hierbij "
-            "wordt gerekend met de bestaande tariefstructuur en zonder actieve inzet "
-            "van een thuisbatterij."
-        ),
-        "scenario_B1": (
-            "Scenario B1 simuleert een toekomstige situatie zonder batterij, waarbij "
-            "saldering niet wordt toegepast. Dit scenario laat zien wat het effect is "
-            "van veranderende regelgeving zonder technische compensatie."
-        ),
-        "scenario_C1": (
-            "Scenario C1 beschrijft een situatie met thuisbatterij, eveneens zonder "
-            "saldering. De batterij wordt ingezet om zelfconsumptie te verhogen en "
-            "netafname te beperken binnen de technische grenzen van het systeem."
-        ),
-        "batterij_dispatch": (
-            "De batterij wordt regel-gebaseerd aangestuurd. Dit betekent dat de batterij "
-            "laadt bij overschot aan zonneproductie en ontlaadt bij elektriciteitsvraag, "
-            "zonder optimalisatie op basis van prijsvoorspellingen."
-        ),
-        "tariefverwerking": (
-            "Voor elk scenario zijn de relevante tariefstructuren toegepast zoals "
-            "aangeleverd in de invoer. Dynamische tarieven worden alleen gebruikt "
-            "wanneer uurprijzen beschikbaar zijn."
-        ),
-    }
+    if calc_mode == "profile_based":
+        ctx_dict["appendix_B"] = {
+            "scenario_definitie": (
+                "De analyse bestaat uit meerdere scenario’s die onderling worden vergeleken. "
+                "Alle scenario’s gebruiken dezelfde gesimuleerde verbruiks- en opwekprofielen."
+            ),
+            "rekenmethode": (
+                "Het jaarverbruik en de jaaropwek worden vertaald naar een uurlijkse verdeling "
+                "met behulp van standaardprofielen. Deze profielen benaderen het gemiddelde "
+                "gedrag van vergelijkbare huishoudens."
+            ),
+            "scenario_A1": (
+                "Scenario A1 beschrijft de huidige situatie met het bestaande contract en "
+                "zonder inzet van een thuisbatterij."
+            ),
+            "scenario_B1": (
+                "Scenario B1 beschrijft een situatie zonder batterij waarbij geen saldering "
+                "meer wordt toegepast."
+            ),
+            "scenario_C1": (
+                "Scenario C1 beschrijft een situatie met thuisbatterij zonder saldering, "
+                "waarbij de batterij wordt ingezet om het eigen verbruik te verhogen."
+            ),
+            "prijsmodellering": (
+                "Bij dynamische contracten worden geen historische uurprijzen gebruikt. "
+                "In plaats daarvan wordt gewerkt met een gemodelleerd prijsprofiel op basis "
+                "van gemiddelde prijzen en dagelijkse spreiding."
+            ),
+        }
+    else:
+        ctx_dict["appendix_B"] = {
+            "scenario_definitie": (
+                "Er zijn meerdere scenario’s doorgerekend om de impact van tariefstructuren "
+                "en batterij-inzet inzichtelijk te maken."
+            ),
+            "scenario_A1": (
+                "Scenario A1 beschrijft de huidige situatie zonder wijzigingen."
+            ),
+            "scenario_B1": (
+                "Scenario B1 simuleert een toekomstige situatie zonder batterij."
+            ),
+            "scenario_C1": (
+                "Scenario C1 beschrijft een situatie met thuisbatterij."
+            ),
+            "batterij_dispatch": (
+                "De batterij wordt regel-gebaseerd aangestuurd op basis van meetdata."
+            ),
+        }
 
     # ============================
     # BIJLAGE C — KOSTENCOMPONENTEN & TARIEFVERWERKING
@@ -767,6 +810,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
