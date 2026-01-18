@@ -153,6 +153,7 @@ class ComputeV3ProfileRequest(BaseModel):
     household_profile: str  # bijv: "alleenstaand_werkend" | "gezin_kinderen" | "thuiswerker"
     has_heatpump: bool = False
     has_ev: bool = False
+    ev_charge_window: str = "evening_night"
 
     # Batterijstrategie
     battery_strategy: str = "self_consumption"
@@ -833,6 +834,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
