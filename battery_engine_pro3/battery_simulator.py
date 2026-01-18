@@ -110,11 +110,17 @@ class BatterySimulator:
 
             # ==================================================
             # 2️⃣ BATTERIJ ONTLAADT NAAR LOAD
-            # (rekening houden met ontlaadefficiëntie)
+            # Slim: alleen bij hoge prijs (dynamisch)
             # ==================================================
-            if load_remaining > 0 and soc > batt.E_min:
+            allow_discharge = True
 
-                # Max bruikbare energie richting load
+            if self.prices and price is not None and self.price_high is not None:
+                # bij lage prijs liever NIET ontladen
+                if price < self.price_high:
+                    allow_discharge = False
+
+            if allow_discharge and load_remaining > 0 and soc > batt.E_min:
+
                 max_deliverable = min(
                     batt.P_max * dt,
                     (soc - batt.E_min) * batt.eta_discharge
@@ -122,7 +128,6 @@ class BatterySimulator:
 
                 delivered = min(load_remaining, max_deliverable)
 
-                # SoC daalt meer dan geleverd vanwege efficiëntie
                 soc -= delivered / batt.eta_discharge
                 load_remaining -= delivered
 
