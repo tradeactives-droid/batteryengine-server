@@ -75,10 +75,12 @@ def generate_load_profile_kwh(
     household_profile: str,
     has_heatpump: bool,
     has_ev: bool,
+    ev_charging_window: str | None = None,
     dt_hours: float = 1.0,
     year: int = 2025
 ) -> Tuple[List[datetime], List[float]]:
     """
+    
     Genereert een synthetisch jaarprofiel (kWh per timestep).
     - household_profile bepaalt 24u verdeling
     - maandfactoren geven seizoensvorm
@@ -99,13 +101,24 @@ def generate_load_profile_kwh(
         for h in range(17, 22):
             hp_hour_boost[h] = 1.12
 
-    # EV: extra in avond/nacht
+    # EV: extra verbruik op basis van laadmoment
     ev_hour_boost = [1.0] * 24
+
     if has_ev:
-        for h in range(18, 24):
-            ev_hour_boost[h] = 1.12
-        for h in range(0, 2):
-            ev_hour_boost[h] = 1.08
+        # fallback
+        if ev_charging_window is None:
+            ev_charging_window = "evening"
+
+        if ev_charging_window == "day":
+            ev_hours = range(10, 16)          # overdag
+        elif ev_charging_window == "night":
+            ev_hours = list(range(23, 24)) + list(range(0, 7))  # nacht
+        else:
+            ev_hours = range(18, 23)          # avond (default)
+
+        # EV zorgt voor extra belasting in laaduren
+        for h in ev_hours:
+            ev_hour_boost[h] = 1.20
 
     # per maand eerst normaliseren zodat elk maandblok netjes verdeeld is
     month_f = MONTH_LOAD_FACTORS[:]
