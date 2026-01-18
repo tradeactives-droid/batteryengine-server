@@ -154,6 +154,14 @@ class ComputeV3ProfileRequest(BaseModel):
     has_heatpump: bool = False
     has_ev: bool = False
 
+    # Batterijstrategie
+    battery_strategy: str = "self_consumption"
+    # opties: "self_consumption" | "dynamic_arbitrage"
+
+    # EV-laadmoment (alleen relevant als has_ev = True)
+    ev_charging_window: Optional[str] = "evening"
+    # opties: "day" | "evening" | "night"
+
     # Dynamisch (zonder prices.csv): model-parameters
     dyn_avg_import_price: float = 0.28
     dyn_spread: float = 0.10
@@ -810,6 +818,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
