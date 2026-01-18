@@ -148,7 +148,6 @@ class BatterySimulator:
                 and self.price_low is not None
                 and price < self.price_low
                 and soc < batt.E_max
-                and pv_kwh == 0.0  # alleen als er geen PV is
             ):
                 charge = min(
                     batt.P_max * dt,
