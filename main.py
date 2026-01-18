@@ -263,7 +263,6 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
         has_heatpump=req.has_heatpump,
         has_ev=req.has_ev,
         ev_charge_window=req.ev_charge_window,
-        ev_charging_window=req.ev_charging_window,
         dt_hours=dt_hours,
         year=2025,
     )
@@ -820,6 +819,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
