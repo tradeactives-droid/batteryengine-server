@@ -125,7 +125,7 @@ class BatterySimulator:
                 if price < self.price_high:
                     allow_discharge = False
 
-            if allow_discharge and load_remaining > 0 and soc > batt.E_min:
+            if allow_discharge and load_remaining > 0 and soc > E_reserve:
 
                 max_deliverable = min(
                     batt.P_max * dt,
