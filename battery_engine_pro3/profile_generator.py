@@ -105,20 +105,31 @@ def generate_load_profile_kwh(
     ev_hour_boost = [1.0] * 24
 
     if has_ev:
-        # fallback
-        if ev_charging_window is None:
-            ev_charging_window = "evening"
+        mode = (ev_charge_window or "evening_night").strip().lower()
 
-        if ev_charging_window == "day":
-            ev_hours = range(10, 16)          # overdag
-        elif ev_charging_window == "night":
-            ev_hours = list(range(23, 24)) + list(range(0, 7))  # nacht
+        if mode == "night":
+            # vooral 00:00–06:00
+            for h in range(0, 6):
+                ev_hour_boost[h] = 1.14
+
+        elif mode == "midday":
+            # vooral overdag (bijv. thuis / PV-laden)
+            for h in range(10, 16):
+                ev_hour_boost[h] = 1.14
+
+        elif mode == "spread":
+            # licht verhoogd over veel uren
+            for h in range(7, 23):
+                ev_hour_boost[h] = 1.06
+            for h in range(0, 2):
+                ev_hour_boost[h] = 1.04
+
         else:
-            ev_hours = range(18, 23)          # avond (default)
-
-        # EV zorgt voor extra belasting in laaduren
-        for h in ev_hours:
-            ev_hour_boost[h] = 1.20
+            # default: evening_night
+            for h in range(18, 24):
+                ev_hour_boost[h] = 1.14
+            for h in range(0, 2):
+                ev_hour_boost[h] = 1.10
 
     # per maand eerst normaliseren zodat elk maandblok netjes verdeeld is
     month_f = MONTH_LOAD_FACTORS[:]
