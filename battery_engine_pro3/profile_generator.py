@@ -75,7 +75,7 @@ def generate_load_profile_kwh(
     household_profile: str,
     has_heatpump: bool,
     has_ev: bool,
-    ev_charging_window: str | None = None,
+    ev_charge_window: str = "evening_night",
     dt_hours: float = 1.0,
     year: int = 2025
 ) -> Tuple[List[datetime], List[float]]:
