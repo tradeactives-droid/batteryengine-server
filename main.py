@@ -263,6 +263,7 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
         household_profile=req.household_profile,
         has_heatpump=req.has_heatpump,
         has_ev=req.has_ev,
+        ev_charging_window=req.ev_charging_window,
         dt_hours=dt_hours,
         year=2025,
     )
@@ -295,6 +296,18 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
     )
     prices_dyn = prices_dyn[:n]
 
+    # -----------------------------
+    # 3b) Batterijstrategie bepalen
+    # -----------------------------
+    battery_strategy = req.battery_strategy
+
+    if battery_strategy == "dynamic_arbitrage":
+        # batterij mag laden uit net tijdens goedkope uren
+        allow_grid_charging = True
+    else:
+        # alleen laden bij PV-overschot
+        allow_grid_charging = False
+    
     engine_input = ComputeV3Input(
         load_kwh=load_vals,
         pv_kwh=pv_vals,
@@ -818,6 +831,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
