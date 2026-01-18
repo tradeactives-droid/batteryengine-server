@@ -298,24 +298,11 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
     )
     prices_dyn = prices_dyn[:n]
 
-    # -----------------------------
-    # 3b) Batterijstrategie bepalen
-    # -----------------------------
-    battery_strategy = req.battery_strategy
-
-    if battery_strategy == "dynamic_arbitrage":
-        # batterij mag laden uit net tijdens goedkope uren
-        allow_grid_charging = True
-    else:
-        # alleen laden bij PV-overschot
-        allow_grid_charging = False
     
     engine_input = ComputeV3Input(
         load_kwh=load_vals,
         pv_kwh=pv_vals,
         prices_dyn=prices_dyn,  # <-- nu altijd aanwezig als model, geen CSV meer
-
-        allow_grid_charging=allow_grid_charging,
 
         p_enkel_imp=req.p_enkel_imp,
         p_enkel_exp=req.p_enkel_exp,
@@ -835,6 +822,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
