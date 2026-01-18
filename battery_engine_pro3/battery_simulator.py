@@ -89,6 +89,12 @@ class BatterySimulator:
         batt = self.battery
         soc = batt.initial_soc_kwh
 
+        # --------------------------------------------------
+        # STRATEGISCHE SOC-RESERVE (realistisch EMS-gedrag)
+        # --------------------------------------------------
+        reserve_frac = 0.20  # 20% van bruikbare capaciteit
+        E_reserve = batt.E_min + reserve_frac * (batt.E_max - batt.E_min)
+        
         import_p = []
         export_p = []
         soc_p = []
