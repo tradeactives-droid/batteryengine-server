@@ -313,6 +313,8 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
         pv_kwh=pv_vals,
         prices_dyn=prices_dyn,  # <-- nu altijd aanwezig als model, geen CSV meer
 
+        allow_grid_charging=allow_grid_charging,
+
         p_enkel_imp=req.p_enkel_imp,
         p_enkel_exp=req.p_enkel_exp,
         p_dag=req.p_dag,
@@ -831,6 +833,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
