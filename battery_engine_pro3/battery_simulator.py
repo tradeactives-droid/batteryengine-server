@@ -116,14 +116,16 @@ class BatterySimulator:
 
             # ==================================================
             # 2️⃣ BATTERIJ ONTLAADT NAAR LOAD
-            # Slim: alleen bij hoge prijs (dynamisch)
+            # Dynamisch: bij hoge prijs altijd,
+            # anders alleen als SOC boven reserve zit
             # ==================================================
             allow_discharge = True
 
             if self.prices and price is not None and self.price_high is not None:
-                # bij lage prijs liever NIET ontladen
                 if price < self.price_high:
-                    allow_discharge = False
+                    # alleen ontladen als er echt ruimte is boven reserve
+                    if soc <= E_reserve:
+                        allow_discharge = False
 
             if allow_discharge and load_remaining > 0 and soc > E_reserve:
 
@@ -150,22 +152,23 @@ class BatterySimulator:
                 pv_surplus -= charge
 
             # ==================================================
-            # 4️⃣ PRIJS-GESTUURD NET-LADEN (OPTIONEEL)
-            # Alleen als batterij leeg is EN prijs laag
-            # NOOIT export vanuit batterij
+            # 4️⃣ PRIJS-GESTUURD NET-LADEN (ARBITRAGE)
+            # Laden tot target SOC, niet altijd 100%
             # ==================================================
             if (
                 price is not None
                 and self.price_low is not None
                 and price < self.price_low
-                and soc < batt.E_max
             ):
-                charge = min(
-                    batt.P_max * dt,
-                    batt.E_max - soc,
-                )
-                soc += charge * batt.eta_charge
-                import_kwh += charge
+                target_soc = batt.E_min + 0.80 * (batt.E_max - batt.E_min)
+
+                if soc < target_soc:
+                    charge = min(
+                        batt.P_max * dt,
+                        target_soc - soc,
+                    )
+                    soc += charge * batt.eta_charge
+                    import_kwh += charge
 
             # ==================================================
             # 5️⃣ REST → NET
