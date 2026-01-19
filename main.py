@@ -157,9 +157,7 @@ class ComputeV3ProfileRequest(BaseModel):
     battery_strategy: str = "self_consumption"
     # opties: "self_consumption" | "dynamic_arbitrage"
 
-    # Dynamisch (zonder prices.csv): model-parameters
-    dyn_avg_import_price: float = 0.28
-    dyn_spread: float = 0.10
+    # Dynamisch tarief — alleen gedrag, geen marktdata
     dyn_cheap_hours_per_day: int = 8
 
     # Batterij (zelfde als nu)
@@ -818,6 +816,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
