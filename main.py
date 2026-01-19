@@ -334,6 +334,32 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
 
     result = BatteryEnginePro3.compute(engine_input)
 
+    # -----------------------------
+    # 6) Transparantie — dynamisch prijsmodel
+    # -----------------------------
+    result["calculation_method"] = {
+        "mode": "profile_based",
+        "dt_hours": dt_hours,
+        "dynamic_price_model": {
+            "source": "model_based",
+            "avg_price_eur_per_kwh": req.dyn_avg_import_price,
+            "price_spread_eur_per_kwh": req.dyn_spread,
+            "cheap_hours_per_day": req.dyn_cheap_hours_per_day,
+            "user_controls": [
+                "cheap_hours_per_day"
+            ],
+            "fixed_by_tool": [
+                "avg_price_eur_per_kwh",
+                "price_spread_eur_per_kwh"
+            ]
+        },
+        "household_profile": req.household_profile,
+        "modifiers": {
+            "has_heatpump": req.has_heatpump,
+            "has_ev": req.has_ev
+        }
+    }
+
     # metadata teruggeven voor “transparantie”
     result["calculation_method"] = {
         "mode": "profile_based",
@@ -816,6 +842,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
