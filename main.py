@@ -278,17 +278,20 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
     eta_rt = req.eta_rt if (req.eta_rt is not None and req.eta_rt > 0) else 1.0
     degradation = req.battery_degradation if (req.battery_degradation is not None and req.battery_degradation >= 0) else 0.0
 
-    # -----------------------------
-    # 3) Dynamische prijzen modelleren
-    # (zodat CostEngine niet hoeft te veranderen)
-    # -----------------------------
+    # --------------------------------------------------
+    # Dynamische prijzen — vaste modelaannames
+    # --------------------------------------------------
+    DYN_AVG_PRICE = 0.28     # vaste aanname (EPEX-achtig jaargemiddelde)
+    DYN_SPREAD = 0.12        # vaste volatiliteit
+    
     prices_dyn = generate_dynamic_prices_eur_per_kwh(
-        avg_price=req.dyn_avg_import_price,
-        spread=req.dyn_spread,
+        avg_price=DYN_AVG_PRICE,
+        spread=DYN_SPREAD,
         cheap_hours_per_day=req.dyn_cheap_hours_per_day,
         dt_hours=dt_hours,
         year=2025,
     )
+    
     prices_dyn = prices_dyn[:n]
 
     
@@ -815,6 +818,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
