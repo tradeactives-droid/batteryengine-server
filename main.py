@@ -278,15 +278,16 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
     degradation = req.battery_degradation if (req.battery_degradation is not None and req.battery_degradation >= 0) else 0.0
 
     # --------------------------------------------------
-    # Dynamische prijzen — vaste modelaannames
+    # Dynamische prijzen — afgeleid uit gemiddelde importprijs
     # --------------------------------------------------
-    DYN_AVG_PRICE = 0.28     # vaste aanname (EPEX-achtig jaargemiddelde)
-    DYN_SPREAD = 0.12        # vaste volatiliteit
+    DYN_AVG_PRICE = req.p_dyn_imp
+    DYN_SPREAD = 0.12  # vaste, interne aanname (niet instelbaar)
+    DYN_CHEAP_HOURS = 8  # vaste, interne aanname
     
     prices_dyn = generate_dynamic_prices_eur_per_kwh(
         avg_price=DYN_AVG_PRICE,
         spread=DYN_SPREAD,
-        cheap_hours_per_day=req.dyn_cheap_hours_per_day,
+        cheap_hours_per_day=DYN_CHEAP_HOURS,
         dt_hours=dt_hours,
         year=2025,
     )
@@ -843,6 +844,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
