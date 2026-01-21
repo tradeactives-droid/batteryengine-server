@@ -183,6 +183,7 @@ class ComputeV3ProfileRequest(BaseModel):
     p_nacht: float
     p_exp_dn: float
     p_export_dyn: float
+    p_dyn_imp: float
 
     vastrecht_year: float
 
@@ -818,6 +819,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
