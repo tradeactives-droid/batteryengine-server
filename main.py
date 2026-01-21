@@ -157,10 +157,6 @@ class ComputeV3ProfileRequest(BaseModel):
     battery_strategy: str = "self_consumption"
     # opties: "self_consumption" | "dynamic_arbitrage"
 
-    # Dynamisch tarief — gemiddelde prijzen (consulent-invoer)
-    p_dyn_imp: float
-    p_export_dyn: float
-
     # Batterij (zelfde als nu)
     E: float
     P: float
@@ -819,6 +815,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
