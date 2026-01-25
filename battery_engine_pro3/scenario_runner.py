@@ -208,22 +208,75 @@ class ScenarioRunner:
                 initial_soc_frac=0.5
             )
 
-            sim_batt = BatterySimulator(
+            # -------------------------------------------------
+            # 1) PV-only batterij (GEEN uurprijs-arbitrage)
+            # -> gebruiken voor enkel + dag/nacht
+            # -------------------------------------------------
+            sim_batt_pv_only = BatterySimulator(
                 self.load,
                 self.pv,
                 battery_model,
-                prices_dyn=self.tariff_cfg.dynamic_prices,
+                prices_dyn=None,  # <-- cruciaal: geen prijzen
             )
-            sim_res = sim_batt.simulate_with_battery()
-
+            sim_res_pv_only = sim_batt_pv_only.simulate_with_battery()
+        
+            # -------------------------------------------------
+            # 2) Dynamisch: PV + uurprijs-arbitrage (WEL prijzen)
+            # -------------------------------------------------
+            sim_batt_dyn = BatterySimulator(
+                self.load,
+                self.pv,
+                battery_model,
+                prices_dyn=self.tariff_cfg.dynamic_prices,  # <-- alleen hier
+            )
+            sim_res_dyn = sim_batt_dyn.simulate_with_battery()
+        
+            # -------------------------------------------------
+            # C1 kosten per tarief: juiste flows per tarief
+            # -------------------------------------------------
             C1 = {
-                tariff: cost_engine.compute_cost(
-                    sim_res.import_profile,
-                    sim_res.export_profile,
-                    tariff,
-                )
-                for tariff in ["enkel", "dag_nacht", "dynamisch"]
+                "enkel": cost_engine.compute_cost(
+                    sim_res_pv_only.import_profile,
+                    sim_res_pv_only.export_profile,
+                    "enkel",
+                ),
+                "dag_nacht": cost_engine.compute_cost(
+                    sim_res_pv_only.import_profile,
+                    sim_res_pv_only.export_profile,
+                    "dag_nacht",
+                ),
+                "dynamisch": cost_engine.compute_cost(
+                    sim_res_dyn.import_profile,
+                    sim_res_dyn.export_profile,
+                    "dynamisch",
+                ),
             }
+        
+            # -------------------------------------------------
+            # C1 monthly (zelfde logica per tarief)
+            # -------------------------------------------------
+            C1_monthly: Dict[str, List[float]] = {}
+        
+            # enkel + dag/nacht -> pv-only profielen
+            imp_m_pv = self.split_by_month(sim_res_pv_only.import_profile, self.load.dt_hours)
+            exp_m_pv = self.split_by_month(sim_res_pv_only.export_profile, self.load.dt_hours)
+        
+            for tariff in ["enkel", "dag_nacht"]:
+                C1_monthly[tariff] = [
+                    cost_engine.compute_cost(i, e, tariff).total_cost_eur
+                    for i, e in zip(imp_m_pv, exp_m_pv)
+                ]
+        
+            # dynamisch -> dynamisch profielen
+            imp_m_dyn = self.split_by_month(sim_res_dyn.import_profile, self.load.dt_hours)
+            exp_m_dyn = self.split_by_month(sim_res_dyn.export_profile, self.load.dt_hours)
+        
+            C1_monthly["dynamisch"] = [
+                cost_engine.compute_cost(i, e, "dynamisch").total_cost_eur
+                for i, e in zip(imp_m_dyn, exp_m_dyn)
+            ]
+        
+            peak_info = PeakInfo(monthly_before=[], monthly_after=[])
 
             C1_monthly: Dict[str, List[float]] = {}
             for tariff in C1:
