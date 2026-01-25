@@ -278,18 +278,6 @@ class ScenarioRunner:
         
             peak_info = PeakInfo(monthly_before=[], monthly_after=[])
 
-            C1_monthly: Dict[str, List[float]] = {}
-            for tariff in C1:
-                imp_m = self.split_by_month(sim_res.import_profile, self.load.dt_hours)
-                exp_m = self.split_by_month(sim_res.export_profile, self.load.dt_hours)
-
-                C1_monthly[tariff] = [
-                    cost_engine.compute_cost(i, e, tariff).total_cost_eur
-                    for i, e in zip(imp_m, exp_m)
-                ]
-
-            peak_info = PeakInfo(monthly_before=[], monthly_after=[])
-
         # =================================================
         # STAP 2.2 — CUMULATIEVE MAAND-ROI + PAYBACK
         # =================================================
