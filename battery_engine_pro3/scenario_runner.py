@@ -222,13 +222,25 @@ class ScenarioRunner:
             sim_res_pv_only = sim_batt_pv_only.simulate_with_battery()
         
             # -------------------------------------------------
-            # 2) Dynamisch: PV + uurprijs-arbitrage (WEL prijzen)
+            # 2) Dynamisch HYBRIDE: fallback profiel + evt historisch
             # -------------------------------------------------
+            prices_dyn, price_source = build_dynamic_prices_hybrid(
+                n_steps=len(self.load.values),
+                dt_hours=self.load.dt_hours,
+                avg_import_price=self.tariff_cfg.p_enkel_imp
+                if self.tariff_cfg.current_tariff != "dynamisch"
+                else self.tariff_cfg.p_export_dyn + (
+                    self.tariff_cfg.p_enkel_imp - self.tariff_cfg.p_export_dyn
+                ),
+                historic_prices=self.tariff_cfg.dynamic_prices,
+            )
+
             sim_batt_dyn = BatterySimulator(
                 self.load,
                 self.pv,
                 battery_model,
-                prices_dyn=self.tariff_cfg.dynamic_prices,  # <-- alleen hier
+                prices_dyn=prices_dyn,
+                allow_grid_charge=getattr(self.tariff_cfg, "allow_grid_charge", False),
             )
             sim_res_dyn = sim_batt_dyn.simulate_with_battery()
         
