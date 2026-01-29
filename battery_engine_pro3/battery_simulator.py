@@ -40,12 +40,14 @@ class BatterySimulator:
         pv: TimeSeries,
         battery: Optional[BatteryModel],
         prices_dyn: Optional[List[float]] = None,
+        allow_grid_charge: bool = False,
     ):
         self.load = load
         self.pv = pv
         self.battery = battery
         self.prices = prices_dyn
         self.dt = load.dt_hours
+        self.allow_grid_charge = allow_grid_charge
 
         # Voor arbitrage: percentielen bepalen (veilig, zonder numpy)
         if self.prices and len(self.prices) > 0:
