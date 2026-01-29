@@ -48,28 +48,30 @@ class CostEngine:
                 energy = (imp * import_price) - (exp * export_price)
 
         # DYNAMISCH
-            elif tariff_type == "dynamisch":
-                export_price = self.cfg.p_export_dyn
+        elif tariff_type == "dynamisch":
+            export_price = self.cfg.p_export_dyn
             
-                dyn = getattr(self.cfg, "dynamic_prices", None) or []
-                if len(dyn) == 0:
-                    raise ValueError("Dynamisch tarief: dynamic_prices ontbreekt of is leeg.")
-                if len(dyn) < len(import_profile_kwh):
-                    raise ValueError(
-                        f"Dynamisch tarief: dynamic_prices te kort ({len(dyn)}) voor profiel ({len(import_profile_kwh)})."
-                    )
-            
-                # ✅ Hybride model: altijd echte uurprijzen
-                import_cost = sum(
-                    imp_kwh * price
-                    for imp_kwh, price in zip(import_profile_kwh, dyn)
+            dyn = getattr(self.cfg, "dynamic_prices", None) or []
+            if len(dyn) == 0:
+                raise ValueError("Dynamisch tarief: dynamic_prices ontbreekt of is leeg.")
+            if len(dyn) < len(import_profile_kwh):
+                raise ValueError(                        
+                    f"Dynamisch tarief: dynamic_prices te kort ({len(dyn)}) voor profiel ({len(import_profile_kwh)})."
                 )
             
-                export_revenue = exp * export_price
+            # ✅ Hybride model: altijd echte uurprijzen
+              import_cost = sum(
+                imp_kwh * price
+                for imp_kwh, price in zip(import_profile_kwh, dyn)
+            )
             
-                energy = import_cost - export_revenue
+            export_revenue = exp * export_price
+            
+            energy = import_cost - export_revenue
 
-            else:
+        else:
+            raise ValueError(f"Onbekend tarieftype: {tariff_type}")
+                
                 # Geen saldering: echte uurprijzen (hybride model)
                 import_cost = sum(
                     imp_kwh * price
