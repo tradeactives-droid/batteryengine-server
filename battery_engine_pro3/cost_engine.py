@@ -69,7 +69,6 @@ class CostEngine:
 
             energy = import_cost - export_revenue
 
-            else:
                 # Geen saldering: import tegen uurprijzen, export tegen vaste vergoeding
                 import_cost = sum(
                     imp_kwh * price
