@@ -59,14 +59,15 @@ class CostEngine:
                     f"Dynamisch tarief: dynamic_prices te kort ({len(dyn)}) voor profiel ({len(import_profile_kwh)})."
                 )
 
-            if self.cfg.saldering:
-                # ✅ NL-saldering = JAARLIJKS (niet per uur)
-                net_import = max(imp - exp, 0.0)
+            # Dynamisch tarief rekent altijd per uur (hybride model)
+            import_cost = sum(
+                imp_kwh * price
+                for imp_kwh, price in zip(import_profile_kwh, dyn)
+            )
 
-                # Contract-equivalent: gemiddelde dynamische jaarprijs
-                avg_price = sum(dyn) / len(dyn)
+            export_revenue = exp * export_price
 
-                energy = net_import * avg_price
+            energy = import_cost - export_revenue
 
             else:
                 # Geen saldering: import tegen uurprijzen, export tegen vaste vergoeding
