@@ -158,7 +158,8 @@ class BatterySimulator:
             # Laden tot target SOC, niet altijd 100%
             # ==================================================
             if (
-                price is not None
+                self.allow_grid_charge
+                and price is not None
                 and self.price_low is not None
                 and price < self.price_low
             ):
