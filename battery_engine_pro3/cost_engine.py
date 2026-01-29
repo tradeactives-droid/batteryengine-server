@@ -69,14 +69,6 @@ class CostEngine:
 
             energy = import_cost - export_revenue
 
-                # Geen saldering: import tegen uurprijzen, export tegen vaste vergoeding
-                import_cost = sum(
-                    imp_kwh * price
-                    for imp_kwh, price in zip(import_profile_kwh, dyn)
-                )
-                export_revenue = exp * export_price
-                energy = import_cost - export_revenue
-
         else:
             raise ValueError(f"Onbekend tarieftype: {tariff_type}")
 
