@@ -9,6 +9,7 @@ from .battery_model import BatteryModel
 from .cost_engine import CostEngine
 from .peak_optimizer import PeakOptimizer
 from .roi_engine import ROIEngine, ROIConfig
+from .dynamic_prices import build_dynamic_prices_hybrid
 
 def _scenario_result_to_dict(sr: ScenarioResult) -> dict:
     return {
