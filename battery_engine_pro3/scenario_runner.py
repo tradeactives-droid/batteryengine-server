@@ -174,13 +174,24 @@ class ScenarioRunner:
         self.tariff_cfg.saldering = False
 
         B1 = {
-            tariff: cost_engine.compute_cost(
+            "enkel": cost_engine.compute_cost(
                 A1_sim.import_profile,
                 A1_sim.export_profile,
-                tariff,
-            )
-            for tariff in ["enkel", "dag_nacht", "dynamisch"]
+                "enkel",
+            ),
+            "dag_nacht": cost_engine.compute_cost(
+                A1_sim.import_profile,
+                A1_sim.export_profile,
+                "dag_nacht",
+            ),
         }
+
+        # Dynamisch zonder batterij -> uurprijzen (hybride model)
+        B1["dynamisch"] = cost_engine.compute_cost(
+            A1_sim.import_profile,
+            A1_sim.export_profile,
+            "dynamisch",
+        )
 
         B1_monthly: Dict[str, List[float]] = {}
         for tariff in B1:
