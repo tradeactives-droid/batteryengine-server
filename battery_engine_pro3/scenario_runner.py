@@ -194,14 +194,21 @@ class ScenarioRunner:
         )
 
         B1_monthly: Dict[str, List[float]] = {}
-        for tariff in B1:
-            imp_m = self.split_by_month(A1_sim.import_profile, self.load.dt_hours)
-            exp_m = self.split_by_month(A1_sim.export_profile, self.load.dt_hours)
-
+        # enkel + dag/nacht monthly
+        imp_m = self.split_by_month(A1_sim.import_profile, self.load.dt_hours)
+        exp_m = self.split_by_month(A1_sim.export_profile, self.load.dt_hours)
+        
+        for tariff in ["enkel", "dag_nacht"]:
             B1_monthly[tariff] = [
                 cost_engine.compute_cost(i, e, tariff).total_cost_eur
                 for i, e in zip(imp_m, exp_m)
             ]
+        
+        # dynamisch monthly (uurprijzen)
+        B1_monthly["dynamisch"] = [
+            cost_engine.compute_cost(i, e, "dynamisch").total_cost_eur
+            for i, e in zip(imp_m, exp_m)
+        ]
 
         # =================================================
         # C1 — toekomst met batterij (GEEN saldering)
