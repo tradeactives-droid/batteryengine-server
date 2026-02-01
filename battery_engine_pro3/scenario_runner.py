@@ -152,7 +152,21 @@ class ScenarioRunner:
         # =================================================
         # A1 — huidige situatie (MET saldering)
         # =================================================
-        sim_no = BatterySimulator(self.load, self.pv, battery=None)
+        # === Dynamisch prijzenprofiel (hybride) voor alle scenario's ===
+        prices_dyn_base, _ = build_dynamic_prices_hybrid(
+            n_steps=len(self.load.values),
+            dt_hours=self.load.dt_hours,
+            avg_import_price=self.tariff_cfg.p_enkel_imp,
+            historic_prices=self.tariff_cfg.dynamic_prices,
+        )
+        
+        # === Zonder batterij ===
+        sim_no = BatterySimulator(
+            self.load,
+            self.pv,
+            battery=None,
+            prices_dyn=prices_dyn_base
+        )
         A1_sim = sim_no.simulate_no_battery()
 
         self.tariff_cfg.saldering = True
