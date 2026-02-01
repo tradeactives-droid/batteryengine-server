@@ -208,6 +208,7 @@ def compute_v3(req: ComputeV3Request):
         load_kwh=req.load_kwh[:n],
         pv_kwh=req.pv_kwh[:n],
         prices_dyn=req.prices_dyn,
+        allow_grid_charge=req.allow_grid_charge,
 
         p_enkel_imp=req.p_enkel_imp,
         p_enkel_exp=req.p_enkel_exp,
@@ -817,6 +818,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
