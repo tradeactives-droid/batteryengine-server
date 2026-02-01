@@ -152,16 +152,17 @@ class ScenarioRunner:
         # =================================================
         # A1 — huidige situatie (MET saldering)
         # =================================================
-        # === Dynamisch prijzenprofiel (hybride) voor alle scenario's ===
-        prices_dyn_base, _ = build_dynamic_prices_hybrid(
-            n_steps=len(self.load.values),
-            dt_hours=self.load.dt_hours,
-            avg_import_price=self.tariff_cfg.p_enkel_imp,
-            historic_prices=self.tariff_cfg.dynamic_prices,
-        )
-
-        # 🔑 zorg dat cost_engine dezelfde uurprijzen gebruikt
-        self.tariff_cfg.dynamic_prices = prices_dyn_base
+        # Gebruik bestaande dyn prices als ze bestaan, anders fallback bouwen
+        if not self.tariff_cfg.dynamic_prices or len(self.tariff_cfg.dynamic_prices) != len(self.load.values):
+            prices_dyn_base, _ = build_dynamic_prices_hybrid(
+                n_steps=len(self.load.values),
+                dt_hours=self.load.dt_hours,
+                avg_import_price=self.tariff_cfg.p_enkel_imp,  # of p_dyn_imp als je die toevoegt
+                historic_prices=None
+            )
+            self.tariff_cfg.dynamic_prices = prices_dyn_base
+        else:
+            prices_dyn_base = self.tariff_cfg.dynamic_prices
         
         # === Zonder batterij ===
         sim_no = BatterySimulator(
