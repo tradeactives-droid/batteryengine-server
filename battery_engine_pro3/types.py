@@ -130,6 +130,7 @@ class TariffConfig:
     # =========================
     # ⭐ Saldering (ALTIJD ALS LAATSTE)
     # =========================
+    allow_grid_charge: bool = False
     saldering: bool = True
 
 
