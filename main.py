@@ -153,6 +153,8 @@ class ComputeV3ProfileRequest(BaseModel):
     has_ev: bool = False
     ev_charge_window: str = "evening_night"
 
+    allow_grid_charge: bool = False
+
     # Batterijstrategie
     battery_strategy: str = "self_consumption"
     # opties: "self_consumption" | "dynamic_arbitrage"
@@ -815,6 +817,7 @@ def generate_advice(req: AdviceRequest):
             "error": str(e),
             "advice": ""
         }
+
 
 
 
