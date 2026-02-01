@@ -159,6 +159,9 @@ class ScenarioRunner:
             avg_import_price=self.tariff_cfg.p_enkel_imp,
             historic_prices=self.tariff_cfg.dynamic_prices,
         )
+
+        # 🔑 zorg dat cost_engine dezelfde uurprijzen gebruikt
+        self.tariff_cfg.dynamic_prices = prices_dyn_base
         
         # === Zonder batterij ===
         sim_no = BatterySimulator(
