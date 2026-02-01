@@ -82,6 +82,7 @@ class BatteryEnginePro3:
         tariff_cfg = TariffConfig(
             country=input_data.country,
             current_tariff=input_data.current_tariff,
+            allow_grid_charge=input_data.allow_grid_charge,
             saldering=True,
 
             vastrecht_year=input_data.vastrecht,
