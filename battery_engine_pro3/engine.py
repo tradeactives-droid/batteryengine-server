@@ -17,6 +17,7 @@ class ComputeV3Input:
     load_kwh: list[float]
     pv_kwh: list[float]
     prices_dyn: list[float] | None
+    allow_grid_charge: bool
 
     # Tarieven
     p_enkel_imp: float
