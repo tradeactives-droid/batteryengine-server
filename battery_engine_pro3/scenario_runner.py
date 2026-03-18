@@ -180,6 +180,7 @@ class ScenarioRunner:
                 A1_sim.import_profile,
                 A1_sim.export_profile,
                 tariff,
+                dt_hours=self.load.dt_hours,
             )
             for tariff in ["enkel", "dag_nacht", "dynamisch"]
         }
@@ -196,11 +197,13 @@ class ScenarioRunner:
                 A1_sim.import_profile,
                 A1_sim.export_profile,
                 "enkel",
+                dt_hours=self.load.dt_hours,
             ),
             "dag_nacht": cost_engine.compute_cost(
                 A1_sim.import_profile,
                 A1_sim.export_profile,
                 "dag_nacht",
+                dt_hours=self.load.dt_hours,
             ),
         }
 
@@ -209,6 +212,7 @@ class ScenarioRunner:
             A1_sim.import_profile,
             A1_sim.export_profile,
             "dynamisch",
+            dt_hours=self.load.dt_hours,
         )
 
         B1_monthly: Dict[str, List[float]] = {}
@@ -218,13 +222,13 @@ class ScenarioRunner:
         
         for tariff in ["enkel", "dag_nacht"]:
             B1_monthly[tariff] = [
-                cost_engine.compute_cost(i, e, tariff).total_cost_eur
+                cost_engine.compute_cost(i, e, tariff, dt_hours=self.load.dt_hours).total_cost_eur
                 for i, e in zip(imp_m, exp_m)
             ]
         
         # dynamisch monthly (uurprijzen)
         B1_monthly["dynamisch"] = [
-            cost_engine.compute_cost(i, e, "dynamisch").total_cost_eur
+            cost_engine.compute_cost(i, e, "dynamisch", dt_hours=self.load.dt_hours).total_cost_eur
             for i, e in zip(imp_m, exp_m)
         ]
 
@@ -288,16 +292,19 @@ class ScenarioRunner:
                     sim_res_pv_only.import_profile,
                     sim_res_pv_only.export_profile,
                     "enkel",
+                    dt_hours=self.load.dt_hours,
                 ),
                 "dag_nacht": cost_engine.compute_cost(
                     sim_res_pv_only.import_profile,
                     sim_res_pv_only.export_profile,
                     "dag_nacht",
+                    dt_hours=self.load.dt_hours,
                 ),
                 "dynamisch": cost_engine.compute_cost(
                     sim_res_dyn.import_profile,
                     sim_res_dyn.export_profile,
                     "dynamisch",
+                    dt_hours=self.load.dt_hours,
                 ),
             }
         
@@ -312,7 +319,7 @@ class ScenarioRunner:
         
             for tariff in ["enkel", "dag_nacht"]:
                 C1_monthly[tariff] = [
-                    cost_engine.compute_cost(i, e, tariff).total_cost_eur
+                    cost_engine.compute_cost(i, e, tariff, dt_hours=self.load.dt_hours).total_cost_eur
                     for i, e in zip(imp_m_pv, exp_m_pv)
                 ]
         
@@ -321,7 +328,7 @@ class ScenarioRunner:
             exp_m_dyn = self.split_by_month(sim_res_dyn.export_profile, self.load.dt_hours)
         
             C1_monthly["dynamisch"] = [
-                cost_engine.compute_cost(i, e, "dynamisch").total_cost_eur
+                cost_engine.compute_cost(i, e, "dynamisch", dt_hours=self.load.dt_hours).total_cost_eur
                 for i, e in zip(imp_m_dyn, exp_m_dyn)
             ]
         

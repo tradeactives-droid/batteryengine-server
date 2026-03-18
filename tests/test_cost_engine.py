@@ -132,3 +132,71 @@ def test_capacity_tariff_BE():
         cfg.inverter_power_kw * cfg.inverter_cost_per_kw -
         (4 * 50)
     )
+
+
+def test_dag_nacht_fallback_single_value():
+    """Backward compat: single-value profile gebruikt gemiddelde prijs."""
+    cfg = make_tariff(p_dag=0.50, p_nacht=0.30, p_exp_dn=0.08)
+    cfg.saldering = False
+
+    cost_engine = CostEngine(cfg)
+    res = cost_engine.compute_cost(
+        import_profile_kwh=[100],
+        export_profile_kwh=[40],
+        tariff_type="dag_nacht",
+    )
+    # Gemiddelde import: 0.40, dus 100*0.40 - 40*0.08 = 40 - 3.20 = 36.80
+    expected_energy = 100 * 0.40 - 40 * 0.08
+    assert res.total_cost_eur == pytest.approx(
+        expected_energy + cfg.vastrecht_year + cfg.inverter_power_kw * cfg.inverter_cost_per_kw
+    )
+
+
+def test_dag_nacht_time_of_use():
+    """Time-of-use: nachtimport goedkoper dan dagimport."""
+    cfg = make_tariff(p_dag=0.50, p_nacht=0.30, p_exp_dn=0.08)
+    cfg.saldering = False
+
+    cost_engine = CostEngine(cfg)
+
+    # 100 kWh alleen 's nachts (uren 23, 0-6) → 8 uur
+    # 8760 uur = 365 dagen. Uur 0, 1, 2, 3, 4, 5, 6, 23 = nacht
+    # 8 uur per dag * 365 = 2920 nachturen
+    # 100 kWh / 2920 = ~0.034 kWh per nachtuur
+    night_hours = [0, 1, 2, 3, 4, 5, 6, 23]
+    import_profile = [0.0] * 24
+    for h in night_hours:
+        import_profile[h] = 100 / (8 * 365)
+    # Eén dag, herhalen voor 365 dagen
+    import_full = import_profile * 365
+    export_full = [0.0] * len(import_full)
+
+    res = cost_engine.compute_cost(
+        import_profile_kwh=import_full,
+        export_profile_kwh=export_full,
+        tariff_type="dag_nacht",
+        dt_hours=1.0,
+    )
+    # 100 kWh * 0.30 = 30 € energiekosten
+    expected_energy = 100 * 0.30
+    assert res.import_kwh == pytest.approx(100.0)
+    assert res.total_cost_eur == pytest.approx(
+        expected_energy + cfg.vastrecht_year + cfg.inverter_power_kw * cfg.inverter_cost_per_kw
+    )
+
+    # 100 kWh alleen overdag (uren 7-22)
+    import_profile_day = [0.0] * 24
+    for h in range(7, 23):
+        import_profile_day[h] = 100 / (16 * 365)
+    import_full_day = import_profile_day * 365
+
+    res_day = cost_engine.compute_cost(
+        import_profile_kwh=import_full_day,
+        export_profile_kwh=export_full,
+        tariff_type="dag_nacht",
+        dt_hours=1.0,
+    )
+    expected_energy_day = 100 * 0.50
+    assert res_day.total_cost_eur == pytest.approx(
+        expected_energy_day + cfg.vastrecht_year + cfg.inverter_power_kw * cfg.inverter_cost_per_kw
+    )

@@ -276,10 +276,12 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
         # 2) Niet-bekend gedrag
         # -----------------------------
         eta_rt = req.eta_rt if (req.eta_rt is not None and req.eta_rt > 0) else 1.0
+        # Standaard 2% degradatie/jaar (realistisch voor Li-ion) als niet opgegeven
+        DEFAULT_DEGRADATION_PER_YEAR = 0.02
         degradation = (
             req.battery_degradation
             if (req.battery_degradation is not None and req.battery_degradation >= 0)
-            else 0.0
+            else DEFAULT_DEGRADATION_PER_YEAR
         )
 
         # -----------------------------

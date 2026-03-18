@@ -132,6 +132,9 @@ class TariffConfig:
     # =========================
     allow_grid_charge: bool = False
     saldering: bool = True
+    # Uren voor nachttarief (NL: vaak 23:00-07:00)
+    night_start_hour: int = 23   # nacht start om 23:00
+    night_end_hour: int = 7      # nacht eindigt vóór 07:00
 
 
 # ============================================================
