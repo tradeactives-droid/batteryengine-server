@@ -143,6 +143,8 @@ class ComputeV3Request(BaseModel):
 
     capacity_tariff_kw: float = 0.0
 
+    allow_grid_charge: bool = False
+
 class ComputeV3ProfileRequest(BaseModel):
     # NIEUWE INPUT (zonder CSV)
     annual_load_kwh: float
@@ -308,6 +310,7 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
             load_kwh=load_vals,
             pv_kwh=pv_vals,
             prices_dyn=prices_dyn,
+            allow_grid_charge=req.allow_grid_charge,
 
             p_enkel_imp=req.p_enkel_imp,
             p_enkel_exp=req.p_enkel_exp,

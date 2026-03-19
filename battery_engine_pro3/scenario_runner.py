@@ -444,6 +444,12 @@ class ScenarioRunner:
             has_heatpump=getattr(self.batt_cfg, "has_heatpump", False),
         )
         
+        # Backward-compatible "roi" = ROI for current tariff (frontend expects this)
+        roi_current = roi_per_tariff.get(current_tariff) or roi_per_tariff.get("enkel")
+        if roi_current is None and roi_per_tariff:
+            roi_current = next(iter(roi_per_tariff.values()))
+        roi_dict = _roi_to_dict(roi_current) if roi_current else {"yearly_saving_eur": 0.0, "payback_years": None, "roi_percent": 0.0}
+
         return {
             "A1": _scenario_result_to_dict(A1),
 
@@ -465,6 +471,7 @@ class ScenarioRunner:
             "B1_monthly": B1_monthly,
             "C1_monthly": C1_monthly,
 
+            "roi": roi_dict,
             "roi_per_tariff": {
                 k: _roi_to_dict(v)
                 for k, v in roi_per_tariff.items()
