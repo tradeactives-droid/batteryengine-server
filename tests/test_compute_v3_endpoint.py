@@ -23,6 +23,7 @@ def make_request_NL():
         "eta_rt": 0.9,
         "battery_cost": 3000,
         "battery_degradation": 0.01,
+        "battery_lifetime_years": 15,
 
         "country": "NL",
         "current_tariff": "enkel",
@@ -114,8 +115,8 @@ def test_compute_v3_validation_error_on_empty_profiles():
     assert response.status_code == 400
 
     data = response.json()
-    assert data["detail"]["error_code"] == "CALCULATION_VALIDATION_ERROR"
-    assert "Verbruiks- en PV-profiel" in data["detail"]["message"]
+    assert data["error_code"] == "CALCULATION_VALIDATION_ERROR"
+    assert "Verbruiks- en PV-profiel" in data["message"]
 
 
 def test_compute_v3_server_error_is_categorized(monkeypatch):
@@ -128,8 +129,8 @@ def test_compute_v3_server_error_is_categorized(monkeypatch):
     assert response.status_code == 500
 
     data = response.json()
-    assert data["detail"]["error_code"] == "CALCULATION_SERVER_ERROR"
-    assert "interne fout" in data["detail"]["message"]
+    assert data["error_code"] == "CALCULATION_SERVER_ERROR"
+    assert "interne fout" in data["message"]
 
 
 def test_compute_v3_invalid_response_format_is_categorized(monkeypatch):
@@ -142,5 +143,5 @@ def test_compute_v3_invalid_response_format_is_categorized(monkeypatch):
     assert response.status_code == 500
 
     data = response.json()
-    assert data["detail"]["error_code"] == "INVALID_RESPONSE_FORMAT"
-    assert "ongeldig antwoordformaat" in data["detail"]["message"] or "mist verplichte velden" in data["detail"]["message"]
+    assert data["error_code"] == "INVALID_RESPONSE_FORMAT"
+    assert "ongeldig antwoordformaat" in data["message"] or "mist verplichte velden" in data["message"]

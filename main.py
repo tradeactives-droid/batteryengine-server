@@ -3,16 +3,20 @@
 # COMPLETE MAIN.PY (parse_csv + compute_v3 + advice)
 # ============================================================
 
-from fastapi import FastAPI, HTTPException
+from typing import Annotated, Optional
+
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional
 import json
 import os
 
 from openai import OpenAI
 
 from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
+from battery_engine_pro3.session_auth import require_valid_session
 
 from battery_engine_pro3.profile_generator import (
     generate_load_profile_kwh,
@@ -26,6 +30,15 @@ from battery_engine_pro3.profile_generator import (
 # ============================================================
 
 app = FastAPI()
+
+
+@app.exception_handler(HTTPException)
+async def _http_exception_flat_error_code(request: Request, exc: HTTPException):
+    """Return flat JSON { error_code, message, ... } for API errors (matches frontend expectations)."""
+    if isinstance(exc.detail, dict) and exc.detail.get("error_code") is not None:
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+    return await http_exception_handler(request, exc)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -116,7 +129,10 @@ def detect_resolution(load: list[float]) -> float:
 
 
 @app.post("/parse_csv")
-def parse_csv(req: ParseCSVRequest):
+def parse_csv(
+    req: ParseCSVRequest,
+    _session_user: Annotated[Optional[str], Depends(require_valid_session)],
+):
     load = _process_csv_text(req.load_file)
     pv = _process_csv_text(req.pv_file)
 
@@ -231,7 +247,10 @@ class ComputeV3ProfileRequest(BaseModel):
 
 
 @app.post("/compute_v3")
-def compute_v3(req: ComputeV3Request):
+def compute_v3(
+    req: ComputeV3Request,
+    _session_user: Annotated[Optional[str], Depends(require_valid_session)],
+):
     if not req.load_kwh or not req.pv_kwh:
         _raise_http_error(
             status_code=400,
@@ -304,7 +323,10 @@ def compute_v3(req: ComputeV3Request):
         )
 
 @app.post("/compute_v3_profile")
-def compute_v3_profile(req: ComputeV3ProfileRequest):
+def compute_v3_profile(
+    req: ComputeV3ProfileRequest,
+    _session_user: Annotated[Optional[str], Depends(require_valid_session)],
+):
     try:
         # -----------------------------
         # 1) Maak synthetische profielen
@@ -649,7 +671,10 @@ def format_advice_text(raw: str) -> str:
     return "\n".join(out).strip()
 
 @app.post("/generate_advice")
-def generate_advice(req: AdviceRequest):
+def generate_advice(
+    req: AdviceRequest,
+    _session_user: Annotated[Optional[str], Depends(require_valid_session)],
+):
     ctx = req.context
     ctx_dict = ctx.model_dump()
 
