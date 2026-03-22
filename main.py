@@ -15,8 +15,8 @@ import os
 
 from openai import OpenAI
 
+from battery_engine_pro3.device_tracking_deps import track_user_device
 from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
-from battery_engine_pro3.session_auth import require_valid_session
 
 from battery_engine_pro3.profile_generator import (
     generate_load_profile_kwh,
@@ -87,6 +87,16 @@ def _validate_compute_result_format(result: object):
         )
 
 
+def _attach_device_tracking(request: Request, payload: dict) -> dict:
+    """Merge multi-device flags when device telemetry ran this request (session + x-device-id)."""
+    if not getattr(request.state, "device_tracking_applied", False):
+        return payload
+    out = dict(payload)
+    out["device_warning"] = bool(getattr(request.state, "device_warning", False))
+    out["device_count"] = getattr(request.state, "device_count", None)
+    return out
+
+
 # ============================================================
 # CSV PARSER
 # ============================================================
@@ -131,22 +141,26 @@ def detect_resolution(load: list[float]) -> float:
 @app.post("/parse_csv")
 def parse_csv(
     req: ParseCSVRequest,
-    _session_user: Annotated[Optional[str], Depends(require_valid_session)],
+    request: Request,
+    _device_track: Annotated[None, Depends(track_user_device)],
 ):
     load = _process_csv_text(req.load_file)
     pv = _process_csv_text(req.pv_file)
 
     if len(load) < 20000 or len(pv) < 20000:
-        return {"error": "NOT_ENOUGH_DATA"}
+        return _attach_device_tracking(request, {"error": "NOT_ENOUGH_DATA"})
 
     prices = _process_csv_text(req.prices_file)
     n = min(len(load), len(pv))
 
-    return {
-        "load_kwh": load[:n],
-        "pv_kwh": pv[:n],
-        "prices_dyn": prices[:n] if len(prices) == n else []
-    }
+    return _attach_device_tracking(
+        request,
+        {
+            "load_kwh": load[:n],
+            "pv_kwh": pv[:n],
+            "prices_dyn": prices[:n] if len(prices) == n else [],
+        },
+    )
 
 
 # ============================================================
@@ -249,7 +263,8 @@ class ComputeV3ProfileRequest(BaseModel):
 @app.post("/compute_v3")
 def compute_v3(
     req: ComputeV3Request,
-    _session_user: Annotated[Optional[str], Depends(require_valid_session)],
+    request: Request,
+    _device_track: Annotated[None, Depends(track_user_device)],
 ):
     if not req.load_kwh or not req.pv_kwh:
         _raise_http_error(
@@ -304,7 +319,7 @@ def compute_v3(
     try:
         result = BatteryEnginePro3.compute(engine_input)
         _validate_compute_result_format(result)
-        return result
+        return _attach_device_tracking(request, result)
     except HTTPException:
         raise
     except ValueError as e:
@@ -325,7 +340,8 @@ def compute_v3(
 @app.post("/compute_v3_profile")
 def compute_v3_profile(
     req: ComputeV3ProfileRequest,
-    _session_user: Annotated[Optional[str], Depends(require_valid_session)],
+    request: Request,
+    _device_track: Annotated[None, Depends(track_user_device)],
 ):
     try:
         # -----------------------------
@@ -425,7 +441,7 @@ def compute_v3_profile(
 
         result = BatteryEnginePro3.compute(engine_input)
         _validate_compute_result_format(result)
-        return result
+        return _attach_device_tracking(request, result)
 
     except HTTPException:
         raise
@@ -673,7 +689,8 @@ def format_advice_text(raw: str) -> str:
 @app.post("/generate_advice")
 def generate_advice(
     req: AdviceRequest,
-    _session_user: Annotated[Optional[str], Depends(require_valid_session)],
+    request: Request,
+    _device_track: Annotated[None, Depends(track_user_device)],
 ):
     ctx = req.context
     ctx_dict = ctx.model_dump()
@@ -902,15 +919,16 @@ def generate_advice(
 
         content = format_advice_text(content)
 
-        return {
-            "advice": content.strip()
-        }
+        return _attach_device_tracking(request, {"advice": content.strip()})
 
     except Exception as e:
-        return {
-            "error": str(e),
-            "advice": ""
-        }
+        return _attach_device_tracking(
+            request,
+            {
+                "error": str(e),
+                "advice": "",
+            },
+        )
 
 
 
