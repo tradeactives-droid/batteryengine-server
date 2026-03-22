@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 # We importeren de FastAPI app uit main.py
 from main import app  
+import main
 
 client = TestClient(app)
 
@@ -102,3 +103,44 @@ def test_compute_v3_BE_endpoint():
     before = data["peaks"]["monthly_before"][0]
     after = data["peaks"]["monthly_after"][0]
     assert before >= after
+
+
+def test_compute_v3_validation_error_on_empty_profiles():
+    req = make_request_NL()
+    req["load_kwh"] = []
+    req["pv_kwh"] = []
+
+    response = client.post("/compute_v3", json=req)
+    assert response.status_code == 400
+
+    data = response.json()
+    assert data["detail"]["error_code"] == "CALCULATION_VALIDATION_ERROR"
+    assert "Verbruiks- en PV-profiel" in data["detail"]["message"]
+
+
+def test_compute_v3_server_error_is_categorized(monkeypatch):
+    def _boom(_engine_input):
+        raise RuntimeError("db timeout")
+
+    monkeypatch.setattr(main.BatteryEnginePro3, "compute", _boom)
+
+    response = client.post("/compute_v3", json=make_request_NL())
+    assert response.status_code == 500
+
+    data = response.json()
+    assert data["detail"]["error_code"] == "CALCULATION_SERVER_ERROR"
+    assert "interne fout" in data["detail"]["message"]
+
+
+def test_compute_v3_invalid_response_format_is_categorized(monkeypatch):
+    def _bad(_engine_input):
+        return {"A1": {}}
+
+    monkeypatch.setattr(main.BatteryEnginePro3, "compute", _bad)
+
+    response = client.post("/compute_v3", json=make_request_NL())
+    assert response.status_code == 500
+
+    data = response.json()
+    assert data["detail"]["error_code"] == "INVALID_RESPONSE_FORMAT"
+    assert "ongeldig antwoordformaat" in data["detail"]["message"] or "mist verplichte velden" in data["detail"]["message"]

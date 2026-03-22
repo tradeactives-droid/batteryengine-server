@@ -8,8 +8,23 @@ from .battery_simulator import BatterySimulator
 from .battery_model import BatteryModel
 from .cost_engine import CostEngine
 from .peak_optimizer import PeakOptimizer
-from .roi_engine import ROIEngine, ROIConfig
+from .roi_engine import ROIEngine, ROIConfig, ROI_MIN_REALISTIC_INVESTMENT_EUR
 from .dynamic_prices import build_dynamic_prices_hybrid
+
+MIN_EFFECTIVE_BATTERY_CAPACITY_KWH = 0.25
+MIN_EFFECTIVE_BATTERY_POWER_KW = 0.25
+
+
+def _is_effective_battery_enabled(batt_cfg: Optional[object]) -> bool:
+    if batt_cfg is None:
+        return False
+    e_cap = float(getattr(batt_cfg, "E", 0.0) or 0.0)
+    p_max = float(getattr(batt_cfg, "P", 0.0) or 0.0)
+    return (
+        e_cap >= MIN_EFFECTIVE_BATTERY_CAPACITY_KWH
+        and p_max >= MIN_EFFECTIVE_BATTERY_POWER_KW
+    )
+
 
 def _scenario_result_to_dict(sr: ScenarioResult) -> dict:
     return {
@@ -148,6 +163,7 @@ class ScenarioRunner:
 
         current_tariff = self.tariff_cfg.current_tariff
         cost_engine = CostEngine(self.tariff_cfg)
+        battery_enabled = _is_effective_battery_enabled(self.batt_cfg)
 
         # =================================================
         # A1 — huidige situatie (MET saldering)
@@ -235,7 +251,7 @@ class ScenarioRunner:
         # =================================================
         # C1 — toekomst met batterij (GEEN saldering)
         # =================================================
-        if self.batt_cfg is None:
+        if not battery_enabled:
             C1 = B1
             C1_monthly = B1_monthly
             peak_info = PeakInfo(monthly_before=[], monthly_after=[])
@@ -339,7 +355,7 @@ class ScenarioRunner:
         # =================================================
         roi_monthly: Dict[str, Dict[str, object]] = {}
 
-        if self.batt_cfg is not None:
+        if battery_enabled:
             investment = self.batt_cfg.investment_eur
 
             for tariff in ["enkel", "dag_nacht", "dynamisch"]:
@@ -352,11 +368,17 @@ class ScenarioRunner:
                 total = 0.0
                 payback_month = None
 
-                for idx, val in enumerate(monthly_savings):
-                    total += val
-                    cumulative.append(total)
-                    if payback_month is None and total >= investment:
-                        payback_month = idx + 1  # maanden tellen vanaf 1
+                if investment >= ROI_MIN_REALISTIC_INVESTMENT_EUR:
+                    for idx, val in enumerate(monthly_savings):
+                        total += val
+                        cumulative.append(total)
+                        if payback_month is None and total >= investment:
+                            payback_month = idx + 1  # maanden tellen vanaf 1
+                else:
+                    # Keep cumulative curve for UI, but suppress meaningless payback.
+                    for val in monthly_savings:
+                        total += val
+                        cumulative.append(total)
 
                 roi_monthly[tariff] = {
                     "monthly_savings": monthly_savings,
@@ -374,7 +396,7 @@ class ScenarioRunner:
         # =================================================
         roi_per_tariff = {}
 
-        if self.batt_cfg is not None:
+        if battery_enabled:
             for tariff in ["enkel", "dag_nacht", "dynamisch"]:
                 yearly_saving = (
                     B1[tariff].total_cost_eur
@@ -434,8 +456,8 @@ class ScenarioRunner:
         }
 
         battery_assessment = assess_battery(
-            E=float(getattr(self.batt_cfg, "E", 0.0) or 0.0),
-            P=float(getattr(self.batt_cfg, "P", 0.0) or 0.0),
+            E=float(getattr(self.batt_cfg, "E", 0.0) or 0.0) if battery_enabled else 0.0,
+            P=float(getattr(self.batt_cfg, "P", 0.0) or 0.0) if battery_enabled else 0.0,
             energy_profile={
                  "yearly_load_kwh": total_load_kwh,
                 "peak_load_kw": max(self.load.values) / self.load.dt_hours

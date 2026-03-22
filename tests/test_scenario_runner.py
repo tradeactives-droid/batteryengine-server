@@ -112,3 +112,35 @@ def test_scenario_runner_BE_peak_shaving():
 
     # ROI structure ok
     assert "yearly_saving_eur" in out["roi"]
+
+
+def test_dummy_tiny_battery_is_treated_as_disabled():
+    load = make_ts([2, 2, 2, 2])
+    pv = make_ts([1, 3, 0, 4])
+
+    tariff = base_tariff(country="NL", current="enkel")
+    tiny_battery = BatteryConfig(
+        E=0.1,
+        P=0.1,
+        DoD=0.9,
+        eta_rt=0.9,
+        investment_eur=1.0,
+        degradation_per_year=0.01,
+    )
+
+    runner = ScenarioRunner(load, pv, tariff, tiny_battery)
+    out = runner.run()
+
+    for tariff_code in ["enkel", "dag_nacht", "dynamisch"]:
+        assert out["C1"][tariff_code]["import_kwh"] == pytest.approx(
+            out["B1"][tariff_code]["import_kwh"]
+        )
+        assert out["C1"][tariff_code]["export_kwh"] == pytest.approx(
+            out["B1"][tariff_code]["export_kwh"]
+        )
+        assert out["C1"][tariff_code]["total_cost_eur"] == pytest.approx(
+            out["B1"][tariff_code]["total_cost_eur"]
+        )
+        assert out["roi_per_tariff"][tariff_code]["yearly_saving_eur"] == pytest.approx(0.0)
+        assert out["roi_per_tariff"][tariff_code]["payback_years"] is None
+        assert out["roi_per_tariff"][tariff_code]["roi_percent"] == pytest.approx(0.0)

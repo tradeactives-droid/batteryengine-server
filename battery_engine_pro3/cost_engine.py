@@ -87,8 +87,21 @@ class CostEngine:
             export_price = self.cfg.p_enkel_exp
 
             if self.cfg.saldering:
-                net_import = max(imp - exp, 0.0)
-                energy = net_import * import_price
+                # Apply saldering on profile level (time-step netting),
+                # not on annual totals.
+                if (
+                    dt_hours is not None
+                    and len(import_profile_kwh) > 1
+                    and len(export_profile_kwh) > 1
+                ):
+                    n = min(len(import_profile_kwh), len(export_profile_kwh))
+                    energy = sum(
+                        max(0.0, import_profile_kwh[i] - export_profile_kwh[i]) * import_price
+                        for i in range(n)
+                    )
+                else:
+                    net_import = max(imp - exp, 0.0)
+                    energy = net_import * import_price
             else:
                 energy = (imp * import_price) - (exp * export_price)
 

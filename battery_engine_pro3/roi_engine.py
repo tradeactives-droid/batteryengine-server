@@ -6,6 +6,8 @@ from typing import Optional
 
 from .types import ROIResult
 
+ROI_MIN_REALISTIC_INVESTMENT_EUR = 100.0
+
 
 @dataclass
 class ROIConfig:
@@ -32,8 +34,13 @@ class ROIEngine:
         - roi_percent = totale besparing / investering * 100
         """
 
-        # Geen investering of besparing → geen ROI
-        if cfg.battery_cost_eur <= 0 or cfg.yearly_saving_eur <= 0:
+        # ROI is not meaningful for zero/near-zero placeholder investments.
+        # Keep yearly_saving for transparency, but suppress misleading ROI%.
+        # Geen realistische investering of geen besparing → geen ROI
+        if (
+            cfg.battery_cost_eur < ROI_MIN_REALISTIC_INVESTMENT_EUR
+            or cfg.yearly_saving_eur <= 0
+        ):
             return ROIResult(
                 yearly_saving_eur=cfg.yearly_saving_eur,
                 payback_years=None,

@@ -3,7 +3,7 @@
 # COMPLETE MAIN.PY (parse_csv + compute_v3 + advice)
 # ============================================================
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -41,6 +41,37 @@ if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY ontbreekt in environment")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+REQUIRED_COMPUTE_RESULT_KEYS = ("A1", "B1", "C1", "roi", "peaks")
+
+
+def _raise_http_error(status_code: int, error_code: str, message: str, details: Optional[dict] = None):
+    payload = {
+        "error_code": error_code,
+        "message": message,
+    }
+    if details:
+        payload["details"] = details
+    raise HTTPException(status_code=status_code, detail=payload)
+
+
+def _validate_compute_result_format(result: object):
+    if not isinstance(result, dict):
+        _raise_http_error(
+            status_code=500,
+            error_code="INVALID_RESPONSE_FORMAT",
+            message="De berekening gaf een ongeldig antwoordformaat terug.",
+            details={"expected_type": "dict", "actual_type": type(result).__name__},
+        )
+    missing = [k for k in REQUIRED_COMPUTE_RESULT_KEYS if k not in result]
+    if missing:
+        _raise_http_error(
+            status_code=500,
+            error_code="INVALID_RESPONSE_FORMAT",
+            message="De berekening mist verplichte velden in de response.",
+            details={"missing_keys": missing},
+        )
 
 
 # ============================================================
@@ -202,7 +233,12 @@ class ComputeV3ProfileRequest(BaseModel):
 @app.post("/compute_v3")
 def compute_v3(req: ComputeV3Request):
     if not req.load_kwh or not req.pv_kwh:
-        return {"error": "LOAD_OR_PV_EMPTY"}
+        _raise_http_error(
+            status_code=400,
+            error_code="CALCULATION_VALIDATION_ERROR",
+            message="Verbruiks- en PV-profiel zijn verplicht en mogen niet leeg zijn.",
+            details={"field_errors": ["load_kwh", "pv_kwh"]},
+        )
 
     n = min(len(req.load_kwh), len(req.pv_kwh))
 
@@ -246,7 +282,26 @@ def compute_v3(req: ComputeV3Request):
         current_tariff=req.current_tariff,
     )
 
-    return BatteryEnginePro3.compute(engine_input)
+    try:
+        result = BatteryEnginePro3.compute(engine_input)
+        _validate_compute_result_format(result)
+        return result
+    except HTTPException:
+        raise
+    except ValueError as e:
+        _raise_http_error(
+            status_code=422,
+            error_code="CALCULATION_VALIDATION_ERROR",
+            message="Ongeldige invoer voor berekening.",
+            details={"reason": str(e)},
+        )
+    except Exception as e:
+        _raise_http_error(
+            status_code=500,
+            error_code="CALCULATION_SERVER_ERROR",
+            message="Er is een interne fout opgetreden tijdens de berekening.",
+            details={"reason": str(e)},
+        )
 
 @app.post("/compute_v3_profile")
 def compute_v3_profile(req: ComputeV3ProfileRequest):
@@ -347,12 +402,25 @@ def compute_v3_profile(req: ComputeV3ProfileRequest):
         )
 
         result = BatteryEnginePro3.compute(engine_input)
+        _validate_compute_result_format(result)
         return result
 
+    except HTTPException:
+        raise
+    except ValueError as e:
+        _raise_http_error(
+            status_code=422,
+            error_code="CALCULATION_VALIDATION_ERROR",
+            message="Ongeldige invoer voor profielberekening.",
+            details={"reason": str(e)},
+        )
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e)}
+        _raise_http_error(
+            status_code=500,
+            error_code="CALCULATION_SERVER_ERROR",
+            message="Er is een interne fout opgetreden tijdens de profielberekening.",
+            details={"reason": str(e)},
+        )
 
 
 # ============================================================

@@ -77,6 +77,34 @@ def test_enkel_tarief_basic():
     assert res.total_cost_eur == pytest.approx(expected)
 
 
+def test_enkel_saldering_uses_profile_not_annual_totals():
+    """
+    Regressie: bij gelijke jaarimport/jaarexport mag kosten niet 0 worden
+    door jaarlijkse wegstreping; gebruik tijdsprofiel.
+    """
+    cfg = make_tariff()
+    cfg.saldering = True
+
+    cost_engine = CostEngine(cfg)
+
+    # Jaarimport = 2 kWh, jaarexport = 2 kWh, maar op verschillende tijdstappen.
+    import_profile = [1.0, 1.0, 0.0, 0.0]
+    export_profile = [0.0, 0.0, 1.0, 1.0]
+
+    res = cost_engine.compute_cost(
+        import_profile_kwh=import_profile,
+        export_profile_kwh=export_profile,
+        tariff_type="enkel",
+        dt_hours=1.0,
+    )
+
+    expected_energy = 2.0 * cfg.p_enkel_imp
+    expected_total = expected_energy + cfg.vastrecht_year + cfg.inverter_power_kw * cfg.inverter_cost_per_kw
+
+    assert sum(import_profile) == pytest.approx(sum(export_profile))
+    assert res.total_cost_eur == pytest.approx(expected_total)
+
+
 def test_feedin_costs():
     """
     feed-in vaste kosten + variabele kosten boven drempel
