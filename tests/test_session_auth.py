@@ -72,3 +72,47 @@ def test_session_200_when_token_matches(enforce_session, monkeypatch):
     assert r.status_code == 200
     data = r.json()
     assert "A1" in data
+
+
+def test_validate_session_401_when_token_mismatch(enforce_session, monkeypatch):
+    from battery_engine_pro3 import session_auth
+
+    monkeypatch.setattr(
+        session_auth,
+        "_fetch_stored_session_token",
+        lambda uid: "another-token" if uid == USER_ID else None,
+    )
+
+    client = TestClient(app)
+    r = client.get(
+        "/validate-session",
+        headers={
+            "Authorization": _bearer(),
+            "x-session-token": SESSION_TOKEN,
+        },
+    )
+    assert r.status_code == 401
+    body = r.json()
+    assert body["error_code"] == "SESSION_INVALID"
+
+
+def test_validate_session_200_when_token_matches(enforce_session, monkeypatch):
+    from battery_engine_pro3 import session_auth
+
+    monkeypatch.setattr(
+        session_auth,
+        "_fetch_stored_session_token",
+        lambda uid: SESSION_TOKEN if uid == USER_ID else None,
+    )
+
+    client = TestClient(app)
+    r = client.get(
+        "/validate-session",
+        headers={
+            "Authorization": _bearer(),
+            "x-session-token": SESSION_TOKEN,
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["valid"] is True

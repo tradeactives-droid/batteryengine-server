@@ -73,11 +73,52 @@ const res = await fetch(`${API_URL}/compute_v3`, {
 });
 ```
 
-Apply the same headers for all protected routes (`/compute_v3`, `/compute_v3_profile`, `/parse_csv`, `/generate_advice`).
+Apply the same headers for all protected routes (`/validate-session`, `/compute_v3`, `/compute_v3_profile`, `/parse_csv`, `/generate_advice`).
 
 ---
 
-## 3) Handle forced logout (401 `SESSION_INVALID`)
+## 3) Proactive validation on app load / interval / focus
+
+Call `GET /validate-session`:
+
+- once on app start (after restoring auth state),
+- every 10–20 seconds with `setInterval`,
+- and on `window.focus` / `visibilitychange`.
+
+If it returns 401 `SESSION_INVALID`, run the same forced logout flow.
+
+```ts
+async function validateSessionNow() {
+  const token = localStorage.getItem('session_token');
+  const { data: { session } } = await supabase.auth.getSession();
+
+  const res = await fetch(`${API_URL}/validate-session`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${session?.access_token ?? ''}`,
+      'x-session-token': token ?? '',
+    },
+  });
+
+  await handleApiResponse(res); // handles 401 SESSION_INVALID
+}
+
+// app init
+validateSessionNow();
+
+// periodic
+const intervalId = window.setInterval(validateSessionNow, 15000);
+
+// focus/visibility
+window.addEventListener('focus', validateSessionNow);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') validateSessionNow();
+});
+```
+
+---
+
+## 4) Handle forced logout (401 `SESSION_INVALID`)
 
 The API returns **flat** JSON (no `detail` wrapper) when `error_code` is present:
 
@@ -113,7 +154,7 @@ async function handleApiResponse(res: Response) {
 
 ---
 
-## 4) Security notes
+## 5) Security notes
 
 - Always delete old `active_sessions` row(s) for `user_id` before inserting the new one (or rely on `unique(user_id)` + `upsert`).
 - Session token is a random UUID; the server compares it to the DB row — client storage alone is not enough.

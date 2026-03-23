@@ -163,6 +163,18 @@ def parse_csv(
     )
 
 
+@app.get("/validate-session")
+def validate_session(
+    request: Request,
+    _device_track: Annotated[None, Depends(track_user_device)],
+):
+    """
+    Lightweight endpoint for proactive frontend session checks.
+    If session is invalid, dependency raises 401 SESSION_INVALID.
+    """
+    return _attach_device_tracking(request, {"valid": True})
+
+
 # ============================================================
 # COMPUTE V3
 # ============================================================
