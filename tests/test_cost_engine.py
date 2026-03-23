@@ -228,3 +228,39 @@ def test_dag_nacht_time_of_use():
     assert res_day.total_cost_eur == pytest.approx(
         expected_energy_day + cfg.vastrecht_year + cfg.inverter_power_kw * cfg.inverter_cost_per_kw
     )
+
+
+def test_dynamisch_saldering_uses_profile_level_netting():
+    cfg = make_tariff(
+        current_tariff="dynamisch",
+        dynamic_prices=[0.20, 0.50],
+        p_export_dyn=0.12,
+    )
+    cost_engine = CostEngine(cfg)
+
+    import_profile = [1.0, 0.0]
+    export_profile = [0.0, 1.0]
+
+    cfg.saldering = True
+    with_saldering = cost_engine.compute_cost(
+        import_profile_kwh=import_profile,
+        export_profile_kwh=export_profile,
+        tariff_type="dynamisch",
+        dt_hours=1.0,
+    )
+
+    cfg.saldering = False
+    without_saldering = cost_engine.compute_cost(
+        import_profile_kwh=import_profile,
+        export_profile_kwh=export_profile,
+        tariff_type="dynamisch",
+        dt_hours=1.0,
+    )
+
+    expected_energy_saldering = 1.0 * 0.20
+    expected_energy_no_saldering = (1.0 * 0.20) - (1.0 * 0.12)
+    fixed = cfg.vastrecht_year + cfg.inverter_power_kw * cfg.inverter_cost_per_kw
+
+    assert with_saldering.total_cost_eur == pytest.approx(expected_energy_saldering + fixed)
+    assert without_saldering.total_cost_eur == pytest.approx(expected_energy_no_saldering + fixed)
+    assert with_saldering.total_cost_eur > without_saldering.total_cost_eur

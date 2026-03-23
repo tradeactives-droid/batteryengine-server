@@ -124,14 +124,21 @@ class CostEngine:
                     f"Dynamisch tarief: dynamic_prices te kort ({len(dyn)}) voor profiel ({len(import_profile_kwh)})."
                 )
 
-            import_cost = sum(
-                imp_kwh * price
-                for imp_kwh, price in zip(import_profile_kwh, dyn)
-            )
+            if self.cfg.saldering:
+                n = min(len(import_profile_kwh), len(export_profile_kwh), len(dyn))
+                energy = sum(
+                    max(0.0, import_profile_kwh[i] - export_profile_kwh[i]) * dyn[i]
+                    for i in range(n)
+                )
+            else:
+                import_cost = sum(
+                    imp_kwh * price
+                    for imp_kwh, price in zip(import_profile_kwh, dyn)
+                )
 
-            export_revenue = exp * export_price
+                export_revenue = exp * export_price
 
-            energy = import_cost - export_revenue
+                energy = import_cost - export_revenue
 
         else:
             raise ValueError(f"Onbekend tarieftype: {tariff_type}")

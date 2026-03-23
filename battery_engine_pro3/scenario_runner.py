@@ -46,9 +46,12 @@ def _format_payback_years_for_api(years: Optional[float | int]) -> Optional[floa
 
 
 def _roi_to_dict(roi: ROIResult) -> dict:
+    payback_years = roi.payback_years
+    if payback_years is None and float(roi.yearly_saving_eur) > 0:
+        payback_years = "> 10 jaar"
     return {
         "yearly_saving_eur": float(roi.yearly_saving_eur),
-        "payback_years": _format_payback_years_for_api(roi.payback_years),
+        "payback_years": _format_payback_years_for_api(payback_years),
         "roi_percent": float(roi.roi_percent),
     }
 

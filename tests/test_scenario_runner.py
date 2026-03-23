@@ -164,3 +164,5 @@ def test_roi_to_dict_payback_capped():
     assert d["payback_years"] == "> 10 jaar"
     d2 = _roi_to_dict(ROIResult(yearly_saving_eur=100.0, payback_years=7, roi_percent=5.0))
     assert d2["payback_years"] == 7
+    d3 = _roi_to_dict(ROIResult(yearly_saving_eur=150.0, payback_years=None, roi_percent=-10.0))
+    assert d3["payback_years"] == "> 10 jaar"
