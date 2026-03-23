@@ -8,19 +8,23 @@ from typing import Annotated, Optional
 from fastapi import Depends, Header, Request
 
 from battery_engine_pro3 import device_tracking as dt
-from battery_engine_pro3.session_auth import require_valid_session, session_enforcement_enabled
+from battery_engine_pro3.auth.session_guard import (
+    AuthenticatedUser,
+    require_active_session,
+    session_enforcement_enabled,
+)
 
 
 async def track_user_device(
     request: Request,
-    user_id: Annotated[Optional[str], Depends(require_valid_session)],
+    current_user: Annotated[Optional[AuthenticatedUser], Depends(require_active_session)],
     x_device_id: Annotated[Optional[str], Header(alias="x-device-id")] = None,
     x_device_fingerprint: Annotated[Optional[str], Header(alias="x-device-fingerprint")] = None,
     user_agent: Annotated[Optional[str], Header(alias="user-agent")] = None,
 ) -> None:
     request.state.device_tracking_applied = False
 
-    if not session_enforcement_enabled() or not user_id:
+    if not session_enforcement_enabled() or current_user is None:
         return None
 
     device_id = (x_device_id or "").strip()
@@ -35,12 +39,13 @@ async def track_user_device(
     )
 
     try:
-        warning, count = dt.run_tracking(user_id, device_id, fingerprint, ip, ua)
+        warning, count = dt.run_tracking(current_user.id, device_id, fingerprint, ip, ua)
         request.state.device_warning = warning
         request.state.device_count = count
         request.state.device_tracking_applied = True
     except Exception:
-        # Never fail the API on telemetry
+        # Never fail the API on telemetry.
         pass
 
     return None
+

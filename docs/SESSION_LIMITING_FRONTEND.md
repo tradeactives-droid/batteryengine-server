@@ -40,14 +40,18 @@ const userId = (await supabase.auth.getUser()).data.user?.id;
 if (!userId) return;
 
 // Remove previous session(s) for this user (unique constraint also allows upsert patterns)
-await supabase.from('active_sessions').delete().eq('user_id', userId);
-
-const { error } = await supabase.from('active_sessions').insert({
-  user_id: userId,
-  session_token: sessionToken,
+const registerRes = await fetch(`${API_URL}/register-session`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${session?.access_token}`,
+  },
+  body: JSON.stringify({
+    session_token: sessionToken,
+  }),
 });
 
-if (error) { /* handle */ return; }
+if (!registerRes.ok) { /* handle */ return; }
 
 localStorage.setItem('session_token', sessionToken);
 ```
@@ -156,6 +160,6 @@ async function handleApiResponse(res: Response) {
 
 ## 5) Security notes
 
-- Always delete old `active_sessions` row(s) for `user_id` before inserting the new one (or rely on `unique(user_id)` + `upsert`).
+- Backend `POST /register-session` does an atomic upsert (`ON CONFLICT (user_id)`), so the last login always wins.
 - Session token is a random UUID; the server compares it to the DB row — client storage alone is not enough.
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` in the frontend; only the backend uses it.

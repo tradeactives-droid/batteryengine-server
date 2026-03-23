@@ -1,8 +1,3 @@
-"""
-Session enforcement tests (requires httpx for TestClient).
-Set SUPABASE_* env vars → API requires Authorization + x-session-token.
-"""
-
 import time
 
 import jwt
@@ -14,14 +9,16 @@ from tests.test_compute_v3_endpoint import make_request_NL
 
 
 JWT_SECRET = "test-jwt-secret-session-auth-32bytes!!"  # >=32 chars for HS256
-USER_ID = "550e8400-e29b-41d4-a716-446655440000"
-SESSION_TOKEN = "660e8400-e29b-41d4-a716-446655440001"
+USER1 = "550e8400-e29b-41d4-a716-446655440000"
+USER2 = "550e8400-e29b-41d4-a716-446655440099"
+TOKEN_A = "660e8400-e29b-41d4-a716-446655440001"
+TOKEN_B = "660e8400-e29b-41d4-a716-446655440002"
 
 
-def _bearer() -> str:
+def _bearer(user_id: str) -> str:
     tok = jwt.encode(
         {
-            "sub": USER_ID,
+            "sub": user_id,
             "aud": "authenticated",
             "exp": int(time.time()) + 3600,
         },
@@ -39,80 +36,137 @@ def enforce_session(monkeypatch):
     yield
 
 
-def test_session_401_without_x_session_token(enforce_session):
+@pytest.fixture
+def session_store(monkeypatch):
+    from battery_engine_pro3.auth import session_guard
+    import main
+
+    state = {"by_user": {}}
+
+    def _fetch(user_id: str):
+        token = state["by_user"].get(user_id)
+        if not token:
+            return None
+        return {"user_id": user_id, "session_token": token}
+
+    def _upsert(user_id: str, session_token: str):
+        state["by_user"][user_id] = session_token
+        return True
+
+    monkeypatch.setattr(session_guard, "_fetch_active_session_by_user", _fetch)
+    monkeypatch.setattr(session_guard, "register_active_session", _upsert)
+    monkeypatch.setattr(main, "register_active_session", _upsert)
+    return state
+
+
+def _assert_flat_session_invalid(body: dict):
+    assert body["error_code"] == "SESSION_INVALID"
+    assert "message" in body
+    assert "detail" not in body
+
+
+def test_a_valid_active_session(enforce_session, session_store):
+    session_store["by_user"][USER1] = TOKEN_A
     client = TestClient(app)
     r = client.post(
         "/compute_v3",
         json=make_request_NL(),
-        headers={"Authorization": _bearer()},
+        headers={
+            "Authorization": _bearer(USER1),
+            "x-session-token": TOKEN_A,
+        },
+    )
+    assert r.status_code == 200
+    assert "A1" in r.json()
+
+
+def test_b_second_login_invalidates_first(enforce_session, session_store):
+    client = TestClient(app)
+
+    r1 = client.post(
+        "/register-session",
+        json={"session_token": TOKEN_A},
+        headers={"Authorization": _bearer(USER1)},
+    )
+    assert r1.status_code == 200
+
+    r2 = client.post(
+        "/register-session",
+        json={"session_token": TOKEN_B},
+        headers={"Authorization": _bearer(USER1)},
+    )
+    assert r2.status_code == 200
+
+    old_req = client.post(
+        "/compute_v3",
+        json=make_request_NL(),
+        headers={
+            "Authorization": _bearer(USER1),
+            "x-session-token": TOKEN_A,
+        },
+    )
+    assert old_req.status_code == 401
+    _assert_flat_session_invalid(old_req.json())
+
+    new_req = client.post(
+        "/compute_v3",
+        json=make_request_NL(),
+        headers={
+            "Authorization": _bearer(USER1),
+            "x-session-token": TOKEN_B,
+        },
+    )
+    assert new_req.status_code == 200
+
+
+def test_c_missing_x_session_token(enforce_session, session_store):
+    session_store["by_user"][USER1] = TOKEN_A
+    client = TestClient(app)
+    r = client.post(
+        "/compute_v3",
+        json=make_request_NL(),
+        headers={"Authorization": _bearer(USER1)},
     )
     assert r.status_code == 401
-    body = r.json()
-    assert body["error_code"] == "SESSION_INVALID"
+    _assert_flat_session_invalid(r.json())
 
 
-def test_session_200_when_token_matches(enforce_session, monkeypatch):
-    from battery_engine_pro3 import session_auth
-
-    monkeypatch.setattr(
-        session_auth,
-        "_fetch_stored_session_token",
-        lambda uid: SESSION_TOKEN if uid == USER_ID else None,
-    )
-
+def test_d_token_for_another_user(enforce_session, session_store):
+    session_store["by_user"][USER1] = TOKEN_A
+    session_store["by_user"][USER2] = TOKEN_B
     client = TestClient(app)
     r = client.post(
         "/compute_v3",
         json=make_request_NL(),
         headers={
-            "Authorization": _bearer(),
-            "x-session-token": SESSION_TOKEN,
-        },
-    )
-    assert r.status_code == 200
-    data = r.json()
-    assert "A1" in data
-
-
-def test_validate_session_401_when_token_mismatch(enforce_session, monkeypatch):
-    from battery_engine_pro3 import session_auth
-
-    monkeypatch.setattr(
-        session_auth,
-        "_fetch_stored_session_token",
-        lambda uid: "another-token" if uid == USER_ID else None,
-    )
-
-    client = TestClient(app)
-    r = client.get(
-        "/validate-session",
-        headers={
-            "Authorization": _bearer(),
-            "x-session-token": SESSION_TOKEN,
+            "Authorization": _bearer(USER1),
+            "x-session-token": TOKEN_B,
         },
     )
     assert r.status_code == 401
-    body = r.json()
-    assert body["error_code"] == "SESSION_INVALID"
+    _assert_flat_session_invalid(r.json())
 
 
-def test_validate_session_200_when_token_matches(enforce_session, monkeypatch):
-    from battery_engine_pro3 import session_auth
-
-    monkeypatch.setattr(
-        session_auth,
-        "_fetch_stored_session_token",
-        lambda uid: SESSION_TOKEN if uid == USER_ID else None,
-    )
-
+def test_e_validate_session_parity(enforce_session, session_store):
+    session_store["by_user"][USER1] = TOKEN_A
     client = TestClient(app)
-    r = client.get(
+
+    ok_resp = client.get(
         "/validate-session",
         headers={
-            "Authorization": _bearer(),
-            "x-session-token": SESSION_TOKEN,
+            "Authorization": _bearer(USER1),
+            "x-session-token": TOKEN_A,
         },
     )
-    assert r.status_code == 200
-    body = r.json()
-    assert body["valid"] is True
+    assert ok_resp.status_code == 200
+    assert ok_resp.json()["ok"] is True
+
+    bad_resp = client.get(
+        "/validate-session",
+        headers={
+            "Authorization": _bearer(USER1),
+            "x-session-token": TOKEN_B,
+        },
+    )
+    assert bad_resp.status_code == 401
+    _assert_flat_session_invalid(bad_resp.json())

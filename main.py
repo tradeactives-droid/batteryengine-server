@@ -12,9 +12,15 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import json
 import os
+from uuid import UUID
 
 from openai import OpenAI
 
+from battery_engine_pro3.auth.session_guard import (
+    AuthenticatedUser,
+    get_current_user,
+    register_active_session,
+)
 from battery_engine_pro3.device_tracking_deps import track_user_device
 from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
 
@@ -107,6 +113,10 @@ class ParseCSVRequest(BaseModel):
     prices_file: str
 
 
+class RegisterSessionRequest(BaseModel):
+    session_token: str
+
+
 def _process_csv_text(raw: str) -> list[float]:
     if raw is None:
         return []
@@ -172,7 +182,44 @@ def validate_session(
     Lightweight endpoint for proactive frontend session checks.
     If session is invalid, dependency raises 401 SESSION_INVALID.
     """
-    return _attach_device_tracking(request, {"valid": True})
+    return _attach_device_tracking(request, {"ok": True})
+
+
+@app.post("/register-session")
+def register_session(
+    req: RegisterSessionRequest,
+    current_user: Annotated[Optional[AuthenticatedUser], Depends(get_current_user)],
+):
+    token = (req.session_token or "").strip()
+    if not token:
+        _raise_http_error(
+            status_code=400,
+            error_code="CALCULATION_VALIDATION_ERROR",
+            message="session_token is verplicht.",
+        )
+    try:
+        UUID(token)
+    except ValueError:
+        _raise_http_error(
+            status_code=400,
+            error_code="CALCULATION_VALIDATION_ERROR",
+            message="session_token moet een geldige UUID zijn.",
+        )
+
+    if current_user is None:
+        _raise_http_error(
+            status_code=401,
+            error_code="SESSION_INVALID",
+            message="Session invalid or superseded by another device.",
+        )
+
+    if not register_active_session(current_user.id, token):
+        _raise_http_error(
+            status_code=500,
+            error_code="CALCULATION_SERVER_ERROR",
+            message="Kon actieve sessie niet registreren.",
+        )
+    return {"ok": True}
 
 
 # ============================================================
