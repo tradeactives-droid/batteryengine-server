@@ -1,7 +1,11 @@
 import pytest
 
-from battery_engine_pro3.scenario_runner import ScenarioRunner
-from battery_engine_pro3.types import TimeSeries, TariffConfig, BatteryConfig
+from battery_engine_pro3.scenario_runner import (
+    ScenarioRunner,
+    _format_payback_years_for_api,
+    _roi_to_dict,
+)
+from battery_engine_pro3.types import ROIResult, TimeSeries, TariffConfig, BatteryConfig
 
 
 def make_ts(values):
@@ -144,3 +148,19 @@ def test_dummy_tiny_battery_is_treated_as_disabled():
         assert out["roi_per_tariff"][tariff_code]["yearly_saving_eur"] == pytest.approx(0.0)
         assert out["roi_per_tariff"][tariff_code]["payback_years"] is None
         assert out["roi_per_tariff"][tariff_code]["roi_percent"] == pytest.approx(0.0)
+
+
+def test_format_payback_over_ten_years():
+    assert _format_payback_years_for_api(None) is None
+    assert _format_payback_years_for_api(8) == 8
+    assert _format_payback_years_for_api(10) == 10
+    assert _format_payback_years_for_api(10.0) == 10.0
+    assert _format_payback_years_for_api(10.1) == "> 10 jaar"
+    assert _format_payback_years_for_api(11) == "> 10 jaar"
+
+
+def test_roi_to_dict_payback_capped():
+    d = _roi_to_dict(ROIResult(yearly_saving_eur=100.0, payback_years=12, roi_percent=5.0))
+    assert d["payback_years"] == "> 10 jaar"
+    d2 = _roi_to_dict(ROIResult(yearly_saving_eur=100.0, payback_years=7, roi_percent=5.0))
+    assert d2["payback_years"] == 7

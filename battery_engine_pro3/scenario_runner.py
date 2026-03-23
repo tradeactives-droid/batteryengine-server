@@ -33,10 +33,22 @@ def _scenario_result_to_dict(sr: ScenarioResult) -> dict:
         "total_cost_eur": float(sr.total_cost_eur),
     }
 
+def _format_payback_years_for_api(years: Optional[float | int]) -> Optional[float | int | str]:
+    """Toon '> 10 jaar' wanneer terugverdientijd strikt boven 10 jaar ligt (UI)."""
+    if years is None:
+        return None
+    try:
+        if float(years) > 10:
+            return "> 10 jaar"
+    except (TypeError, ValueError):
+        return years
+    return years
+
+
 def _roi_to_dict(roi: ROIResult) -> dict:
     return {
         "yearly_saving_eur": float(roi.yearly_saving_eur),
-        "payback_years": roi.payback_years,
+        "payback_years": _format_payback_years_for_api(roi.payback_years),
         "roi_percent": float(roi.roi_percent),
     }
 
@@ -380,15 +392,16 @@ class ScenarioRunner:
                         total += val
                         cumulative.append(total)
 
+                py_raw = (
+                    round(payback_month / 12, 1)
+                    if payback_month is not None
+                    else None
+                )
                 roi_monthly[tariff] = {
                     "monthly_savings": monthly_savings,
                     "cumulative_savings": cumulative,
                     "payback_month": payback_month,
-                    "payback_years": (
-                        round(payback_month / 12, 1)
-                        if payback_month is not None
-                        else None
-                    ),
+                    "payback_years": _format_payback_years_for_api(py_raw),
                 }
 
         # =================================================
