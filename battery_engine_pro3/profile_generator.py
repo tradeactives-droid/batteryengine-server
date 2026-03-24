@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from datetime import datetime, timedelta
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------
@@ -75,19 +78,54 @@ def generate_load_profile_kwh(
     household_profile: str,
     has_heatpump: bool,
     has_ev: bool,
+    daytime_fraction: Optional[float] = None,
     ev_charge_window: str = "evening_night",
     dt_hours: float = 1.0,
     year: int = 2025
 ) -> Tuple[List[datetime], List[float]]:
     """
-    
     Genereert een synthetisch jaarprofiel (kWh per timestep).
     - household_profile bepaalt 24u verdeling
+    - daytime_fraction (optioneel) forceert dag/nacht-split in uurweights
     - maandfactoren geven seizoensvorm
     - warmtepomp/EV zijn modifiers op vorm (niet op 'eerlijke' data)
     """
     profile = HOUSEHOLD_PROFILES.get(household_profile, HOUSEHOLD_PROFILES["gezin_kinderen"])
     profile = _normalize(profile)
+
+    if daytime_fraction is not None:
+        target = float(daytime_fraction)
+        if target < 0.05 or target > 0.95:
+            logger.warning(
+                "daytime_fraction buiten bereik [0.05, 0.95]; clipping toegepast: %s",
+                target,
+            )
+            target = min(0.95, max(0.05, target))
+
+        dag_hours = list(range(7, 23))  # 07:00 t/m 22:00
+        nacht_hours = [23] + list(range(0, 7))
+
+        huidige_dag_fractie = sum(profile[h] for h in dag_hours) / max(sum(profile), 1e-12)
+        huidige_nacht_fractie = 1.0 - huidige_dag_fractie
+
+        dag_scale = (
+            target / huidige_dag_fractie
+            if huidige_dag_fractie > 0
+            else 1.0
+        )
+        nacht_target = 1.0 - target
+        nacht_scale = (
+            nacht_target / huidige_nacht_fractie
+            if huidige_nacht_fractie > 0
+            else 1.0
+        )
+
+        adjusted = profile[:]
+        for h in dag_hours:
+            adjusted[h] *= dag_scale
+        for h in nacht_hours:
+            adjusted[h] *= nacht_scale
+        profile = _normalize(adjusted)
 
     ts = generate_year_timestamps(year=year, dt_hours=dt_hours)
     values = [0.0] * len(ts)

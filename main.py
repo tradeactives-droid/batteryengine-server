@@ -269,6 +269,10 @@ class ComputeV3ProfileRequest(BaseModel):
     # NIEUWE INPUT (zonder CSV)
     annual_load_kwh: float
     annual_pv_kwh: float
+    daytime_fraction: Optional[float] = None
+    # Aandeel jaarverbruik overdag (07:00–23:00), bijv. 0.65
+    # Komt van dag/nacht-split op de jaarafrekening of netbeheerder-portaal
+    # None = niet opgegeven, profiel bepaalt de verdeling
 
     household_profile: str  # bijv: "alleenstaand_werkend" | "gezin_kinderen" | "thuiswerker"
     has_heatpump: bool = False
@@ -412,6 +416,7 @@ def compute_v3_profile(
             household_profile=req.household_profile,
             has_heatpump=req.has_heatpump,
             has_ev=req.has_ev,
+            daytime_fraction=req.daytime_fraction,
             ev_charge_window=req.ev_charge_window,
             dt_hours=dt_hours,
             year=2025,
@@ -500,6 +505,10 @@ def compute_v3_profile(
 
         result = BatteryEnginePro3.compute(engine_input)
         _validate_compute_result_format(result)
+        calc_method = dict((result.get("calculation_method") or {}))
+        calc_method["mode"] = "profile_based"
+        calc_method["daytime_fraction_used"] = req.daytime_fraction
+        result["calculation_method"] = calc_method
         return _attach_device_tracking(request, result)
 
     except HTTPException:
