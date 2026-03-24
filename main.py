@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import json
+import logging
 import os
 from uuid import UUID
 
@@ -29,6 +30,8 @@ from battery_engine_pro3.profile_generator import (
     generate_pv_profile_kwh,
     generate_dynamic_prices_eur_per_kwh,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -277,6 +280,11 @@ class ComputeV3ProfileRequest(BaseModel):
     # 12 maandwaarden (jan t/m dec) in kWh
     # Beschikbaar via netbeheerder-portaal
     # None = synthetisch seizoensprofiel wordt gebruikt
+    home_during_day: Optional[str] = None
+    # "never"   = niemand overdag thuis
+    # "partial" = wisselend / deels thuiswerk
+    # "always"  = altijd iemand thuis overdag
+    # None      = niet opgegeven, profiel bepaalt verdeling
 
     household_profile: str  # bijv: "alleenstaand_werkend" | "gezin_kinderen" | "thuiswerker"
     has_heatpump: bool = False
@@ -411,6 +419,18 @@ def compute_v3_profile(
     _device_track: Annotated[None, Depends(track_user_device)],
 ):
     try:
+        home_during_day = req.home_during_day
+        if home_during_day is not None:
+            normalized = str(home_during_day).strip().lower()
+            if normalized not in {"never", "partial", "always"}:
+                logger.warning(
+                    "Ongeldige home_during_day '%s'; fallback naar None.",
+                    home_during_day,
+                )
+                home_during_day = None
+            else:
+                home_during_day = normalized
+
         # -----------------------------
         # 1) Maak synthetische profielen
         # -----------------------------
@@ -421,6 +441,7 @@ def compute_v3_profile(
             has_heatpump=req.has_heatpump,
             has_ev=req.has_ev,
             daytime_fraction=req.daytime_fraction,
+            home_during_day=home_during_day,
             monthly_kwh=req.monthly_load_kwh,
             ev_charge_window=req.ev_charge_window,
             dt_hours=dt_hours,
@@ -513,6 +534,7 @@ def compute_v3_profile(
         calc_method = dict((result.get("calculation_method") or {}))
         calc_method["mode"] = "profile_based"
         calc_method["daytime_fraction_used"] = req.daytime_fraction
+        calc_method["home_during_day_used"] = home_during_day
         calc_method["monthly_load_provided"] = req.monthly_load_kwh is not None
         result["calculation_method"] = calc_method
         return _attach_device_tracking(request, result)

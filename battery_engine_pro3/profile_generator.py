@@ -79,6 +79,7 @@ def generate_load_profile_kwh(
     has_heatpump: bool,
     has_ev: bool,
     daytime_fraction: Optional[float] = None,
+    home_during_day: Optional[str] = None,
     monthly_kwh: Optional[List[float]] = None,
     ev_charge_window: str = "evening_night",
     dt_hours: float = 1.0,
@@ -88,6 +89,8 @@ def generate_load_profile_kwh(
     Genereert een synthetisch jaarprofiel (kWh per timestep).
     - household_profile bepaalt 24u verdeling
     - daytime_fraction (optioneel) forceert dag/nacht-split in uurweights
+    - home_during_day (optioneel): 'never', 'partial' of 'always'.
+      Bepaalt de dag/nacht-verdeling als daytime_fraction niet bekend is.
     - monthly_kwh (optioneel): 12 maandwaarden in kWh vervangen
       de synthetische seizoensverdeling. Meest nauwkeurig als beschikbaar.
     - maandfactoren geven seizoensvorm
@@ -95,6 +98,28 @@ def generate_load_profile_kwh(
     """
     profile = HOUSEHOLD_PROFILES.get(household_profile, HOUSEHOLD_PROFILES["gezin_kinderen"])
     profile = _normalize(profile)
+
+    if daytime_fraction is None and home_during_day is not None:
+        mode = str(home_during_day).strip().lower()
+        if mode in {"never", "partial", "always"}:
+            if mode == "never":
+                dag_boost = 0.75
+                nacht_boost = 1.35
+            elif mode == "always":
+                dag_boost = 1.30
+                nacht_boost = 0.80
+            else:
+                dag_boost = 1.0
+                nacht_boost = 1.0
+
+            dag_hours = list(range(7, 23))  # 07:00 t/m 22:00
+            nacht_hours = [23] + list(range(0, 7))
+            adjusted = profile[:]
+            for h in dag_hours:
+                adjusted[h] *= dag_boost
+            for h in nacht_hours:
+                adjusted[h] *= nacht_boost
+            profile = _normalize(adjusted)
 
     ts = generate_year_timestamps(year=year, dt_hours=dt_hours)
     values = [0.0] * len(ts)
