@@ -25,10 +25,10 @@ from battery_engine_pro3.auth.session_guard import (
 from battery_engine_pro3.device_tracking_deps import track_user_device
 from battery_engine_pro3.engine import BatteryEnginePro3, ComputeV3Input
 
+from battery_engine_pro3.dynamic_prices import build_dynamic_prices_hybrid
 from battery_engine_pro3.profile_generator import (
     generate_load_profile_kwh,
     generate_pv_profile_kwh,
-    generate_dynamic_prices_eur_per_kwh,
 )
 
 logger = logging.getLogger(__name__)
@@ -343,6 +343,12 @@ class ComputeV3ProfileRequest(BaseModel):
 
     capacity_tariff_kw: float = 0.0
 
+    annual_feedin_kwh: Optional[float] = None
+    # Werkelijke jaarlijkse teruglevering in kWh
+    # Staat op de jaarafrekening van de energieleverancier
+    # Wordt gebruikt als validatie/calibratie van het profiel
+    # None = niet opgegeven, geen calibratie
+
 
 @app.post("/compute_v3")
 def compute_v3(
@@ -492,6 +498,41 @@ def compute_v3_profile(
         load_vals = load_vals[:n]
         pv_vals = pv_vals[:n]
 
+        simulated_feedin = 0.0
+        deviation_pct = 0.0
+        profile_warning_set = False
+        profile_warning_payload = None
+
+        if req.annual_feedin_kwh is not None and req.annual_feedin_kwh > 0:
+            simulated_feedin = sum(
+                max(0.0, pv_vals[i] - load_vals[i])
+                for i in range(n)
+            )
+            deviation = abs(simulated_feedin - req.annual_feedin_kwh)
+            deviation_pct = (deviation / req.annual_feedin_kwh) * 100.0
+            profile_warning_set = True
+            if deviation_pct > 25.0:
+                profile_warning_payload = {
+                    "type": "feedin_mismatch",
+                    "simulated_feedin_kwh": round(simulated_feedin, 0),
+                    "provided_feedin_kwh": req.annual_feedin_kwh,
+                    "deviation_pct": round(deviation_pct, 1),
+                    "message": (
+                        f"De berekende teruglevering ({simulated_feedin:.0f} kWh) "
+                        f"wijkt {deviation_pct:.0f}% af van de opgegeven "
+                        f"teruglevering ({req.annual_feedin_kwh:.0f} kWh). "
+                        f"Controleer het verbruiksprofiel en de jaaropwek."
+                    ),
+                }
+                logger.warning(
+                    "feedin_mismatch: simulated_feedin_kwh=%s provided=%s deviation_pct=%s",
+                    round(simulated_feedin, 0),
+                    req.annual_feedin_kwh,
+                    round(deviation_pct, 1),
+                )
+            else:
+                profile_warning_payload = None
+
         # -----------------------------
         # 2) Niet-bekend gedrag
         # -----------------------------
@@ -505,21 +546,14 @@ def compute_v3_profile(
         )
 
         # -----------------------------
-        # 3) Dynamische prijzen
+        # 3) Dynamische prijzen (NL 2024 day-ahead geschaald naar p_dyn_imp)
         # -----------------------------
-        DYN_AVG_PRICE = req.p_dyn_imp
-        DYN_SPREAD = 0.12
-        DYN_CHEAP_HOURS = 8
-
-        prices_dyn = generate_dynamic_prices_eur_per_kwh(
-            avg_price=DYN_AVG_PRICE,
-            spread=DYN_SPREAD,
-            cheap_hours_per_day=DYN_CHEAP_HOURS,
+        prices_dyn, dynamic_price_source = build_dynamic_prices_hybrid(
+            n_steps=n,
             dt_hours=dt_hours,
-            year=2025,
+            avg_import_price=req.p_dyn_imp,
+            historic_prices=None,
         )
-
-        prices_dyn = prices_dyn[:n]
 
         # -----------------------------
         # 4) Engine input
@@ -566,6 +600,9 @@ def compute_v3_profile(
 
         result = BatteryEnginePro3.compute(engine_input)
         _validate_compute_result_format(result)
+        if profile_warning_set:
+            result["profile_warning"] = profile_warning_payload
+
         calc_method = dict((result.get("calculation_method") or {}))
         calc_method["mode"] = "profile_based"
         calc_method["daytime_fraction_used"] = req.daytime_fraction
@@ -573,6 +610,16 @@ def compute_v3_profile(
         calc_method["monthly_load_provided"] = req.monthly_load_kwh is not None
         calc_method["heatpump_type_used"] = heatpump_type
         calc_method["heatpump_schedule_used"] = heatpump_schedule
+        calc_method["dynamic_price_source"] = dynamic_price_source
+        calc_method["feedin_validation"] = {
+            "provided_kwh": req.annual_feedin_kwh,
+            "simulated_kwh": round(simulated_feedin, 0)
+            if req.annual_feedin_kwh
+            else None,
+            "deviation_pct": round(deviation_pct, 1)
+            if req.annual_feedin_kwh
+            else None,
+        }
         result["calculation_method"] = calc_method
         return _attach_device_tracking(request, result)
 
