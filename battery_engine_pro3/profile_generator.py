@@ -93,40 +93,6 @@ def generate_load_profile_kwh(
     profile = HOUSEHOLD_PROFILES.get(household_profile, HOUSEHOLD_PROFILES["gezin_kinderen"])
     profile = _normalize(profile)
 
-    if daytime_fraction is not None:
-        target = float(daytime_fraction)
-        if target < 0.05 or target > 0.95:
-            logger.warning(
-                "daytime_fraction buiten bereik [0.05, 0.95]; clipping toegepast: %s",
-                target,
-            )
-            target = min(0.95, max(0.05, target))
-
-        dag_hours = list(range(7, 23))  # 07:00 t/m 22:00
-        nacht_hours = [23] + list(range(0, 7))
-
-        huidige_dag_fractie = sum(profile[h] for h in dag_hours) / max(sum(profile), 1e-12)
-        huidige_nacht_fractie = 1.0 - huidige_dag_fractie
-
-        dag_scale = (
-            target / huidige_dag_fractie
-            if huidige_dag_fractie > 0
-            else 1.0
-        )
-        nacht_target = 1.0 - target
-        nacht_scale = (
-            nacht_target / huidige_nacht_fractie
-            if huidige_nacht_fractie > 0
-            else 1.0
-        )
-
-        adjusted = profile[:]
-        for h in dag_hours:
-            adjusted[h] *= dag_scale
-        for h in nacht_hours:
-            adjusted[h] *= nacht_scale
-        profile = _normalize(adjusted)
-
     ts = generate_year_timestamps(year=year, dt_hours=dt_hours)
     values = [0.0] * len(ts)
 
@@ -189,6 +155,37 @@ def generate_load_profile_kwh(
 
         # uurshape incl modifiers
         hour_shape = [profile[h] * hp_hour_boost[h] * ev_hour_boost[h] for h in range(24)]
+        if daytime_fraction is not None:
+            target = float(daytime_fraction)
+            if target < 0.05 or target > 0.95:
+                logger.warning(
+                    "daytime_fraction buiten bereik [0.05, 0.95]; clipping toegepast: %s",
+                    target,
+                )
+                target = min(0.95, max(0.05, target))
+
+            dag_hours = list(range(7, 23))  # 07:00 t/m 22:00
+            nacht_hours = [23] + list(range(0, 7))
+
+            huidige_dag_fractie = sum(hour_shape[h] for h in dag_hours) / max(sum(hour_shape), 1e-12)
+            huidige_nacht_fractie = 1.0 - huidige_dag_fractie
+
+            dag_scale = (
+                target / huidige_dag_fractie
+                if huidige_dag_fractie > 0
+                else 1.0
+            )
+            nacht_target = 1.0 - target
+            nacht_scale = (
+                nacht_target / huidige_nacht_fractie
+                if huidige_nacht_fractie > 0
+                else 1.0
+            )
+
+            for h in dag_hours:
+                hour_shape[h] *= dag_scale
+            for h in nacht_hours:
+                hour_shape[h] *= nacht_scale
         hour_shape = _normalize(hour_shape)
 
         for _ in range(days):
