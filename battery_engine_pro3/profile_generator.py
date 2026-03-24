@@ -79,6 +79,7 @@ def generate_load_profile_kwh(
     has_heatpump: bool,
     has_ev: bool,
     daytime_fraction: Optional[float] = None,
+    monthly_kwh: Optional[List[float]] = None,
     ev_charge_window: str = "evening_night",
     dt_hours: float = 1.0,
     year: int = 2025
@@ -87,6 +88,8 @@ def generate_load_profile_kwh(
     Genereert een synthetisch jaarprofiel (kWh per timestep).
     - household_profile bepaalt 24u verdeling
     - daytime_fraction (optioneel) forceert dag/nacht-split in uurweights
+    - monthly_kwh (optioneel): 12 maandwaarden in kWh vervangen
+      de synthetische seizoensverdeling. Meest nauwkeurig als beschikbaar.
     - maandfactoren geven seizoensvorm
     - warmtepomp/EV zijn modifiers op vorm (niet op 'eerlijke' data)
     """
@@ -135,14 +138,39 @@ def generate_load_profile_kwh(
             for h in range(0, 2):
                 ev_hour_boost[h] = 1.10
 
+    use_monthly_kwh = False
+    if monthly_kwh is not None:
+        if len(monthly_kwh) != 12:
+            logger.warning(
+                "monthly_kwh verwacht exact 12 waarden; fallback naar MONTH_LOAD_FACTORS."
+            )
+        elif any((v is None or float(v) < 0) for v in monthly_kwh) or sum(float(v) for v in monthly_kwh) <= 0:
+            logger.warning(
+                "monthly_kwh bevat ongeldige waarden (<0 of som<=0); fallback naar MONTH_LOAD_FACTORS."
+            )
+        else:
+            provided_sum = sum(float(v) for v in monthly_kwh)
+            if annual_load_kwh > 0:
+                rel_dev = abs(provided_sum - annual_load_kwh) / annual_load_kwh
+                if rel_dev > 0.20:
+                    logger.warning(
+                        "Som monthly_kwh wijkt >20%% af van annual_load_kwh (monthly=%s, annual=%s).",
+                        provided_sum,
+                        annual_load_kwh,
+                    )
+            use_monthly_kwh = True
+
     # per maand eerst normaliseren zodat elk maandblok netjes verdeeld is
-    month_f = MONTH_LOAD_FACTORS[:]
-    if has_heatpump:
-        # warmtepomp maakt winter sterker
-        month_f = month_f[:]
-        for m in [0, 1, 10, 11]:  # jan, feb, nov, dec
-            month_f[m] *= 1.10
-    month_f = _normalize(month_f)
+    # alleen van toepassing als monthly_kwh niet is opgegeven/geldig
+    month_f = None
+    if not use_monthly_kwh:
+        month_f = MONTH_LOAD_FACTORS[:]
+        if has_heatpump:
+            # warmtepomp maakt winter sterker
+            month_f = month_f[:]
+            for m in [0, 1, 10, 11]:  # jan, feb, nov, dec
+                month_f[m] *= 1.10
+        month_f = _normalize(month_f)
 
     # dagen per maand (geen schrikkeljaar)
     days_per_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
@@ -150,7 +178,10 @@ def generate_load_profile_kwh(
     # totale kWh verdelen over maanden → dagen → uren
     idx = 0
     for month_idx, days in enumerate(days_per_month):
-        month_kwh = annual_load_kwh * month_f[month_idx]
+        if use_monthly_kwh:
+            month_kwh = float(monthly_kwh[month_idx])
+        else:
+            month_kwh = annual_load_kwh * month_f[month_idx]
         day_kwh = month_kwh / days
 
         # uurshape incl modifiers
