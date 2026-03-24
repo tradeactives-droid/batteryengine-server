@@ -83,7 +83,9 @@ def generate_load_profile_kwh(
     monthly_kwh: Optional[List[float]] = None,
     ev_charge_window: str = "evening_night",
     dt_hours: float = 1.0,
-    year: int = 2025
+    year: int = 2025,
+    heatpump_type: Optional[str] = None,
+    heatpump_schedule: Optional[str] = None,
 ) -> Tuple[List[datetime], List[float]]:
     """
     Genereert een synthetisch jaarprofiel (kWh per timestep).
@@ -95,6 +97,9 @@ def generate_load_profile_kwh(
       de synthetische seizoensverdeling. Meest nauwkeurig als beschikbaar.
     - maandfactoren geven seizoensvorm
     - warmtepomp/EV zijn modifiers op vorm (niet op 'eerlijke' data)
+    - heatpump_type: type warmtepomp ('air_water' of 'air_water_buffer')
+    - heatpump_schedule: wanneer de warmtepomp voornamelijk draait
+      ('night', 'day', 'day_night')
     """
     profile = HOUSEHOLD_PROFILES.get(household_profile, HOUSEHOLD_PROFILES["gezin_kinderen"])
     profile = _normalize(profile)
@@ -125,13 +130,52 @@ def generate_load_profile_kwh(
     values = [0.0] * len(ts)
 
     # Modifier templates (simpel, verdedigbaar)
-    # Warmtepomp: meer ochtend/avond + winter zwaarder
+    # Warmtepomp: uurpatroon + winter zwaarder (maandfactor, zie hieronder)
     hp_hour_boost = [1.0] * 24
     if has_heatpump:
-        for h in range(6, 9):
-            hp_hour_boost[h] = 1.10
-        for h in range(17, 22):
-            hp_hour_boost[h] = 1.12
+        hp_type = (heatpump_type or "air_water").strip().lower()
+        if hp_type not in ("air_water", "air_water_buffer"):
+            hp_type = "air_water"
+        hp_schedule = (heatpump_schedule or "day_night").strip().lower()
+        if hp_schedule not in ("night", "day", "day_night"):
+            hp_schedule = "day_night"
+
+        if hp_type == "air_water_buffer":
+            # Warmtepomp met buffervat: vlakker profiel;
+            # laadt buffer voornamelijk 's nachts en vroeg ochtend
+            if hp_schedule == "night":
+                for h in range(0, 6):
+                    hp_hour_boost[h] = 1.25
+                for h in range(6, 9):
+                    hp_hour_boost[h] = 1.10
+            elif hp_schedule == "day":
+                for h in range(8, 17):
+                    hp_hour_boost[h] = 1.18
+            else:  # day_night (default)
+                for h in range(0, 6):
+                    hp_hour_boost[h] = 1.15
+                for h in range(6, 9):
+                    hp_hour_boost[h] = 1.10
+                for h in range(14, 17):
+                    hp_hour_boost[h] = 1.08
+
+        else:  # air_water (geen buffervat, meest voorkomend)
+            if hp_schedule == "night":
+                for h in range(0, 6):
+                    hp_hour_boost[h] = 1.20
+                for h in range(6, 9):
+                    hp_hour_boost[h] = 1.15
+            elif hp_schedule == "day":
+                for h in range(8, 18):
+                    hp_hour_boost[h] = 1.20
+            else:  # day_night (default)
+                for h in range(6, 9):
+                    hp_hour_boost[h] = 1.18
+                for h in range(17, 22):
+                    hp_hour_boost[h] = 1.20
+
+        # Seizoensmodifier: warmtepomp maakt winter zwaarder
+        # (alleen als monthly_kwh niet opgegeven is — zie month_f-blok hieronder)
 
     # EV: extra verbruik op basis van laadmoment
     ev_hour_boost = [1.0] * 24

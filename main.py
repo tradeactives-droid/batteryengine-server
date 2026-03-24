@@ -288,6 +288,15 @@ class ComputeV3ProfileRequest(BaseModel):
 
     household_profile: str  # bijv: "alleenstaand_werkend" | "gezin_kinderen" | "gepensioneerd"
     has_heatpump: bool = False
+    heatpump_type: Optional[str] = None
+    # "air_water" = lucht/water zonder buffervat;
+    # "air_water_buffer" = lucht/water met buffervat;
+    # None = onbekend, air_water wordt aangenomen
+    heatpump_schedule: Optional[str] = None
+    # "night" = voornamelijk 's nachts;
+    # "day" = voornamelijk overdag;
+    # "day_night" = ochtend + avond (default);
+    # None = onbekend, day_night wordt aangenomen
     has_ev: bool = False
     ev_charge_window: str = "evening_night"
 
@@ -431,6 +440,30 @@ def compute_v3_profile(
             else:
                 home_during_day = normalized
 
+        heatpump_type = req.heatpump_type
+        if heatpump_type is not None:
+            hp_t = str(heatpump_type).strip().lower()
+            if hp_t not in {"air_water", "air_water_buffer"}:
+                logger.warning(
+                    "Ongeldige heatpump_type '%s'; fallback naar None (generator: air_water).",
+                    heatpump_type,
+                )
+                heatpump_type = None
+            else:
+                heatpump_type = hp_t
+
+        heatpump_schedule = req.heatpump_schedule
+        if heatpump_schedule is not None:
+            hp_s = str(heatpump_schedule).strip().lower()
+            if hp_s not in {"night", "day", "day_night"}:
+                logger.warning(
+                    "Ongeldige heatpump_schedule '%s'; fallback naar None (generator: day_night).",
+                    heatpump_schedule,
+                )
+                heatpump_schedule = None
+            else:
+                heatpump_schedule = hp_s
+
         # -----------------------------
         # 1) Maak synthetische profielen
         # -----------------------------
@@ -446,6 +479,8 @@ def compute_v3_profile(
             ev_charge_window=req.ev_charge_window,
             dt_hours=dt_hours,
             year=2025,
+            heatpump_type=heatpump_type,
+            heatpump_schedule=heatpump_schedule,
         )
         _, pv_vals = generate_pv_profile_kwh(
             annual_pv_kwh=req.annual_pv_kwh,
@@ -536,6 +571,8 @@ def compute_v3_profile(
         calc_method["daytime_fraction_used"] = req.daytime_fraction
         calc_method["home_during_day_used"] = home_during_day
         calc_method["monthly_load_provided"] = req.monthly_load_kwh is not None
+        calc_method["heatpump_type_used"] = heatpump_type
+        calc_method["heatpump_schedule_used"] = heatpump_schedule
         result["calculation_method"] = calc_method
         return _attach_device_tracking(request, result)
 
