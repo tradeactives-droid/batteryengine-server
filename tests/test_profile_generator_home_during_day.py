@@ -40,7 +40,7 @@ def test_home_during_day_never_has_lower_daytime_share_than_always():
 def test_home_during_day_always_has_higher_daytime_share_than_never():
     _, always_vals = generate_load_profile_kwh(
         annual_load_kwh=4000,
-        household_profile="thuiswerker",
+        household_profile="gepensioneerd",
         has_heatpump=True,
         has_ev=False,
         home_during_day="always",
@@ -50,7 +50,7 @@ def test_home_during_day_always_has_higher_daytime_share_than_never():
     )
     _, never_vals = generate_load_profile_kwh(
         annual_load_kwh=4000,
-        household_profile="thuiswerker",
+        household_profile="gepensioneerd",
         has_heatpump=True,
         has_ev=False,
         home_during_day="never",

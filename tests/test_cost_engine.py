@@ -21,7 +21,8 @@ def make_tariff(
     feedin_price_after_free=0.0,
     inverter_power_kw=5.0,
     inverter_cost_per_kw=10.0,
-    capacity_tariff_kw=0.0
+    capacity_tariff_kw=0.0,
+    saldering=False,
 ):
     return TariffConfig(
         country=country,
@@ -47,7 +48,8 @@ def make_tariff(
         inverter_power_kw=inverter_power_kw,
         inverter_cost_per_kw=inverter_cost_per_kw,
 
-        capacity_tariff_kw=capacity_tariff_kw
+        capacity_tariff_kw=capacity_tariff_kw,
+        saldering=saldering,
     )
 
 
@@ -126,10 +128,11 @@ def test_feedin_costs():
 
     # vaste feedin: 2*12 = 24
     # variabel: (50 - 10) * 0.05 = 2
+    # energie enkel: 0 import − 50 * p_enkel_exp (terugleververgoeding)
     expected_extra = 24 + 2
-
+    energy = -50.0 * cfg.p_enkel_exp
     assert res.total_cost_eur == pytest.approx(
-        cfg.vastrecht_year + cfg.inverter_power_kw * cfg.inverter_cost_per_kw + expected_extra
+        cfg.vastrecht_year + cfg.inverter_power_kw * cfg.inverter_cost_per_kw + expected_extra + energy
     )
 
 

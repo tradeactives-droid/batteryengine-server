@@ -48,7 +48,7 @@ def test_monthly_kwh_invalid_length_falls_back_without_exception():
 def test_monthly_kwh_none_keeps_normal_behavior():
     _, vals = generate_load_profile_kwh(
         annual_load_kwh=3200,
-        household_profile="thuiswerker",
+        household_profile="gepensioneerd",
         has_heatpump=False,
         has_ev=True,
         monthly_kwh=None,

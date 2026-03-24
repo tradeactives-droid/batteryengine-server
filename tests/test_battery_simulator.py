@@ -36,7 +36,10 @@ def test_simulate_with_battery_charge_discharge():
     sim = BatterySimulator(load, pv, batt)
     result = sim.simulate_with_battery()
 
-    assert result.soc_profile[0] == pytest.approx(4.5, abs=0.1)
+    # Start-SOC = E_min (initial_soc_frac=0); eerste uur: 5 kWh PV-lading * eta_charge (√η)
+    eta_charge = batt.eta_charge
+    expected_soc0 = batt.E_min + 5.0 * eta_charge
+    assert result.soc_profile[0] == pytest.approx(expected_soc0, abs=0.02)
     assert result.import_profile[1] == pytest.approx(0.5, abs=0.1)
 
 

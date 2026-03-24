@@ -286,7 +286,7 @@ class ComputeV3ProfileRequest(BaseModel):
     # "always"  = altijd iemand thuis overdag
     # None      = niet opgegeven, profiel bepaalt verdeling
 
-    household_profile: str  # bijv: "alleenstaand_werkend" | "gezin_kinderen" | "thuiswerker"
+    household_profile: str  # bijv: "alleenstaand_werkend" | "gezin_kinderen" | "gepensioneerd"
     has_heatpump: bool = False
     has_ev: bool = False
     ev_charge_window: str = "evening_night"

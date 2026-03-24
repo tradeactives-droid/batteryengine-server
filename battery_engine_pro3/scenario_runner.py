@@ -362,8 +362,23 @@ class ScenarioRunner:
                 cost_engine.compute_cost(i, e, "dynamisch", dt_hours=self.load.dt_hours).total_cost_eur
                 for i, e in zip(imp_m_dyn, exp_m_dyn)
             ]
-        
-            peak_info = PeakInfo(monthly_before=[], monthly_after=[])
+
+            # Maandpieken (kW-equivalent bij uurdata): alleen BE, voor capaciteitstarief-UI
+            if self.tariff_cfg.country == "BE":
+                monthly_before = PeakOptimizer.compute_monthly_peaks(self.load, self.pv)
+                monthly_targets = PeakOptimizer.compute_monthly_targets(monthly_before)
+                monthly_after, _, _, _ = PeakOptimizer.simulate_with_peak_shaving(
+                    self.load,
+                    self.pv,
+                    battery_model,
+                    monthly_targets,
+                )
+                peak_info = PeakInfo(
+                    monthly_before=list(monthly_before),
+                    monthly_after=list(monthly_after),
+                )
+            else:
+                peak_info = PeakInfo(monthly_before=[], monthly_after=[])
 
         # =================================================
         # STAP 2.2 — CUMULATIEVE MAAND-ROI + PAYBACK
