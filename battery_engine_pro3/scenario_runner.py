@@ -200,7 +200,8 @@ class ScenarioRunner:
             self.load,
             self.pv,
             battery=None,
-            prices_dyn=prices_dyn_base
+            prices_dyn=prices_dyn_base,
+            timestamps=self.load.timestamps,
         )
         A1_sim = sim_no.simulate_no_battery()
 
@@ -289,8 +290,9 @@ class ScenarioRunner:
                 self.pv,
                 battery_model,
                 prices_dyn=None,  # <-- cruciaal: geen prijzen
+                timestamps=self.load.timestamps,
             )
-            sim_res_pv_only = sim_batt_pv_only.simulate_with_battery()
+            sim_res_pv_only = sim_batt_pv_only.simulate_with_battery(simulation_year=0)
         
             # -------------------------------------------------
             # 2) Dynamisch HYBRIDE: fallback profiel + evt historisch
@@ -312,8 +314,9 @@ class ScenarioRunner:
                 battery_model,
                 prices_dyn=prices_dyn,
                 allow_grid_charge=getattr(self.tariff_cfg, "allow_grid_charge", False),
+                timestamps=self.load.timestamps,
             )
-            sim_res_dyn = sim_batt_dyn.simulate_with_battery()
+            sim_res_dyn = sim_batt_dyn.simulate_with_battery(simulation_year=0)
         
             # -------------------------------------------------
             # C1 kosten per tarief: juiste flows per tarief
