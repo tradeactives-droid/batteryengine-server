@@ -168,3 +168,63 @@ def test_fallback_missing_feedin_uses_simulated_a1_b1():
     assert "A1" in out and "B1" in out
     assert out["A1"]["total_cost_eur"] is not None
     assert out["B1"]["enkel"]["total_cost_eur"] is not None
+
+
+def _battery_c1_verification():
+    return BatteryConfig(
+        E=10.0,
+        P=5.0,
+        DoD=0.9,
+        eta_rt=1.0,
+        investment_eur=7500.0,
+        degradation_per_year=0.02,
+        lifetime_years=15,
+    )
+
+
+def test_direct_c1_enkel_shift_and_saving():
+    load_kwh, pv_kwh, feedin_kwh = 3800, 5200, 2400
+    load = make_ts([load_kwh / 8760.0] * 8760)
+    pv = make_ts([pv_kwh / 8760.0] * 8760)
+    tariff = _tariff_test1_2()
+    tariff.dynamic_prices = [0.29] * 8760
+    out = ScenarioRunner(
+        load,
+        pv,
+        tariff,
+        _battery_c1_verification(),
+        annual_load_kwh=float(load_kwh),
+        annual_pv_kwh=float(pv_kwh),
+        annual_feedin_kwh=float(feedin_kwh),
+    ).run()
+
+    b1_enkel = out["B1"]["enkel"]["total_cost_eur"]
+    c1_enkel = out["C1"]["enkel"]["total_cost_eur"]
+    saving = b1_enkel - c1_enkel
+
+    assert b1_enkel == pytest.approx(302.00)
+    assert saving == pytest.approx(187.00)
+    assert c1_enkel == pytest.approx(115.00)
+
+    assert out["C1"]["enkel"]["import_kwh"] == pytest.approx(150.0)
+    assert out["C1"]["enkel"]["export_kwh"] == pytest.approx(1550.0)
+
+
+def test_direct_c1_never_exceeds_b1_enkel():
+    load_kwh, pv_kwh, feedin_kwh = 3800, 5200, 2400
+    load = make_ts([load_kwh / 8760.0] * 8760)
+    pv = make_ts([pv_kwh / 8760.0] * 8760)
+    tariff = _tariff_test1_2()
+    tariff.dynamic_prices = [0.29] * 8760
+    out = ScenarioRunner(
+        load,
+        pv,
+        tariff,
+        _battery_c1_verification(),
+        annual_load_kwh=float(load_kwh),
+        annual_pv_kwh=float(pv_kwh),
+        annual_feedin_kwh=float(feedin_kwh),
+    ).run()
+
+    for code in ["enkel", "dag_nacht", "dynamisch"]:
+        assert out["C1"][code]["total_cost_eur"] <= out["B1"][code]["total_cost_eur"]

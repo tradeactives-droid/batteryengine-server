@@ -222,6 +222,8 @@ class ScenarioRunner:
             and self.annual_feedin_kwh >= 0
         )
 
+        direct_ctx: Optional[Dict[str, float]] = None
+
         if use_direct:
             cfg = self.tariff_cfg
             load = float(self.annual_load_kwh)
@@ -351,6 +353,12 @@ class ScenarioRunner:
                 ),
             }
 
+            direct_ctx = {
+                "netto_import": netto_import,
+                "feedin": feedin,
+                "p_dyn_imp": p_dyn_imp,
+            }
+
             self.tariff_cfg.saldering = False
 
         else:
@@ -416,6 +424,95 @@ class ScenarioRunner:
             C1 = B1
             C1_monthly = B1_monthly
             peak_info = PeakInfo(monthly_before=[], monthly_after=[])
+
+        elif use_direct and direct_ctx is not None:
+            cfg = self.tariff_cfg
+            netto_import = direct_ctx["netto_import"]
+            feedin = direct_ctx["feedin"]
+            p_dyn_imp = direct_ctx["p_dyn_imp"]
+
+            batt = self.batt_cfg
+            E = float(getattr(batt, "E", 0.0) or 0.0)
+            dod = float(getattr(batt, "DoD", 0.9) or 0.9)
+            eta_rt = float(getattr(batt, "eta_rt", 1.0) or 1.0)
+
+            bruikbare_cap = E * dod
+            if bruikbare_cap > 0 and feedin > 0:
+                cycli_per_jaar = min(365.0, feedin / bruikbare_cap)
+            else:
+                cycli_per_jaar = 0.0
+
+            max_batterij_kwh = bruikbare_cap * cycli_per_jaar
+
+            max_verschuiving = min(feedin, netto_import, max_batterij_kwh)
+            verschoven_kwh = max_verschuiving * eta_rt * 0.85
+
+            besp_enkel = verschoven_kwh * (cfg.p_enkel_imp - cfg.p_enkel_exp)
+            besp_dn = verschoven_kwh * (cfg.p_nacht - cfg.p_exp_dn)
+            besp_dyn = verschoven_kwh * (p_dyn_imp - cfg.p_export_dyn)
+
+            C1 = {
+                "enkel": ScenarioResult(
+                    import_kwh=round(netto_import - verschoven_kwh, 1),
+                    export_kwh=round(feedin - verschoven_kwh, 1),
+                    total_cost_eur=round(
+                        B1["enkel"].total_cost_eur - besp_enkel,
+                        2,
+                    ),
+                ),
+                "dag_nacht": ScenarioResult(
+                    import_kwh=round(netto_import - verschoven_kwh, 1),
+                    export_kwh=round(feedin - verschoven_kwh, 1),
+                    total_cost_eur=round(
+                        B1["dag_nacht"].total_cost_eur - besp_dn,
+                        2,
+                    ),
+                ),
+                "dynamisch": ScenarioResult(
+                    import_kwh=round(netto_import - verschoven_kwh, 1),
+                    export_kwh=round(feedin - verschoven_kwh, 1),
+                    total_cost_eur=round(
+                        B1["dynamisch"].total_cost_eur - besp_dyn,
+                        2,
+                    ),
+                ),
+            }
+
+            C1_monthly = {}
+            for tariff in ["enkel", "dag_nacht", "dynamisch"]:
+                b1_total = sum(B1_monthly[tariff])
+                c1_total = C1[tariff].total_cost_eur
+                if b1_total > 0:
+                    scale = c1_total / b1_total
+                    C1_monthly[tariff] = [
+                        round(m * scale, 4) for m in B1_monthly[tariff]
+                    ]
+                else:
+                    C1_monthly[tariff] = list(B1_monthly[tariff])
+
+            battery_model = BatteryModel(
+                E_cap=self.batt_cfg.E,
+                P_max=self.batt_cfg.P,
+                dod=self.batt_cfg.DoD,
+                eta=self.batt_cfg.eta_rt,
+                initial_soc_frac=0.5,
+            )
+
+            if self.tariff_cfg.country == "BE":
+                monthly_before = PeakOptimizer.compute_monthly_peaks(self.load, self.pv)
+                monthly_targets = PeakOptimizer.compute_monthly_targets(monthly_before)
+                monthly_after, _, _, _ = PeakOptimizer.simulate_with_peak_shaving(
+                    self.load,
+                    self.pv,
+                    battery_model,
+                    monthly_targets,
+                )
+                peak_info = PeakInfo(
+                    monthly_before=list(monthly_before),
+                    monthly_after=list(monthly_after),
+                )
+            else:
+                peak_info = PeakInfo(monthly_before=[], monthly_after=[])
 
         else:
             battery_model = BatteryModel(
@@ -490,7 +587,7 @@ class ScenarioRunner:
             # -------------------------------------------------
             # C1 monthly (zelfde logica per tarief)
             # -------------------------------------------------
-            C1_monthly: Dict[str, List[float]] = {}
+            C1_monthly = {}
         
             # enkel + dag/nacht -> pv-only profielen
             imp_m_pv = self.split_by_month(sim_res_pv_only.import_profile, self.load.dt_hours)
