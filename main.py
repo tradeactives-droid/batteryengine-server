@@ -631,6 +631,43 @@ def compute_v3_profile(
             else None,
         }
         result["calculation_method"] = calc_method
+
+        # Saldering impact context voor adviesrapport
+        # Gebruik de direct berekende waarden als beschikbaar,
+        # anders de gesimuleerde waarden
+        current_tariff = req.current_tariff or "enkel"
+
+        b1_cost = None
+        a1_cost = None
+
+        try:
+            b1_cost = result["B1"][current_tariff]["total_cost_eur"]
+            a1_cost = result["A1_per_tariff"][current_tariff][
+                "total_cost_eur"
+            ]
+        except (KeyError, TypeError):
+            pass
+
+        if b1_cost is not None and a1_cost is not None:
+            saldering_impact_eur = round(b1_cost - a1_cost, 2)
+
+            if saldering_impact_eur > 50:
+                saldering_narrative = "pain"
+            elif saldering_impact_eur < -50:
+                saldering_narrative = "neutral_or_positive"
+            else:
+                saldering_narrative = "minimal"
+
+            result["saldering_context"] = {
+                "saldering_impact_eur": saldering_impact_eur,
+                "narrative": saldering_narrative,
+                "b1_cost_eur": b1_cost,
+                "a1_cost_eur": a1_cost,
+                "current_tariff": current_tariff,
+            }
+        else:
+            result["saldering_context"] = None
+
         return _attach_device_tracking(request, result)
 
     except HTTPException:
@@ -757,32 +794,76 @@ def enforce_max_4_sentences_per_paragraph(text: str) -> str:
     return "\n".join(output).strip()
 
 SYSTEM_PROMPT = """
-JE MOET JE EXACT AAN ONDERSTAANDE STRUCTUUR HOUDEN.
-AFWIJKING IS NIET TOEGESTAAN.
+Je bent een professionele energieadviseur die een
+besluitondersteunend adviesrapport schrijft voor een
+huishouden dat overweegt een thuisbatterij aan te
+schaffen.
 
-FORMATREGELS (ABSOLUUT):
-- Gebruik GEEN Markdown
-- Gebruik GEEN tabellen, kolommen, kopjes of matrix-structuren
-- Schrijf GEEN woorden zoals "Tariefmatrix", "Scenario", "Enkel", "Dag/Nacht", "Dynamisch" als losse regels of koppen
-- In sectie 5 mag ALLEEN beschrijvende lopende tekst staan
-- Schrijf niets vóór sectie 1
-STOPREGEL:
-- Na "Bijlage D — Beperkingen & scope" mag er niets meer volgen.
-
-VERPLICHTE STRUCTUUR:
+Het rapport heeft altijd de volgende structuur:
 
 1. Managementsamenvatting
-2. Financiële duiding
-3. Technische beoordeling & batterijconfiguratie
-4. Tariefstrategie & marktcontext
-5. Vergelijking van tariefstructuren
-6. Conclusie & aanbevolen vervolgstappen
-7. Disclaimer
+2. Uw huidige energiesituatie
+3. Impact van het wegvallen van saldering
+4. Wat een batterij voor u doet
+5. Financiële analyse
+6. Aanbeveling
 
-Bijlage A — Databronnen & uitgangspunten
-Bijlage B — Rekenmethodiek & scenario-opzet
-Bijlage C — Kostencomponenten & tariefverwerking
-Bijlage D — Beperkingen & scope
+Bijlage A — Databronnen en invoer
+Bijlage B — Rekenmethodiek
+Bijlage C — Kostencomponenten
+Bijlage D — Beperkingen en aannames
+
+Schrijf altijd BEIDE verhalen:
+
+VERHAAL 1 — SALDERING:
+- Als saldering_context.narrative == "pain":
+  Benoem expliciet hoeveel de klant straks meer betaalt
+  door het wegvallen van saldering
+  (saldering_impact_eur per jaar).
+  Positioneer de batterij als compensatie.
+- Als saldering_context.narrative == "neutral_or_positive":
+  Benoem dat saldering voor deze klant al weinig
+  toegevoegde waarde heeft — hij exporteert meer dan
+  hij importeert, waardoor de salderingsverrekening
+  al relatief ongunstig is.
+- Als saldering_context.narrative == "minimal":
+  Benoem dat de salderingsafbouw beperkte impact heeft.
+
+VERHAAL 2 — ZELFCONSUMPTIE:
+Benoem altijd het verschil tussen de exportprijs
+(wat de klant krijgt per kWh teruggeleverd) en de
+importprijs (wat de klant betaalt per kWh ingenomen).
+Dit verschil is de kern van de batterijwaarde —
+elke kWh die de batterij opslaat in plaats van
+exporteert levert dit prijsverschil op.
+
+FINANCIËLE ANALYSE:
+- Vermeld de jaarlijkse besparing (B1 - C1)
+- Vermeld de terugverdientijd eerlijk, ook als die
+  langer is dan de levensduur
+- Als ROI negatief is: zeg dit eerlijk maar benoem
+  ook bij welke batterijprijs de ROI positief wordt
+- Vermeld welk tarief (enkel/dag-nacht/dynamisch)
+  het voordeligst is met batterij
+
+AANBEVELING:
+- Geef een concrete aanbeveling: zinvol / niet zinvol
+  / afhankelijk van prijs
+- Baseer dit op de ROI en terugverdientijd
+- Wees eerlijk — een negatieve ROI leidt tot een
+  eerlijk negatief advies
+
+TOON:
+- Professioneel maar begrijpelijk voor een consument
+- Geen jargon zonder uitleg
+- Geen overdreven positief verkoopverhaal
+- Eerlijk over onzekerheden en aannames
+
+OPMAAK:
+- Gebruik genummerde secties zoals hierboven
+- Maximaal 4 zinnen per alinea
+- Bijlagen zijn beknopt en feitelijk
+- Geen bullet points in de hoofdtekst
 """
 
 import re
@@ -884,6 +965,7 @@ def generate_advice(
 ):
     ctx = req.context
     ctx_dict = ctx.model_dump()
+    ctx_dict["saldering_context"] = ctx.saldering_context
 
     # ============================
     # BIJLAGE A — DATABRONNEN & UITGANGSPUNTEN
@@ -1069,13 +1151,13 @@ def generate_advice(
         "- Aanbevelingen die niet expliciet uit de feiten volgen\n\n"
 
         "VERPLICHT:\n"
-        "- Iedere sectie (1 t/m 7) moet bestaan uit lopende tekst in volledige alinea’s\n"
+        "- Iedere sectie (1 t/m 6) moet bestaan uit lopende tekst in volledige alinea’s\n"
         "- Na elke 3 tot maximaal 4 volledige zinnen MOET je een lege regel invoegen (witregel) zodat korte, leesbare alinea’s ontstaan\n"
         "- Na iedere sectietitel moet EXACT één lege regel volgen\n"
         "- Tussen de laatste alinea van een sectie en de volgende sectietitel MOETEN EXACT twee lege regels staan\n"
         "- Lange alinea’s moeten worden opgesplitst in leesblokken van circa 3 tot 4 zinnen, gescheiden door een lege regel\n"
-        "- Sectie 5 mag GEEN cijfers of tabellen bevatten en moet alleen duiden wat de tariefmatrix laat zien\n"
-        "- De tariefmatrix zelf wordt uitsluitend door de backend ingevoegd\n"
+        "- In de financiële analyse (sectie 5) gebruik je uitsluitend cijfers die in de JSON staan; verzin geen eigen cijfers\n"
+        "- Een eventuele tariefmatrix wordt uitsluitend door de backend ingevoegd; verwerk die niet als eigen tabel in de hoofdtekst\n"
         "- Iedere bijlage (A t/m D) moet inhoudelijk worden uitgewerkt in minimaal één alinea\n"
         "- Schrijf niets meer na Bijlage D\n\n"
 
