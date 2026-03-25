@@ -264,42 +264,52 @@ def generate_load_profile_kwh(
                 )
                 target = min(0.95, max(0.05, target))
 
-            # Zone-definitie:
-            # pv_uren: 07:00-17:00 — verbruik hier overlapt met PV
-            # avond_uren: 17:00-23:00 — verbruik maar geen PV
-            # nacht_uren: 23:00-07:00 — geen PV
+            # Bereken de PV-overlap fractie:
+            # daytime_fraction van netbeheerder = dag (07-23) / totaal
+            # Wij willen weten hoeveel verbruik tijdens PV-uren (07-17) valt
             #
-            # daytime_fraction (van netbeheerder) = dag (07-23) / totaal
-            # We verdelen dit over pv_uren en avond_uren proportioneel
-            # aan hun huidige aandeel in het profiel.
+            # Aanname: avondverbruik (17-23) is relatief stabiel.
+            # Als dag/totaal = target, dan is PV-uur verbruik = target minus
+            # het aandeel dat in de avond (17-23) valt.
+            #
+            # We schalen ALLEEN de PV-uren (07-17) zodat de verhouding
+            # verbruik-tijdens-PV correct is. Avond en nacht blijven
+            # proportioneel.
 
-            pv_uren = list(range(7, 17))  # 07:00-16:00 (10 uur)
-            avond_uren = list(range(17, 23))  # 17:00-22:00 (6 uur)
-            nacht_uren = [23] + list(range(0, 7))  # 23:00-06:00 (8 uur)
+            pv_uren = list(range(7, 17))  # 07:00-16:00
+            avond_uren = list(range(17, 23))  # 17:00-22:00
+            nacht_uren = [23] + list(range(0, 7))
 
-            totaal = sum(hour_shape)
-            if totaal <= 0:
-                totaal = 1.0
+            totaal = max(sum(hour_shape), 1e-9)
 
             huidig_pv_frac = sum(hour_shape[h] for h in pv_uren) / totaal
             huidig_avond_frac = sum(hour_shape[h] for h in avond_uren) / totaal
-            huidig_dag_frac = huidig_pv_frac + huidig_avond_frac
-            huidig_nacht_frac = 1.0 - huidig_dag_frac
+            huidig_nacht_frac = sum(hour_shape[h] for h in nacht_uren) / totaal
 
+            # target = dag (07-23) fractie van netbeheerder
+            # avond_frac blijft ongewijzigd (avondverbruik is stabiel)
+            # nacht_frac wordt aangepast zodat dag+nacht=1
+            # pv_frac krijgt het resterende dagverbruik
+
+            # Gewenste pv_frac = target - huidig_avond_frac
+            # (maar minimaal 0.05 om negatieve waarden te voorkomen)
+            gewenste_pv_frac = max(0.05, target - huidig_avond_frac)
+            gewenste_nacht_frac = 1.0 - huidig_avond_frac - gewenste_pv_frac
+
+            # Schaalfactoren
+            pv_scale = (
+                gewenste_pv_frac / huidig_pv_frac
+                if huidig_pv_frac > 1e-9 else 1.0
+            )
             nacht_scale = (
-                (1.0 - target) / huidig_nacht_frac
+                gewenste_nacht_frac / huidig_nacht_frac
                 if huidig_nacht_frac > 1e-9 else 1.0
             )
-            dag_scale = (
-                target / huidig_dag_frac
-                if huidig_dag_frac > 1e-9 else 1.0
-            )
+            # avond_scale = 1.0 (ongewijzigd)
 
             adjusted = hour_shape[:]
             for h in pv_uren:
-                adjusted[h] *= dag_scale
-            for h in avond_uren:
-                adjusted[h] *= dag_scale
+                adjusted[h] *= pv_scale
             for h in nacht_uren:
                 adjusted[h] *= nacht_scale
             hour_shape = adjusted
