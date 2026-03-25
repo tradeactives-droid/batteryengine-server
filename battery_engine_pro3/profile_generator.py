@@ -259,33 +259,50 @@ def generate_load_profile_kwh(
             target = float(daytime_fraction)
             if target < 0.05 or target > 0.95:
                 logger.warning(
-                    "daytime_fraction buiten bereik [0.05, 0.95]; clipping toegepast: %s",
-                    target,
+                    "daytime_fraction buiten bereik [0.05, 0.95]; "
+                    "clipping toegepast: %s", target,
                 )
                 target = min(0.95, max(0.05, target))
 
-            dag_hours = list(range(7, 23))  # 07:00 t/m 22:00
-            nacht_hours = [23] + list(range(0, 7))
+            # Zone-definitie:
+            # pv_uren: 07:00-17:00 — verbruik hier overlapt met PV
+            # avond_uren: 17:00-23:00 — verbruik maar geen PV
+            # nacht_uren: 23:00-07:00 — geen PV
+            #
+            # daytime_fraction (van netbeheerder) = dag (07-23) / totaal
+            # We verdelen dit over pv_uren en avond_uren proportioneel
+            # aan hun huidige aandeel in het profiel.
 
-            huidige_dag_fractie = sum(hour_shape[h] for h in dag_hours) / max(sum(hour_shape), 1e-12)
-            huidige_nacht_fractie = 1.0 - huidige_dag_fractie
+            pv_uren = list(range(7, 17))  # 07:00-16:00 (10 uur)
+            avond_uren = list(range(17, 23))  # 17:00-22:00 (6 uur)
+            nacht_uren = [23] + list(range(0, 7))  # 23:00-06:00 (8 uur)
 
-            dag_scale = (
-                target / huidige_dag_fractie
-                if huidige_dag_fractie > 0
-                else 1.0
-            )
-            nacht_target = 1.0 - target
+            totaal = sum(hour_shape)
+            if totaal <= 0:
+                totaal = 1.0
+
+            huidig_pv_frac = sum(hour_shape[h] for h in pv_uren) / totaal
+            huidig_avond_frac = sum(hour_shape[h] for h in avond_uren) / totaal
+            huidig_dag_frac = huidig_pv_frac + huidig_avond_frac
+            huidig_nacht_frac = 1.0 - huidig_dag_frac
+
             nacht_scale = (
-                nacht_target / huidige_nacht_fractie
-                if huidige_nacht_fractie > 0
-                else 1.0
+                (1.0 - target) / huidig_nacht_frac
+                if huidig_nacht_frac > 1e-9 else 1.0
+            )
+            dag_scale = (
+                target / huidig_dag_frac
+                if huidig_dag_frac > 1e-9 else 1.0
             )
 
-            for h in dag_hours:
-                hour_shape[h] *= dag_scale
-            for h in nacht_hours:
-                hour_shape[h] *= nacht_scale
+            adjusted = hour_shape[:]
+            for h in pv_uren:
+                adjusted[h] *= dag_scale
+            for h in avond_uren:
+                adjusted[h] *= dag_scale
+            for h in nacht_uren:
+                adjusted[h] *= nacht_scale
+            hour_shape = adjusted
         hour_shape = _normalize(hour_shape)
 
         for _ in range(days):
