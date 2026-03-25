@@ -148,11 +148,19 @@ class ScenarioRunner:
         pv,
         tariff_cfg,
         batt_cfg: Optional[object] = None,
+        annual_load_kwh: Optional[float] = None,
+        annual_pv_kwh: Optional[float] = None,
+        annual_feedin_kwh: Optional[float] = None,
+        daytime_fraction: Optional[float] = None,
     ):
         self.load = load
         self.pv = pv
         self.tariff_cfg = tariff_cfg
         self.batt_cfg = batt_cfg
+        self.annual_load_kwh = annual_load_kwh
+        self.annual_pv_kwh = annual_pv_kwh
+        self.annual_feedin_kwh = annual_feedin_kwh
+        self.daytime_fraction = daytime_fraction
 
     # =================================================
     # HELPER — SPLITS TIJDREEKS PER MAAND
@@ -205,47 +213,184 @@ class ScenarioRunner:
         )
         A1_sim = sim_no.simulate_no_battery()
 
-        self.tariff_cfg.saldering = True
+        use_direct = (
+            self.annual_load_kwh is not None
+            and self.annual_load_kwh > 0
+            and self.annual_pv_kwh is not None
+            and self.annual_pv_kwh >= 0
+            and self.annual_feedin_kwh is not None
+            and self.annual_feedin_kwh >= 0
+        )
 
-        A1_per_tariff = {
-            tariff: cost_engine.compute_cost(
+        if use_direct:
+            cfg = self.tariff_cfg
+            load = float(self.annual_load_kwh)
+            pv = float(self.annual_pv_kwh)
+            feedin = float(self.annual_feedin_kwh)
+
+            directe_zc = max(0.0, pv - feedin)
+            netto_import = max(0.0, load - directe_zc)
+
+            dtf = self.daytime_fraction
+            if dtf is None or not (0.05 < dtf < 0.95):
+                dtf = 0.60
+
+            dag_verbruik = load * dtf
+            nacht_verbruik = load * (1.0 - dtf)
+
+            dag_import_raw = max(0.0, dag_verbruik - pv)
+            nacht_import_raw = nacht_verbruik
+
+            raw_total = dag_import_raw + nacht_import_raw
+            if raw_total > 1e-9:
+                scale = netto_import / raw_total
+                dag_import = dag_import_raw * scale
+                nacht_import = nacht_import_raw * scale
+            else:
+                dag_import = 0.0
+                nacht_import = netto_import
+
+            gesaldeerde_kwh = min(netto_import, feedin)
+            overschot_export = max(0.0, feedin - netto_import)
+
+            if netto_import > 1e-9:
+                dag_sal_frac = dag_import / netto_import
+                nacht_sal_frac = nacht_import / netto_import
+            else:
+                dag_sal_frac = 0.0
+                nacht_sal_frac = 1.0
+
+            dag_gesaldeerd = gesaldeerde_kwh * dag_sal_frac
+            nacht_gesaldeerd = gesaldeerde_kwh * nacht_sal_frac
+
+            fixed = (
+                float(getattr(cfg, "vastrecht_year", 0.0) or 0.0)
+                + float(getattr(cfg, "feedin_monthly_cost", 0.0) or 0.0) * 12
+            )
+
+            p_dyn_imp = (
+                cfg.p_dyn_imp if cfg.p_dyn_imp is not None else cfg.p_enkel_imp
+            )
+
+            waarde_sal_enkel = gesaldeerde_kwh * cfg.p_enkel_imp
+            overschot_verg_enkel = overschot_export * cfg.p_enkel_exp
+            e_a1_enkel = (
+                netto_import * cfg.p_enkel_imp
+                - waarde_sal_enkel
+                - overschot_verg_enkel
+            )
+
+            waarde_sal_dn = (
+                dag_gesaldeerd * cfg.p_dag
+                + nacht_gesaldeerd * cfg.p_nacht
+            )
+            overschot_verg_dn = overschot_export * cfg.p_exp_dn
+            e_a1_dn = (
+                dag_import * cfg.p_dag
+                + nacht_import * cfg.p_nacht
+                - waarde_sal_dn
+                - overschot_verg_dn
+            )
+
+            waarde_sal_dyn = gesaldeerde_kwh * p_dyn_imp
+            overschot_verg_dyn = overschot_export * cfg.p_export_dyn
+            e_a1_dyn = (
+                netto_import * p_dyn_imp
+                - waarde_sal_dyn
+                - overschot_verg_dyn
+            )
+
+            A1_per_tariff = {
+                "enkel": ScenarioResult(
+                    import_kwh=round(netto_import, 1),
+                    export_kwh=round(feedin, 1),
+                    total_cost_eur=round(e_a1_enkel + fixed, 2),
+                ),
+                "dag_nacht": ScenarioResult(
+                    import_kwh=round(netto_import, 1),
+                    export_kwh=round(feedin, 1),
+                    total_cost_eur=round(e_a1_dn + fixed, 2),
+                ),
+                "dynamisch": ScenarioResult(
+                    import_kwh=round(netto_import, 1),
+                    export_kwh=round(feedin, 1),
+                    total_cost_eur=round(e_a1_dyn + fixed, 2),
+                ),
+            }
+            A1 = A1_per_tariff.get(current_tariff, A1_per_tariff["enkel"])
+
+            b1_e_enkel = (
+                netto_import * cfg.p_enkel_imp
+                - feedin * cfg.p_enkel_exp
+            )
+            b1_e_dn = (
+                dag_import * cfg.p_dag
+                + nacht_import * cfg.p_nacht
+                - feedin * cfg.p_exp_dn
+            )
+            b1_e_dyn = (
+                netto_import * p_dyn_imp
+                - feedin * cfg.p_export_dyn
+            )
+
+            B1 = {
+                "enkel": ScenarioResult(
+                    import_kwh=round(netto_import, 1),
+                    export_kwh=round(feedin, 1),
+                    total_cost_eur=round(b1_e_enkel + fixed, 2),
+                ),
+                "dag_nacht": ScenarioResult(
+                    import_kwh=round(netto_import, 1),
+                    export_kwh=round(feedin, 1),
+                    total_cost_eur=round(b1_e_dn + fixed, 2),
+                ),
+                "dynamisch": ScenarioResult(
+                    import_kwh=round(netto_import, 1),
+                    export_kwh=round(feedin, 1),
+                    total_cost_eur=round(b1_e_dyn + fixed, 2),
+                ),
+            }
+
+            self.tariff_cfg.saldering = False
+
+        else:
+            self.tariff_cfg.saldering = True
+
+            A1_per_tariff = {
+                tariff: cost_engine.compute_cost(
+                    A1_sim.import_profile,
+                    A1_sim.export_profile,
+                    tariff,
+                    dt_hours=self.load.dt_hours,
+                )
+                for tariff in ["enkel", "dag_nacht", "dynamisch"]
+            }
+
+            A1 = A1_per_tariff.get(current_tariff, A1_per_tariff["enkel"])
+
+            self.tariff_cfg.saldering = False
+
+            B1 = {
+                "enkel": cost_engine.compute_cost(
+                    A1_sim.import_profile,
+                    A1_sim.export_profile,
+                    "enkel",
+                    dt_hours=self.load.dt_hours,
+                ),
+                "dag_nacht": cost_engine.compute_cost(
+                    A1_sim.import_profile,
+                    A1_sim.export_profile,
+                    "dag_nacht",
+                    dt_hours=self.load.dt_hours,
+                ),
+            }
+
+            B1["dynamisch"] = cost_engine.compute_cost(
                 A1_sim.import_profile,
                 A1_sim.export_profile,
-                tariff,
+                "dynamisch",
                 dt_hours=self.load.dt_hours,
             )
-            for tariff in ["enkel", "dag_nacht", "dynamisch"]
-        }
-
-        A1 = A1_per_tariff.get(current_tariff, A1_per_tariff["enkel"])
-
-        # =================================================
-        # B1 — toekomst zonder batterij (GEEN saldering)
-        # =================================================
-        self.tariff_cfg.saldering = False
-
-        B1 = {
-            "enkel": cost_engine.compute_cost(
-                A1_sim.import_profile,
-                A1_sim.export_profile,
-                "enkel",
-                dt_hours=self.load.dt_hours,
-            ),
-            "dag_nacht": cost_engine.compute_cost(
-                A1_sim.import_profile,
-                A1_sim.export_profile,
-                "dag_nacht",
-                dt_hours=self.load.dt_hours,
-            ),
-        }
-
-        # Dynamisch zonder batterij -> uurprijzen (hybride model)
-        B1["dynamisch"] = cost_engine.compute_cost(
-            A1_sim.import_profile,
-            A1_sim.export_profile,
-            "dynamisch",
-            dt_hours=self.load.dt_hours,
-        )
 
         B1_monthly: Dict[str, List[float]] = {}
         # enkel + dag/nacht monthly

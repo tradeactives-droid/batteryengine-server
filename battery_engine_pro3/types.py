@@ -136,6 +136,9 @@ class TariffConfig:
     night_start_hour: int = 23   # nacht start om 23:00
     night_end_hour: int = 7      # nacht eindigt vóór 07:00
 
+    # Gemiddelde dynamische importprijs (€/kWh), o.a. voor directe jaarlijkse A1/B1
+    p_dyn_imp: Optional[float] = None
+
 
 # ============================================================
 # Battery Configuration — input voor BatteryModel & ROI

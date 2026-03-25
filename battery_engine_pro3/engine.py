@@ -49,6 +49,12 @@ class ComputeV3Input:
     current_tariff: str
     country: str
 
+    annual_load_kwh: float | None = None
+    annual_pv_kwh: float | None = None
+    annual_feedin_kwh: float | None = None
+    daytime_fraction: float | None = None
+    p_dyn_imp: float | None = None
+
 
 class BatteryEnginePro3:
 
@@ -106,6 +112,7 @@ class BatteryEnginePro3:
             inverter_cost_per_kw=input_data.inverter_cost_per_kw_year,
 
             capacity_tariff_kw=input_data.capacity_tariff_kw_year,
+            p_dyn_imp=input_data.p_dyn_imp,
         )
 
         batt_cfg = BatteryConfig(
@@ -118,5 +125,14 @@ class BatteryEnginePro3:
             lifetime_years=input_data.battery_lifetime_years,
         )
 
-        runner = ScenarioRunner(load_ts, pv_ts, tariff_cfg, batt_cfg)
+        runner = ScenarioRunner(
+            load_ts,
+            pv_ts,
+            tariff_cfg,
+            batt_cfg,
+            annual_load_kwh=input_data.annual_load_kwh,
+            annual_pv_kwh=input_data.annual_pv_kwh,
+            annual_feedin_kwh=input_data.annual_feedin_kwh,
+            daytime_fraction=input_data.daytime_fraction,
+        )
         return runner.run()

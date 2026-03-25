@@ -598,6 +598,11 @@ def compute_v3_profile(
             capacity_tariff_kw_year=req.capacity_tariff_kw,
             country=req.country,
             current_tariff=req.current_tariff,
+            annual_load_kwh=req.annual_load_kwh,
+            annual_pv_kwh=req.annual_pv_kwh,
+            annual_feedin_kwh=req.annual_feedin_kwh,
+            daytime_fraction=req.daytime_fraction,
+            p_dyn_imp=req.p_dyn_imp,
         )
 
         result = BatteryEnginePro3.compute(engine_input)
