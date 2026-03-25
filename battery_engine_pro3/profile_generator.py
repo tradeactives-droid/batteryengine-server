@@ -73,6 +73,88 @@ def generate_year_timestamps(year: int = 2025, dt_hours: float = 1.0) -> List[da
     return [start + timedelta(hours=i * dt_hours) for i in range(steps)]
 
 
+def _calibrate_profile_to_feedin(
+    load_values: List[float],
+    pv_values: List[float],
+    target_feedin_kwh: float,
+    timestamps: List[datetime],
+    max_iterations: int = 20,
+    tolerance_frac: float = 0.05,
+) -> List[float]:
+    """
+    Calibreert het verbruiksprofiel zodat de gesimuleerde
+    teruglevering overeenkomt met de opgegeven teruglevering.
+
+    Werking:
+    - Bereken gesimuleerde teruglevering (som van PV-overschot)
+    - Als afwijking > tolerance_frac: verhoog verbruik op
+      PV-productie-uren (uur 8-16) iteratief
+    - Maximaal max_iterations iteraties
+    - Behoudt de totale jaarlijkse energie (herscaling)
+
+    Returns: gecalibreerde load_values lijst
+    """
+    if target_feedin_kwh <= 0:
+        return load_values
+
+    values = load_values[:]
+    n = len(values)
+
+    for iteration in range(max_iterations):
+        # Bereken huidige gesimuleerde teruglevering
+        simulated_feedin = sum(
+            max(0.0, pv_values[i] - values[i])
+            for i in range(min(n, len(pv_values)))
+        )
+
+        if simulated_feedin <= 0:
+            break
+
+        deviation_frac = (
+            simulated_feedin - target_feedin_kwh
+        ) / max(target_feedin_kwh, 1e-9)
+
+        # Binnen tolerantie: stop
+        if abs(deviation_frac) <= tolerance_frac:
+            break
+
+        if deviation_frac > 0:
+            # Gesimuleerde teruglevering te hoog:
+            # verhoog verbruik op PV-uren (08:00-16:00)
+            # Correctiefactor: hoe ver zijn we af?
+            correction = min(1.0 + deviation_frac * 0.5, 1.30)
+
+            annual_before = sum(values)
+            for i in range(n):
+                hour = timestamps[i].hour if i < len(timestamps) else (i % 24)
+                if 8 <= hour <= 16:
+                    values[i] *= correction
+
+            # Herscale zodat totaal jaarverbruik gelijk blijft
+            annual_after = sum(values)
+            if annual_after > 0 and annual_before > 0:
+                scale = annual_before / annual_after
+                values = [v * scale for v in values]
+
+        else:
+            # Gesimuleerde teruglevering te laag:
+            # verlaag verbruik op PV-uren
+            correction = max(1.0 + deviation_frac * 0.5, 0.70)
+
+            annual_before = sum(values)
+            for i in range(n):
+                hour = timestamps[i].hour if i < len(timestamps) else (i % 24)
+                if 8 <= hour <= 16:
+                    values[i] *= correction
+
+            annual_after = sum(values)
+            if annual_after > 0 and annual_before > 0:
+                scale = annual_before / annual_after
+                values = [v * scale for v in values]
+
+    return values
+
+
 def generate_load_profile_kwh(
     annual_load_kwh: float,
     household_profile: str,
@@ -86,6 +168,8 @@ def generate_load_profile_kwh(
     year: int = 2025,
     heatpump_type: Optional[str] = None,
     heatpump_schedule: Optional[str] = None,
+    annual_feedin_kwh: Optional[float] = None,
+    pv_values_for_calibration: Optional[List[float]] = None,
 ) -> Tuple[List[datetime], List[float]]:
     """
     Genereert een synthetisch jaarprofiel (kWh per timestep).
@@ -100,6 +184,12 @@ def generate_load_profile_kwh(
     - heatpump_type: type warmtepomp ('air_water' of 'air_water_buffer')
     - heatpump_schedule: wanneer de warmtepomp voornamelijk draait
       ('night', 'day', 'day_night')
+    - annual_feedin_kwh (optioneel): opgegeven jaarlijkse
+      teruglevering in kWh. Wordt gebruikt om het profiel
+      te calibreren zodat de gesimuleerde teruglevering
+      overeenkomt met de werkelijkheid.
+    - pv_values_for_calibration: het gegenereerde PV-profiel
+      (8760 waarden) nodig voor calibratie.
     """
     profile = HOUSEHOLD_PROFILES.get(household_profile, HOUSEHOLD_PROFILES["gezin_kinderen"])
     profile = _normalize(profile)
@@ -320,6 +410,46 @@ def generate_load_profile_kwh(
                 # dt_hours is 1.0 in onze default; als je later kwartier wil: opsplitsen
                 values[idx] = day_kwh * hour_shape[hour]
                 idx += 1
+
+    # Calibratie op basis van opgegeven teruglevering
+    if (
+        annual_feedin_kwh is not None
+        and annual_feedin_kwh > 0
+        and pv_values_for_calibration is not None
+        and len(pv_values_for_calibration) >= len(values)
+    ):
+        simulated_before = sum(
+            max(0.0, pv_values_for_calibration[i] - values[i])
+            for i in range(len(values))
+        )
+        deviation_pct = abs(
+            simulated_before - annual_feedin_kwh
+        ) / max(annual_feedin_kwh, 1e-9) * 100
+
+        if deviation_pct > 5.0:
+            logger.info(
+                "Profiel calibratie gestart: gesimuleerde "
+                "teruglevering %.0f kWh, opgegeven %.0f kWh "
+                "(afwijking %.0f%%)",
+                simulated_before,
+                annual_feedin_kwh,
+                deviation_pct,
+            )
+            values = _calibrate_profile_to_feedin(
+                load_values=values,
+                pv_values=pv_values_for_calibration[: len(values)],
+                target_feedin_kwh=annual_feedin_kwh,
+                timestamps=ts,
+            )
+            simulated_after = sum(
+                max(0.0, pv_values_for_calibration[i] - values[i])
+                for i in range(len(values))
+            )
+            logger.info(
+                "Profiel calibratie klaar: teruglevering "
+                "na calibratie %.0f kWh",
+                simulated_after,
+            )
 
     # guard
     values = values[:len(ts)]

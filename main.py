@@ -471,9 +471,14 @@ def compute_v3_profile(
                 heatpump_schedule = hp_s
 
         # -----------------------------
-        # 1) Maak synthetische profielen
+        # 1) Maak synthetische profielen (eerst PV, daarna load + calibratie)
         # -----------------------------
         dt_hours = 1.0
+        _, pv_vals = generate_pv_profile_kwh(
+            annual_pv_kwh=req.annual_pv_kwh,
+            dt_hours=dt_hours,
+            year=2025,
+        )
         ts_load, load_vals = generate_load_profile_kwh(
             annual_load_kwh=req.annual_load_kwh,
             household_profile=req.household_profile,
@@ -487,11 +492,8 @@ def compute_v3_profile(
             year=2025,
             heatpump_type=heatpump_type,
             heatpump_schedule=heatpump_schedule,
-        )
-        _, pv_vals = generate_pv_profile_kwh(
-            annual_pv_kwh=req.annual_pv_kwh,
-            dt_hours=dt_hours,
-            year=2025,
+            annual_feedin_kwh=req.annual_feedin_kwh,
+            pv_values_for_calibration=pv_vals,
         )
 
         n = min(len(load_vals), len(pv_vals))
@@ -611,6 +613,9 @@ def compute_v3_profile(
         calc_method["heatpump_type_used"] = heatpump_type
         calc_method["heatpump_schedule_used"] = heatpump_schedule
         calc_method["dynamic_price_source"] = dynamic_price_source
+        calc_method["feedin_calibration_applied"] = (
+            req.annual_feedin_kwh is not None and req.annual_feedin_kwh > 0
+        )
         calc_method["feedin_validation"] = {
             "provided_kwh": req.annual_feedin_kwh,
             "simulated_kwh": round(simulated_feedin, 0)
