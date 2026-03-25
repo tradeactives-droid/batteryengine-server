@@ -668,6 +668,12 @@ def compute_v3_profile(
         else:
             result["saldering_context"] = None
 
+        result["profile_inputs"] = {
+            "annual_load_kwh": req.annual_load_kwh,
+            "annual_pv_kwh": req.annual_pv_kwh,
+            "annual_feedin_kwh": req.annual_feedin_kwh,
+        }
+
         return _attach_device_tracking(request, result)
 
     except HTTPException:
@@ -692,6 +698,15 @@ def compute_v3_profile(
 # ADVICE GENERATOR
 # ============================================================
 
+
+class ProfileInputsContext(BaseModel):
+    """Door de klant opgegeven jaargetallen (profielmodus); niet verwarren met energy_profile."""
+
+    annual_load_kwh: Optional[float] = None
+    annual_pv_kwh: Optional[float] = None
+    annual_feedin_kwh: Optional[float] = None
+
+
 class AdviceContext(BaseModel):
     country: str
     current_tariff: str
@@ -707,6 +722,7 @@ class AdviceContext(BaseModel):
     best_tariff_with_battery: Optional[str] = None
     battery_assessment: Optional[dict] = None
     saldering_context: Optional[dict] = None
+    profile_inputs: Optional[ProfileInputsContext] = None
 
     data_sources: Optional[dict] = None
     calculation_method: Optional[dict] = None
@@ -966,6 +982,11 @@ def generate_advice(
     ctx = req.context
     ctx_dict = ctx.model_dump()
     ctx_dict["saldering_context"] = ctx.saldering_context
+    ctx_dict["profile_inputs"] = (
+        ctx.profile_inputs.model_dump()
+        if ctx.profile_inputs is not None
+        else None
+    )
 
     # ============================
     # BIJLAGE A — DATABRONNEN & UITGANGSPUNTEN
@@ -1147,7 +1168,8 @@ def generate_advice(
         "- Tabellen, matrixen, schema’s of kolomindelingen in welke vorm dan ook\n"
         "- Opsommingen met streepjes, bullets of genummerde lijsten\n"
         "- Markdown of pseudo-Markdown\n"
-        "- Zelf bedachte of afgeleide cijfers\n"
+        "- Zelf bedachte of afgeleide cijfers, BEHALVE break_even_prijs in sectie 5 "
+        "zoals in de INSTRUCTIE hieronder beschreven\n"
         "- Aanbevelingen die niet expliciet uit de feiten volgen\n\n"
 
         "VERPLICHT:\n"
@@ -1171,6 +1193,20 @@ def generate_advice(
         "- Leg uit hoe de batterij wordt ingezet op hoofdlijnen (laden bij overschot, ontladen bij verbruik), zonder code of technische details.\n"
         "- Leg uit welke kostencomponenten zijn meegenomen (energie-import/export, vastrecht, terugleverkosten, omvormerkosten, capaciteitstarief indien BE).\n"
         "- In Bijlage D: benoem beperkingen van de berekening (kwaliteit CSV, toekomstprijzen onzeker, gedrag kan wijzigen), zonder nieuwe aannames.\n\n"
+
+        "INSTRUCTIE: Gebruik UITSLUITEND de getallen uit de JSON hieronder. "
+        "Gebruik NIET de getallen uit energy_profile voor het jaarverbruik of de "
+        "teruglevering — gebruik annual_load_kwh en annual_feedin_kwh uit profile_inputs. "
+        "De saldering_context.narrative bepaalt welk salderings-verhaal je vertelt: "
+        '"pain": saldering verdwijnt en kost de klant saldering_impact_eur per jaar extra. '
+        "Dit is het primaire verhaal. "
+        '"neutral_or_positive": saldering levert weinig op. '
+        '"minimal": beperkte impact. '
+        "Vermeld in sectie 5 expliciet bij welke batterijprijs de ROI positief wordt: "
+        "break_even_prijs = jaarlijkse_besparing × levensduur. "
+        "Bereken dit zelf op basis van de JSON-feiten. "
+        "Vermeld in sectie 5 welk tarief (enkel/dag-nacht/dynamisch) het voordeligst is "
+        "met batterij, op basis van de tariefmatrix in de JSON.\n\n"
 
         "FEITEN (JSON):\n"
         + json.dumps(ctx_dict, ensure_ascii=False, indent=2)
