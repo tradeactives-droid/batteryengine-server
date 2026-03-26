@@ -670,6 +670,16 @@ def compute_v3_profile(
             if isinstance(result.get("A1_per_tariff"), dict)
             else [],
         )
+        logger.info(
+            "B1 enkel entry type=%s value=%s",
+            type(result.get("B1", {}).get("enkel")),
+            result.get("B1", {}).get("enkel"),
+        )
+        logger.info(
+            "A1_per_tariff enkel entry type=%s value=%s",
+            type(result.get("A1_per_tariff", {}).get("enkel")),
+            result.get("A1_per_tariff", {}).get("enkel"),
+        )
 
         try:
             b1_cost_num = float(b1_cost) if b1_cost is not None else None
