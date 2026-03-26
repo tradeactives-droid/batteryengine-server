@@ -991,6 +991,19 @@ def generate_advice(
     # Verwijder energy_profile uit AI-context om foutieve (gesimuleerde) keuzes te voorkomen.
     ctx_dict.pop("energy_profile", None)
 
+    saldering_impact_eur = (
+        ctx.saldering_context.get("saldering_impact_eur")
+        if ctx.saldering_context
+        else None
+    )
+    batterij_besparing_eur = (
+        (ctx.roi_per_tariff or {})
+        .get(ctx.current_tariff or "enkel", {})
+        .get("yearly_saving_eur")
+        if ctx.roi_per_tariff
+        else None
+    )
+
     # Pre-berekende kernfeiten: de AI hoeft niet te gokken of te kiezen.
     ctx_dict["kernfeiten"] = {
         "jaarverbruik_kwh": (
@@ -1002,29 +1015,30 @@ def generate_advice(
         "teruglevering_kwh": (
             ctx.profile_inputs.annual_feedin_kwh if ctx.profile_inputs else None
         ),
-        "saldering_impact_eur": (
-            ctx.saldering_context.get("saldering_impact_eur")
-            if ctx.saldering_context
-            else None
-        ),
-        "batterij_besparing_eur": (
-            (ctx.roi_per_tariff or {})
-            .get(ctx.current_tariff or "enkel", {})
-            .get("yearly_saving_eur")
-            if ctx.roi_per_tariff
+        "saldering_impact_eur": saldering_impact_eur,
+        "batterij_besparing_eur": batterij_besparing_eur,
+        "saldering_verhaal": (
+            f"Het wegvallen van saldering kost u "
+            f"{round(saldering_impact_eur)} euro per jaar "
+            f"extra. Een batterij compenseert daarvan "
+            f"{round(batterij_besparing_eur)} euro per jaar."
+            if (
+                saldering_impact_eur is not None
+                and batterij_besparing_eur is not None
+            )
             else None
         ),
         "beste_tarief_met_batterij": (
             min(
                 ["enkel", "dag_nacht", "dynamisch"],
                 key=lambda t: (
-                    (ctx.roi_per_tariff or {})
+                    (ctx_dict.get("tariff_matrix") or {})
+                    .get("C1", {})
                     .get(t, {})
-                    .get("yearly_saving_eur", 0)
-                    * -1
+                    .get("total_cost_eur", float("inf"))
                 ),
             )
-            if ctx.roi_per_tariff
+            if (ctx_dict.get("tariff_matrix") or {}).get("C1")
             else None
         ),
     }
@@ -1240,13 +1254,10 @@ def generate_advice(
         "   (NIET energy_profile.annual_load_kwh)\n"
         "2. TERUGLEVERING: gebruik kernfeiten.teruglevering_kwh\n"
         "   (NIET energy_profile of pv_export_kwh)\n"
-        "3. SALDERING-IMPACT: gebruik UITSLUITEND\n"
-        "   kernfeiten.saldering_impact_eur voor sectie 3.\n"
-        "   De twee verplichte zinnen zijn:\n"
-        "   \"Het wegvallen van saldering kost u \n"
-        "   [saldering_impact_eur] euro per jaar extra.\"\n"
-        "   \"Een batterij compenseert daarvan \n"
-        "   [batterij_besparing_eur] euro per jaar.\"\n"
+        "3. SALDERING-IMPACT: gebruik in sectie 3 UITSLUITEND\n"
+        "   de tekst uit kernfeiten.saldering_verhaal.\n"
+        "   Kopieer deze zin letterlijk — verander geen getallen.\n"
+        "   Voeg daarna een eigen zin toe over de narrative.\n"
         "4. NARRATIVE: saldering_context.narrative bepaalt\n"
         "   het verhaal in sectie 3:\n"
         "   - \"pain\": \"Het wegvallen van saldering kost u\n"
