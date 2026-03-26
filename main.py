@@ -633,90 +633,94 @@ def compute_v3_profile(
         result["calculation_method"] = calc_method
 
         # Saldering impact context voor adviesrapport
-        # Gebruik de direct berekende waarden als beschikbaar,
-        # anders de gesimuleerde waarden
         current_tariff = req.current_tariff or "enkel"
 
-        b1_cost = None
-        a1_cost = None
-
         try:
-            b1_entry = result.get("B1", {}).get(current_tariff)
-            a1_entry = result.get("A1_per_tariff", {}).get(current_tariff)
+            # Haal B1 en A1 kosten op — probeer meerdere
+            # structuren want het formaat kan variëren
+            def _get_cost(d, tariff):
+                if not isinstance(d, dict):
+                    return None
+                entry = d.get(tariff) or d.get("enkel")
+                if entry is None:
+                    return None
+                if isinstance(entry, dict):
+                    v = entry.get("total_cost_eur")
+                else:
+                    v = getattr(entry, "total_cost_eur", None)
+                try:
+                    return float(v) if v is not None else None
+                except (TypeError, ValueError):
+                    return None
 
-            # Verwacht formaat: {"total_cost_eur": ..., "import_kwh": ..., "export_kwh": ...}
-            if isinstance(b1_entry, dict):
-                b1_cost = b1_entry.get("total_cost_eur")
+            b1_cost_num = _get_cost(result.get("B1"), current_tariff)
+            a1_cost_num = _get_cost(result.get("A1_per_tariff"), current_tariff)
+
+            # Fallback: gebruik de direct berekende waarden
+            # als de result-structuur leeg is
+            if b1_cost_num is None or b1_cost_num == 0.0:
+                if req.annual_load_kwh and req.annual_feedin_kwh is not None:
+                    pv = float(req.annual_pv_kwh or 0)
+                    feedin = float(req.annual_feedin_kwh)
+                    load = float(req.annual_load_kwh)
+                    directe_zc = max(0.0, pv - feedin)
+                    netto_import = max(0.0, load - directe_zc)
+                    p_imp = float(req.p_enkel_imp or 0.29)
+                    p_exp = float(req.p_enkel_exp or 0.07)
+                    fixed = float(req.vastrecht_year or 0)
+                    b1_cost_num = round(
+                        netto_import * p_imp - feedin * p_exp + fixed,
+                        2,
+                    )
+
+            if a1_cost_num is None or a1_cost_num == 0.0:
+                if req.annual_load_kwh and req.annual_feedin_kwh is not None:
+                    pv = float(req.annual_pv_kwh or 0)
+                    feedin = float(req.annual_feedin_kwh)
+                    load = float(req.annual_load_kwh)
+                    directe_zc = max(0.0, pv - feedin)
+                    netto_import = max(0.0, load - directe_zc)
+                    p_imp = float(req.p_enkel_imp or 0.29)
+                    p_exp = float(req.p_enkel_exp or 0.07)
+                    fixed = float(req.vastrecht_year or 0)
+                    gesaldeerde_kwh = min(netto_import, feedin)
+                    overschot = max(0.0, feedin - netto_import)
+                    e_a1 = (
+                        netto_import * p_imp
+                        - gesaldeerde_kwh * p_imp
+                        - overschot * p_exp
+                    )
+                    a1_cost_num = round(e_a1 + fixed, 2)
+
+            if (
+                b1_cost_num is not None
+                and a1_cost_num is not None
+            ):
+                saldering_impact_eur = round(
+                    b1_cost_num - a1_cost_num, 2
+                )
+
+                if saldering_impact_eur > 50:
+                    saldering_narrative = "pain"
+                elif saldering_impact_eur < -50:
+                    saldering_narrative = "neutral_or_positive"
+                else:
+                    saldering_narrative = "minimal"
+
+                result["saldering_context"] = {
+                    "saldering_impact_eur": saldering_impact_eur,
+                    "narrative": saldering_narrative,
+                    "b1_cost_eur": b1_cost_num,
+                    "a1_cost_eur": a1_cost_num,
+                    "current_tariff": current_tariff,
+                }
             else:
-                b1_cost = getattr(b1_entry, "total_cost_eur", None)
+                result["saldering_context"] = None
 
-            if isinstance(a1_entry, dict):
-                a1_cost = a1_entry.get("total_cost_eur")
-            else:
-                a1_cost = getattr(a1_entry, "total_cost_eur", None)
-        except (KeyError, TypeError, AttributeError):
-            b1_cost = None
-            a1_cost = None
-
-        logger.info(
-            "saldering_context debug: b1_cost=%s, "
-            "a1_cost=%s, current_tariff=%s, "
-            "B1_keys=%s, A1_keys=%s",
-            b1_cost,
-            a1_cost,
-            current_tariff,
-            list(result.get("B1", {}).keys()) if isinstance(result.get("B1"), dict) else [],
-            list(result.get("A1_per_tariff", {}).keys())
-            if isinstance(result.get("A1_per_tariff"), dict)
-            else [],
-        )
-        logger.info(
-            "B1 enkel entry type=%s value=%s",
-            type(result.get("B1", {}).get("enkel")),
-            result.get("B1", {}).get("enkel"),
-        )
-        logger.info(
-            "A1_per_tariff enkel entry type=%s value=%s",
-            type(result.get("A1_per_tariff", {}).get("enkel")),
-            result.get("A1_per_tariff", {}).get("enkel"),
-        )
-
-        try:
-            b1_cost_num = float(b1_cost) if b1_cost is not None else None
-            a1_cost_num = float(a1_cost) if a1_cost is not None else None
-        except (TypeError, ValueError):
-            b1_cost_num = None
-            a1_cost_num = None
-
-        if (
-            b1_cost_num is not None
-            and a1_cost_num is not None
-            and b1_cost_num != 0.0
-            and a1_cost_num != 0.0
-        ):
-            saldering_impact_eur = round(b1_cost_num - a1_cost_num, 2)
-            logger.info(
-                "saldering_impact_eur berekend: %s (b1=%s - a1=%s)",
-                saldering_impact_eur,
-                b1_cost_num,
-                a1_cost_num,
+        except Exception as e:
+            logger.warning(
+                "saldering_context berekening mislukt: %s", e
             )
-
-            if saldering_impact_eur > 50:
-                saldering_narrative = "pain"
-            elif saldering_impact_eur < -50:
-                saldering_narrative = "neutral_or_positive"
-            else:
-                saldering_narrative = "minimal"
-
-            result["saldering_context"] = {
-                "saldering_impact_eur": saldering_impact_eur,
-                "narrative": saldering_narrative,
-                "b1_cost_eur": b1_cost_num,
-                "a1_cost_eur": a1_cost_num,
-                "current_tariff": current_tariff,
-            }
-        else:
             result["saldering_context"] = None
 
         result["profile_inputs"] = {
