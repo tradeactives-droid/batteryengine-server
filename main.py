@@ -988,6 +988,47 @@ def generate_advice(
         else None
     )
 
+    # Verwijder energy_profile uit AI-context om foutieve (gesimuleerde) keuzes te voorkomen.
+    ctx_dict.pop("energy_profile", None)
+
+    # Pre-berekende kernfeiten: de AI hoeft niet te gokken of te kiezen.
+    ctx_dict["kernfeiten"] = {
+        "jaarverbruik_kwh": (
+            ctx.profile_inputs.annual_load_kwh if ctx.profile_inputs else None
+        ),
+        "jaaropwek_kwh": (
+            ctx.profile_inputs.annual_pv_kwh if ctx.profile_inputs else None
+        ),
+        "teruglevering_kwh": (
+            ctx.profile_inputs.annual_feedin_kwh if ctx.profile_inputs else None
+        ),
+        "saldering_impact_eur": (
+            ctx.saldering_context.get("saldering_impact_eur")
+            if ctx.saldering_context
+            else None
+        ),
+        "batterij_besparing_eur": (
+            (ctx.roi_per_tariff or {})
+            .get(ctx.current_tariff or "enkel", {})
+            .get("yearly_saving_eur")
+            if ctx.roi_per_tariff
+            else None
+        ),
+        "beste_tarief_met_batterij": (
+            min(
+                ["enkel", "dag_nacht", "dynamisch"],
+                key=lambda t: (
+                    (ctx.roi_per_tariff or {})
+                    .get(t, {})
+                    .get("yearly_saving_eur", 0)
+                    * -1
+                ),
+            )
+            if ctx.roi_per_tariff
+            else None
+        ),
+    }
+
     # ============================
     # BIJLAGE A — DATABRONNEN & UITGANGSPUNTEN
     # ============================
@@ -1197,19 +1238,15 @@ def generate_advice(
         "INSTRUCTIE — LEES DIT ZORGVULDIG VOOR JE BEGINT:\n"
         "1. JAARVERBRUIK: gebruik profile_inputs.annual_load_kwh\n"
         "   (NIET energy_profile.annual_load_kwh)\n"
-        "2. TERUGLEVERING: gebruik profile_inputs.annual_feedin_kwh\n"
-        "   (NIET energy_profile.pv_export_kwh)\n"
+        "2. TERUGLEVERING: gebruik kernfeiten.teruglevering_kwh\n"
+        "   (NIET energy_profile of pv_export_kwh)\n"
         "3. SALDERING-IMPACT: gebruik UITSLUITEND\n"
-        "   saldering_context.saldering_impact_eur\n"
-        "   voor het bedrag in sectie 3.\n"
-        "   Dit getal staat los van de batterijbesparing.\n"
-        "   De batterijbesparing is roi_per_tariff.[tarief]\n"
-        "   .yearly_saving_eur — dat is een ANDER getal.\n"
-        "   Noem beide getallen expliciet en apart:\n"
-        "   - \"Het wegvallen van saldering kost u\n"
-        "     [saldering_impact_eur] euro per jaar extra.\"\n"
-        "   - \"Een batterij compenseert daarvan\n"
-        "     [yearly_saving_eur] euro per jaar.\"\n"
+        "   kernfeiten.saldering_impact_eur voor sectie 3.\n"
+        "   De twee verplichte zinnen zijn:\n"
+        "   \"Het wegvallen van saldering kost u \n"
+        "   [saldering_impact_eur] euro per jaar extra.\"\n"
+        "   \"Een batterij compenseert daarvan \n"
+        "   [batterij_besparing_eur] euro per jaar.\"\n"
         "4. NARRATIVE: saldering_context.narrative bepaalt\n"
         "   het verhaal in sectie 3:\n"
         "   - \"pain\": \"Het wegvallen van saldering kost u\n"
@@ -1218,21 +1255,13 @@ def generate_advice(
         "     weinig op omdat u meer exporteert dan importeert.\"\n"
         "   - \"minimal\": \"De salderingsafbouw heeft beperkte\n"
         "     impact voor uw situatie.\"\n"
-        "5. EXPORTPRIJS en IMPORTPRIJS zijn tarieven in euro\n"
-        "   per kWh (bijv. 0.07 en 0.29). Dit zijn GEEN\n"
-        "   kWh-hoeveelheden. Gebruik tariff_matrix voor de\n"
-        "   exacte tariefwaarden.\n"
-        "6. BESTE TARIEF MET BATTERIJ: vergelijk de drie\n"
-        "   C1-waarden in de tariefmatrix:\n"
-        "   - C1 enkel = tariff_matrix.C1.enkel\n"
-        "     of roi_per_tariff.enkel\n"
-        "   - C1 dag_nacht = tariff_matrix.C1.dag_nacht\n"
-        "     of roi_per_tariff.dag_nacht\n"
-        "   - C1 dynamisch = tariff_matrix.C1.dynamisch\n"
-        "     of roi_per_tariff.dynamisch\n"
-        "   Kies de LAAGSTE waarde. Noem het bijbehorende\n"
-        "   tarief als \"voordeligst met batterij\".\n"
-        "   Let op: dag_nacht betekent \"dag/nacht tarief\".\n"
+        "5. EXPORTPRIJS en IMPORTPRIJS staan in \n"
+        "   tariff_matrix als tarieven in euro per kWh.\n"
+        "   Gebruik GEEN getallen uit kernfeiten als prijs.\n"
+        "6. BESTE TARIEF MET BATTERIJ:\n"
+        "   gebruik kernfeiten.beste_tarief_met_batterij\n"
+        "   Dit is al voor u berekend. Gebruik dit direct.\n"
+        "   \"dag_nacht\" vertaal je naar \"dag/nacht tarief\".\n"
         "7. BREAK-EVEN PRIJS: bereken als\n"
         "   roi_per_tariff.[huidig_tarief].yearly_saving_eur\n"
         "   × battery.lifetime_years\n"
