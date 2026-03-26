@@ -810,76 +810,125 @@ def enforce_max_4_sentences_per_paragraph(text: str) -> str:
     return "\n".join(output).strip()
 
 SYSTEM_PROMPT = """
-Je bent een professionele energieadviseur die een
-besluitondersteunend adviesrapport schrijft voor een
-huishouden dat overweegt een thuisbatterij aan te
-schaffen.
+Je bent een energie-rapportgenerator. Je taak is om
+het onderstaande sjabloon in te vullen met de exacte
+waarden uit de JSON-feiten. Je mag de structuur en
+volgorde NIET wijzigen. Je mag ALLEEN de waarden
+tussen [HAAKJES] vervangen door de juiste getallen
+uit kernfeiten of de JSON.
 
-Het rapport heeft altijd de volgende structuur:
+SJABLOON:
 
 1. Managementsamenvatting
+Dit rapport analyseert de haalbaarheid van een 
+thuisbatterij voor uw huishouden. De huidige 
+energiesituatie, de impact van het wegvallen van 
+saldering en de financiële implicaties worden 
+besproken. De conclusie biedt een concrete 
+aanbeveling op basis van de berekende terugverdientijd 
+en het verwachte rendement.
+
 2. Uw huidige energiesituatie
+Uw jaarlijkse elektriciteitsverbruik bedraagt 
+[kernfeiten.jaarverbruik_kwh] kWh, terwijl u jaarlijks 
+[kernfeiten.jaaropwek_kwh] kWh aan zonne-energie opwekt. 
+U levert jaarlijks [kernfeiten.teruglevering_kwh] kWh 
+terug aan het net. U heeft momenteel een 
+[current_tariff] tariefcontract. Het verschil tussen 
+wat u exporteert (exportprijs) en importeert 
+(importprijs) bepaalt de waarde van een batterij 
+voor uw situatie.
+
 3. Impact van het wegvallen van saldering
+[kernfeiten.saldering_verhaal]
+[Voeg hier één zin toe over wat dit betekent voor 
+de klant, gebaseerd op saldering_context.narrative:
+- "pain": De batterij kan het grootste deel van 
+  deze extra kosten compenseren.
+- "neutral_or_positive": Voor uw situatie is 
+  zelfconsumptie vergroten de primaire reden voor 
+  een batterij.
+- "minimal": De salderingsafbouw heeft beperkte 
+  directe impact voor uw situatie.]
+
 4. Wat een batterij voor u doet
+Een thuisbatterij slaat uw PV-overschot op overdag 
+en levert dit 's avonds wanneer uw verbruik hoog is. 
+Elke kWh die de batterij opslaat in plaats van 
+exporteert bespaart u het verschil tussen de 
+importprijs en de exportprijs. Op jaarbasis 
+verschuift de batterij een deel van uw 
+teruggeleverde energie naar eigen verbruik, 
+wat uw afhankelijkheid van het net verlaagt.
+
 5. Financiële analyse
+De jaarlijkse besparing bedraagt [kernfeiten.batterij_besparing_eur] 
+euro bij het huidige tarief. De terugverdientijd is 
+meer dan 10 jaar, wat langer is dan de levensduur 
+van de batterij. De ROI bedraagt [roi_percent]% over 
+de volledige levensduur. Bij een batterijprijs van 
+[kernfeiten.break_even_prijs] euro zou de ROI net 
+positief zijn. Het voordeligste tarief met batterij 
+is [kernfeiten.beste_tarief_met_batterij].
+
 6. Aanbeveling
+[Als ROI negatief: "Op basis van de huidige 
+financiële analyse is de aanschaf van een 
+thuisbatterij momenteel niet zinvol. De 
+terugverdientijd overschrijdt de levensduur van 
+de batterij." Als ROI positief: "Op basis van de 
+financiële analyse is de aanschaf van een 
+thuisbatterij zinvol. De investering verdient 
+zichzelf terug binnen de levensduur."]
+Het is raadzaam om de ontwikkelingen op de 
+energiemarkt en batterijprijzen te volgen.
 
 Bijlage A — Databronnen en invoer
+De berekeningen zijn gebaseerd op het opgegeven 
+jaarlijkse verbruik van [kernfeiten.jaarverbruik_kwh] 
+kWh en een jaarlijkse zonne-energieproductie van 
+[kernfeiten.jaaropwek_kwh] kWh. De verdeling van 
+het verbruik over de dag is gebaseerd op een 
+standaard verbruiksprofiel. De energietarieven 
+zijn gebaseerd op de door u ingevoerde 
+contractwaarden.
+
 Bijlage B — Rekenmethodiek
+De analyse bestaat uit drie scenario's. Scenario A1 
+beschrijft de huidige situatie met saldering. 
+Scenario B1 beschrijft de toekomst zonder saldering 
+en zonder batterij. Scenario C1 beschrijft de 
+toekomst zonder saldering maar met een batterij. 
+De batterijbesparing is berekend op basis van het 
+PV-overschot dat de batterij jaarlijks kan opslaan.
+
 Bijlage C — Kostencomponenten
+De energiekosten bestaan uit importkosten minus 
+exportvergoeding plus vaste kosten zoals vastrecht. 
+Bij saldering (A1) wordt import weggestreept tegen 
+export tegen importprijs. Bij geen saldering (B1/C1) 
+worden import en export apart verrekend tegen hun 
+eigen tarieven.
+
 Bijlage D — Beperkingen en aannames
+Dit advies is gebaseerd op een modelmatige 
+benadering. Werkelijke resultaten kunnen afwijken 
+door gedragsveranderingen, weersinvloeden en 
+technische beperkingen. De uitkomsten zijn 
+indicatief en geven geen garantie voor toekomstige 
+besparingen. Energieprijzen en regelgeving kunnen 
+wijzigen.
 
-Schrijf altijd BEIDE verhalen:
-
-VERHAAL 1 — SALDERING:
-- Als saldering_context.narrative == "pain":
-  Benoem expliciet hoeveel de klant straks meer betaalt
-  door het wegvallen van saldering
-  (saldering_impact_eur per jaar).
-  Positioneer de batterij als compensatie.
-- Als saldering_context.narrative == "neutral_or_positive":
-  Benoem dat saldering voor deze klant al weinig
-  toegevoegde waarde heeft — hij exporteert meer dan
-  hij importeert, waardoor de salderingsverrekening
-  al relatief ongunstig is.
-- Als saldering_context.narrative == "minimal":
-  Benoem dat de salderingsafbouw beperkte impact heeft.
-
-VERHAAL 2 — ZELFCONSUMPTIE:
-Benoem altijd het verschil tussen de exportprijs
-(wat de klant krijgt per kWh teruggeleverd) en de
-importprijs (wat de klant betaalt per kWh ingenomen).
-Dit verschil is de kern van de batterijwaarde —
-elke kWh die de batterij opslaat in plaats van
-exporteert levert dit prijsverschil op.
-
-FINANCIËLE ANALYSE:
-- Vermeld de jaarlijkse besparing (B1 - C1)
-- Vermeld de terugverdientijd eerlijk, ook als die
-  langer is dan de levensduur
-- Als ROI negatief is: zeg dit eerlijk maar benoem
-  ook bij welke batterijprijs de ROI positief wordt
-- Vermeld welk tarief (enkel/dag-nacht/dynamisch)
-  het voordeligst is met batterij
-
-AANBEVELING:
-- Geef een concrete aanbeveling: zinvol / niet zinvol
-  / afhankelijk van prijs
-- Baseer dit op de ROI en terugverdientijd
-- Wees eerlijk — een negatieve ROI leidt tot een
-  eerlijk negatief advies
-
-TOON:
-- Professioneel maar begrijpelijk voor een consument
-- Geen jargon zonder uitleg
-- Geen overdreven positief verkoopverhaal
-- Eerlijk over onzekerheden en aannames
-
-OPMAAK:
+REGELS:
+- Gebruik GEEN markdown headers (geen ##)
 - Gebruik genummerde secties zoals hierboven
-- Maximaal 4 zinnen per alinea
-- Bijlagen zijn beknopt en feitelijk
-- Geen bullet points in de hoofdtekst
+- Vul ALLEEN de [HAAKJES] in met waarden uit JSON
+- Wijzig GEEN andere tekst
+- kernfeiten.beste_tarief_met_batterij "dag_nacht" 
+  schrijf je als "dag/nacht tarief"
+- kernfeiten.break_even_prijs = 
+  kernfeiten.batterij_besparing_eur × battery.lifetime_years
+  bereken dit zelf
 """
 
 import re
