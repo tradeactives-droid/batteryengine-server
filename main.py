@@ -641,15 +641,56 @@ def compute_v3_profile(
         a1_cost = None
 
         try:
-            b1_cost = result["B1"][current_tariff]["total_cost_eur"]
-            a1_cost = result["A1_per_tariff"][current_tariff][
-                "total_cost_eur"
-            ]
-        except (KeyError, TypeError):
-            pass
+            b1_entry = result.get("B1", {}).get(current_tariff)
+            a1_entry = result.get("A1_per_tariff", {}).get(current_tariff)
 
-        if b1_cost is not None and a1_cost is not None:
-            saldering_impact_eur = round(b1_cost - a1_cost, 2)
+            # Verwacht formaat: {"total_cost_eur": ..., "import_kwh": ..., "export_kwh": ...}
+            if isinstance(b1_entry, dict):
+                b1_cost = b1_entry.get("total_cost_eur")
+            else:
+                b1_cost = getattr(b1_entry, "total_cost_eur", None)
+
+            if isinstance(a1_entry, dict):
+                a1_cost = a1_entry.get("total_cost_eur")
+            else:
+                a1_cost = getattr(a1_entry, "total_cost_eur", None)
+        except (KeyError, TypeError, AttributeError):
+            b1_cost = None
+            a1_cost = None
+
+        logger.info(
+            "saldering_context debug: b1_cost=%s, "
+            "a1_cost=%s, current_tariff=%s, "
+            "B1_keys=%s, A1_keys=%s",
+            b1_cost,
+            a1_cost,
+            current_tariff,
+            list(result.get("B1", {}).keys()) if isinstance(result.get("B1"), dict) else [],
+            list(result.get("A1_per_tariff", {}).keys())
+            if isinstance(result.get("A1_per_tariff"), dict)
+            else [],
+        )
+
+        try:
+            b1_cost_num = float(b1_cost) if b1_cost is not None else None
+            a1_cost_num = float(a1_cost) if a1_cost is not None else None
+        except (TypeError, ValueError):
+            b1_cost_num = None
+            a1_cost_num = None
+
+        if (
+            b1_cost_num is not None
+            and a1_cost_num is not None
+            and b1_cost_num != 0.0
+            and a1_cost_num != 0.0
+        ):
+            saldering_impact_eur = round(b1_cost_num - a1_cost_num, 2)
+            logger.info(
+                "saldering_impact_eur berekend: %s (b1=%s - a1=%s)",
+                saldering_impact_eur,
+                b1_cost_num,
+                a1_cost_num,
+            )
 
             if saldering_impact_eur > 50:
                 saldering_narrative = "pain"
@@ -661,8 +702,8 @@ def compute_v3_profile(
             result["saldering_context"] = {
                 "saldering_impact_eur": saldering_impact_eur,
                 "narrative": saldering_narrative,
-                "b1_cost_eur": b1_cost,
-                "a1_cost_eur": a1_cost,
+                "b1_cost_eur": b1_cost_num,
+                "a1_cost_eur": a1_cost_num,
                 "current_tariff": current_tariff,
             }
         else:
