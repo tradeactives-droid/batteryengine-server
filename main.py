@@ -13,8 +13,15 @@ from pydantic import BaseModel
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from uuid import UUID
 
+try:
+    import stripe
+except ImportError:  # pragma: no cover
+    stripe = None  # type: ignore[misc, assignment]
+
+import httpx
 from openai import OpenAI
 
 from battery_engine_pro3.auth.session_guard import (
@@ -63,6 +70,17 @@ if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY ontbreekt in environment")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+if stripe is not None:
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv(
+    "STRIPE_WEBHOOK_SECRET",
+    "",
+)
+STRIPE_PRICE_ID = os.getenv(
+    "STRIPE_PRICE_ID",
+    "price_1SjT5x2Y2l8Uvp2bS1UTY7nC",
+)
 
 
 REQUIRED_COMPUTE_RESULT_KEYS = ("A1", "B1", "C1", "roi", "peaks")
@@ -1422,8 +1440,274 @@ def generate_advice(
         )
 
 
+# SUPABASE MIGRATION REQUIRED:
+# CREATE TABLE subscriptions (
+#   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+#   user_id uuid REFERENCES auth.users(id),
+#   stripe_customer_id text,
+#   stripe_subscription_id text UNIQUE,
+#   status text DEFAULT 'active',
+#   created_at timestamptz DEFAULT now(),
+#   updated_at timestamptz DEFAULT now()
+# );
+# CREATE UNIQUE INDEX ON subscriptions(user_id);
+# ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+# CREATE POLICY "Users can read own subscription"
+#   ON subscriptions FOR SELECT
+#   USING (auth.uid() = user_id);
 
 
+def _subscriptions_supabase_config() -> tuple[str, str]:
+    base = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    return base, key
+
+
+def _subscriptions_rest_headers(prefer: Optional[str] = None) -> dict[str, str]:
+    _, key = _subscriptions_supabase_config()
+    h: dict[str, str] = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+    if prefer:
+        h["Prefer"] = prefer
+    return h
+
+
+def _subscription_upsert_checkout_completed(
+    user_id: str,
+    customer_id: Optional[str],
+    subscription_id: Optional[str],
+) -> None:
+    base, key = _subscriptions_supabase_config()
+    if not base or not key:
+        logger.warning("subscriptions upsert: Supabase niet geconfigureerd")
+        return
+    if not user_id or not customer_id or not subscription_id:
+        logger.warning(
+            "subscriptions upsert: ontbrekende velden user_id=%s customer=%s sub=%s",
+            user_id,
+            customer_id,
+            subscription_id,
+        )
+        return
+    now_iso = datetime.now(timezone.utc).isoformat()
+    url = f"{base}/rest/v1/subscriptions"
+    headers = _subscriptions_rest_headers(
+        "resolution=merge-duplicates,return=minimal"
+    )
+    params = {"on_conflict": "user_id"}
+    body = {
+        "user_id": user_id,
+        "stripe_customer_id": customer_id,
+        "stripe_subscription_id": subscription_id,
+        "status": "active",
+        "created_at": now_iso,
+        "updated_at": now_iso,
+    }
+    with httpx.Client(timeout=20.0) as client:
+        r = client.post(url, headers=headers, params=params, json=body)
+        r.raise_for_status()
+
+
+def _subscription_patch_by_stripe_subscription_id(
+    subscription_id: str,
+    fields: dict,
+) -> None:
+    base, key = _subscriptions_supabase_config()
+    if not base or not key:
+        logger.warning("subscriptions patch: Supabase niet geconfigureerd")
+        return
+    if not subscription_id:
+        return
+    url = f"{base}/rest/v1/subscriptions"
+    headers = _subscriptions_rest_headers("return=minimal")
+    params = {"stripe_subscription_id": f"eq.{subscription_id}"}
+    fields = {**fields, "updated_at": datetime.now(timezone.utc).isoformat()}
+    with httpx.Client(timeout=20.0) as client:
+        r = client.patch(url, headers=headers, params=params, json=fields)
+        r.raise_for_status()
+
+
+class StripeCheckoutSessionRequest(BaseModel):
+    user_id: str
+    email: str
+    success_url: str
+    cancel_url: str
+
+
+@app.post("/stripe/create-checkout-session")
+def stripe_create_checkout_session(req: StripeCheckoutSessionRequest):
+    if stripe is None:
+        _raise_http_error(
+            status_code=400,
+            error_code="STRIPE_UNAVAILABLE",
+            message="Stripe-bibliotheek is niet geïnstalleerd.",
+        )
+    if not (os.getenv("STRIPE_SECRET_KEY") or "").strip():
+        _raise_http_error(
+            status_code=400,
+            error_code="STRIPE_NOT_CONFIGURED",
+            message="STRIPE_SECRET_KEY ontbreekt in environment.",
+        )
+    uid = (req.user_id or "").strip()
+    email = (req.email or "").strip()
+    ok = (req.success_url or "").strip()
+    cancel = (req.cancel_url or "").strip()
+    if not uid or not email or not ok or not cancel:
+        _raise_http_error(
+            status_code=400,
+            error_code="VALIDATION_ERROR",
+            message="user_id, email, success_url en cancel_url zijn verplicht.",
+        )
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="subscription",
+            line_items=[
+                {
+                    "price": STRIPE_PRICE_ID,
+                    "quantity": 1,
+                }
+            ],
+            customer_email=email,
+            client_reference_id=uid,
+            success_url=ok,
+            cancel_url=cancel,
+            subscription_data={
+                "trial_period_days": 0,
+            },
+            metadata={
+                "user_id": uid,
+            },
+        )
+    except Exception as e:
+        _raise_http_error(
+            status_code=400,
+            error_code="STRIPE_ERROR",
+            message=str(e) or "Stripe Checkout Session aanmaken mislukt.",
+        )
+    if not session or not getattr(session, "url", None):
+        _raise_http_error(
+            status_code=400,
+            error_code="STRIPE_ERROR",
+            message="Geen checkout-URL ontvangen van Stripe.",
+        )
+    return {"checkout_url": session.url}
+
+
+@app.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    if stripe is None:
+        raise HTTPException(status_code=400, detail="Stripe niet beschikbaar.")
+    if not (STRIPE_WEBHOOK_SECRET or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="STRIPE_WEBHOOK_SECRET ontbreekt.",
+        )
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature")
+    try:
+        event = stripe.Webhook.construct_event(
+            payload,
+            sig,
+            STRIPE_WEBHOOK_SECRET,
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    try:
+        etype = event.get("type")
+        obj = (event.get("data") or {}).get("object") or {}
+        if etype == "checkout.session.completed":
+            user_id = obj.get("client_reference_id")
+            customer_id = obj.get("customer")
+            subscription_id = obj.get("subscription")
+            if user_id and customer_id and subscription_id:
+                _subscription_upsert_checkout_completed(
+                    str(user_id),
+                    str(customer_id),
+                    str(subscription_id),
+                )
+        elif etype == "customer.subscription.deleted":
+            subscription_id = obj.get("id")
+            if subscription_id:
+                _subscription_patch_by_stripe_subscription_id(
+                    str(subscription_id),
+                    {"status": "cancelled"},
+                )
+        elif etype == "customer.subscription.updated":
+            subscription_id = obj.get("id")
+            st = obj.get("status")
+            if subscription_id and st is not None:
+                _subscription_patch_by_stripe_subscription_id(
+                    str(subscription_id),
+                    {"status": str(st)},
+                )
+    except Exception as e:
+        logger.warning("stripe webhook verwerking mislukt: %s", e, exc_info=True)
+
+    return {"received": True}
+
+
+@app.get("/subscription/status")
+def subscription_status(
+    request: Request,
+    current_user: Annotated[Optional[AuthenticatedUser], Depends(get_current_user)],
+    _device_track: Annotated[None, Depends(track_user_device)],
+):
+    if current_user is None:
+        _raise_http_error(
+            status_code=401,
+            error_code="UNAUTHORIZED",
+            message="Authenticatie vereist.",
+        )
+    base, key = _subscriptions_supabase_config()
+    if not base or not key:
+        return _attach_device_tracking(
+            request,
+            {"active": False, "status": None},
+        )
+    url = f"{base}/rest/v1/subscriptions"
+    headers = _subscriptions_rest_headers()
+    params = {
+        "user_id": f"eq.{current_user.id}",
+        "select": "status",
+        "limit": "1",
+    }
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.get(url, headers=headers, params=params)
+            r.raise_for_status()
+            rows = r.json()
+    except Exception as e:
+        logger.warning("subscription status query mislukt: %s", e)
+        return _attach_device_tracking(
+            request,
+            {"active": False, "status": None},
+        )
+    if not isinstance(rows, list) or not rows:
+        return _attach_device_tracking(
+            request,
+            {"active": False, "status": None},
+        )
+    status = rows[0].get("status")
+    if status is not None:
+        status = str(status)
+    active = status == "active"
+    return _attach_device_tracking(
+        request,
+        {"active": active, "status": status},
+    )
+
+
+# RENDER ENVIRONMENT VARIABLES REQUIRED:
+# STRIPE_SECRET_KEY=sk_live_...
+# STRIPE_WEBHOOK_SECRET=whsec_Xtd16NCWE0glcn3MeF69dly9NqebTIiQ
+# STRIPE_PRICE_ID=price_1SjT5x2Y2l8Uvp2bS1UTY7nC
 
 
 
