@@ -1576,9 +1576,6 @@ def stripe_create_checkout_session(req: StripeCheckoutSessionRequest):
                 "sepa_debit": {
                     "setup_future_usage": "off_session",
                 },
-                "bancontact": {
-                    "setup_future_usage": "off_session",
-                },
             },
             billing_address_collection="auto",
             mode="subscription",
