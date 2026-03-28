@@ -1576,7 +1576,9 @@ def stripe_create_checkout_session(req: StripeCheckoutSessionRequest):
             success_url=ok,
             cancel_url=cancel,
             subscription_data={
-                "trial_period_days": 0,
+                "metadata": {
+                    "user_id": uid,
+                }
             },
             metadata={
                 "user_id": uid,
