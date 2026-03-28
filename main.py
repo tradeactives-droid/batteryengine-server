@@ -1563,7 +1563,12 @@ def stripe_create_checkout_session(req: StripeCheckoutSessionRequest):
         )
     try:
         session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
+            payment_method_types=[
+                "card",
+                "ideal",
+                "bancontact",
+                "sepa_debit",
+            ],
             mode="subscription",
             line_items=[
                 {
