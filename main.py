@@ -1646,7 +1646,7 @@ async def _send_welcome_email_resend(
             )
             return
 
-        naam = first_name if first_name else "daar"
+        naam = first_name if first_name else "je"
 
         params = {
             "from": "Eco Metric <noreply@ecometric.nl>",
@@ -1655,7 +1655,7 @@ async def _send_welcome_email_resend(
             "html": f"""
 <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#f4f1eb;border-radius:12px;">
   <h2 style="color:#0a0f1a;font-size:1.4rem;margin-bottom:8px;">
-    Welkom bij Eco Metric, {naam}!
+    Welkom bij Eco Metric{", " + naam if naam != "je" else ""}!
   </h2>
   <p style="color:#4b5563;font-size:0.95rem;line-height:1.6;margin-bottom:16px;">
     Bedankt voor je aanmelding. Je abonnement van
