@@ -1646,13 +1646,12 @@ async def stripe_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid signature")
 
     try:
-        etype = event["type"]
-        session = dict(event["data"]["object"])
-        obj = session
+        etype = event.type
+        session = event.data.object
         if etype == "checkout.session.completed":
-            user_id = obj.get("client_reference_id")
-            customer_id = obj.get("customer")
-            subscription_id = obj.get("subscription")
+            user_id = getattr(session, "client_reference_id", None)
+            customer_id = getattr(session, "customer", None)
+            subscription_id = getattr(session, "subscription", None)
             if user_id and customer_id and subscription_id:
                 await _upsert_subscription(
                     user_id=str(user_id),
@@ -1661,9 +1660,9 @@ async def stripe_webhook(request: Request):
                     status="active",
                 )
         elif etype == "checkout.session.async_payment_succeeded":
-            user_id = obj.get("client_reference_id")
-            customer_id = obj.get("customer")
-            subscription_id = obj.get("subscription")
+            user_id = getattr(session, "client_reference_id", None)
+            customer_id = getattr(session, "customer", None)
+            subscription_id = getattr(session, "subscription", None)
             if user_id and subscription_id:
                 await _upsert_subscription(
                     user_id=str(user_id),
@@ -1672,19 +1671,25 @@ async def stripe_webhook(request: Request):
                     status="active",
                 )
         elif etype == "customer.subscription.deleted":
-            subscription_id = obj.get("id")
+            subscription_id = getattr(
+                event.data.object, "id", None
+            )
             if subscription_id:
                 _subscription_patch_by_stripe_subscription_id(
                     str(subscription_id),
                     {"status": "cancelled"},
                 )
         elif etype == "customer.subscription.updated":
-            subscription_id = obj.get("id")
-            st = obj.get("status")
-            if subscription_id and st is not None:
+            subscription_id = getattr(
+                event.data.object, "id", None
+            )
+            status = getattr(
+                event.data.object, "status", None
+            )
+            if subscription_id and status is not None:
                 _subscription_patch_by_stripe_subscription_id(
                     str(subscription_id),
-                    {"status": str(st)},
+                    {"status": str(status)},
                 )
     except Exception as e:
         logger.warning("stripe webhook verwerking mislukt: %s", e, exc_info=True)
