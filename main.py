@@ -22,6 +22,11 @@ try:
 except ImportError:  # pragma: no cover
     stripe = None  # type: ignore[misc, assignment]
 
+try:
+    import resend
+except ImportError:  # pragma: no cover
+    resend = None  # type: ignore[misc, assignment]
+
 import httpx
 from openai import OpenAI
 
@@ -82,6 +87,10 @@ STRIPE_PRICE_ID = os.getenv(
     "STRIPE_PRICE_ID",
     "price_1SjT5x2Y2l8Uvp2bS1UTY7nC",
 )
+
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+if resend is not None:
+    resend.api_key = RESEND_API_KEY
 
 
 REQUIRED_COMPUTE_RESULT_KEYS = ("A1", "B1", "C1", "roi", "peaks")
@@ -1623,6 +1632,63 @@ def stripe_create_checkout_session(req: StripeCheckoutSessionRequest):
     return {"checkout_url": session.url}
 
 
+async def _send_welcome_email_resend(
+    email: str, first_name: str = ""
+):
+    """Stuur welkomstmail via Resend."""
+    try:
+        if resend is None:
+            logger.warning("resend-bibliotheek niet geïnstalleerd")
+            return
+        if not RESEND_API_KEY:
+            logger.warning(
+                "RESEND_API_KEY niet ingesteld"
+            )
+            return
+
+        naam = first_name if first_name else "daar"
+
+        params = {
+            "from": "Eco Metric <noreply@ecometric.nl>",
+            "to": [email],
+            "subject": "Welkom bij Eco Metric",
+            "html": f"""
+<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#f4f1eb;border-radius:12px;">
+  <h2 style="color:#0a0f1a;font-size:1.4rem;margin-bottom:8px;">
+    Welkom bij Eco Metric, {naam}!
+  </h2>
+  <p style="color:#4b5563;font-size:0.95rem;line-height:1.6;margin-bottom:16px;">
+    Bedankt voor je aanmelding. Je abonnement van
+    <strong>€99/maand</strong> is actief.
+  </p>
+  <p style="color:#4b5563;font-size:0.95rem;line-height:1.6;margin-bottom:24px;">
+    Je kunt direct inloggen en aan de slag:
+  </p>
+  <a href="https://app.ecometric.nl"
+     style="display:inline-block;background:#e8622a;color:#ffffff;font-size:1rem;font-weight:600;padding:14px 28px;border-radius:100px;text-decoration:none;margin-bottom:24px;">
+    Inloggen bij Eco Metric
+  </a>
+  <hr style="border:none;border-top:1px solid #e5e0d8;margin:24px 0;">
+  <p style="color:#9ca3af;font-size:0.8rem;line-height:1.5;">
+    Vragen? Mail naar
+    <a href="mailto:info@ecometric.nl"
+       style="color:#e8622a;">info@ecometric.nl</a>
+  </p>
+</div>
+            """,
+        }
+
+        resend.Emails.send(params)
+        logger.info(
+            "Welkomstmail verstuurd naar %s", email
+        )
+
+    except Exception as e:
+        logger.warning(
+            "Welkomstmail mislukt: %s", e
+        )
+
+
 @app.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
     if stripe is None:
@@ -1659,6 +1725,50 @@ async def stripe_webhook(request: Request):
                     subscription_id=str(subscription_id),
                     status="active",
                 )
+                # Haal email en naam op en stuur welkomstmail
+                first_name = ""
+                try:
+                    user_email = getattr(
+                        session, "customer_email", None
+                    )
+                    if not user_email and user_id:
+                        # Haal email op via Supabase Admin API
+                        supabase_url = os.getenv(
+                            "SUPABASE_URL", ""
+                        ).strip().rstrip("/")
+                        service_key = os.getenv(
+                            "SUPABASE_SERVICE_ROLE_KEY", ""
+                        )
+                        if supabase_url and service_key:
+                            async with httpx.AsyncClient() as client:
+                                resp = await client.get(
+                                    f"{supabase_url}/auth/v1/admin"
+                                    f"/users/{user_id}",
+                                    headers={
+                                        "apikey": service_key,
+                                        "Authorization":
+                                            f"Bearer {service_key}",
+                                    },
+                                )
+                                if resp.status_code == 200:
+                                    user_data = resp.json()
+                                    user_email = user_data.get(
+                                        "email"
+                                    )
+                                    first_name = (
+                                        user_data
+                                        .get("user_metadata", {})
+                                        .get("first_name", "")
+                                    )
+
+                    if user_email:
+                        await _send_welcome_email_resend(
+                            str(user_email), first_name
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "Welkomstmail flow mislukt: %s", e
+                    )
         elif etype == "checkout.session.async_payment_succeeded":
             user_id = getattr(session, "client_reference_id", None)
             customer_id = getattr(session, "customer", None)
@@ -1752,6 +1862,7 @@ def subscription_status(
 # STRIPE_SECRET_KEY=sk_live_...
 # STRIPE_WEBHOOK_SECRET=whsec_Xtd16NCWE0glcn3MeF69dly9NqebTIiQ
 # STRIPE_PRICE_ID=price_1SjT5x2Y2l8Uvp2bS1UTY7nC
+# RESEND_API_KEY=re_anGxKmTn_6s2ofBmqsdu7cmuuTXhp3JNZ
 
 
 
