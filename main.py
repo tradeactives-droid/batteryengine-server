@@ -3,6 +3,7 @@
 # COMPLETE MAIN.PY (parse_csv + compute_v3 + advice)
 # ============================================================
 
+import asyncio
 from typing import Annotated, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -1475,16 +1476,17 @@ def _subscriptions_rest_headers(prefer: Optional[str] = None) -> dict[str, str]:
     return h
 
 
-def _subscription_upsert_checkout_completed(
+def _upsert_subscription_impl(
     user_id: str,
     customer_id: Optional[str],
-    subscription_id: Optional[str],
+    subscription_id: str,
+    status: str,
 ) -> None:
     base, key = _subscriptions_supabase_config()
     if not base or not key:
         logger.warning("subscriptions upsert: Supabase niet geconfigureerd")
         return
-    if not user_id or not customer_id or not subscription_id:
+    if not user_id or not subscription_id:
         logger.warning(
             "subscriptions upsert: ontbrekende velden user_id=%s customer=%s sub=%s",
             user_id,
@@ -1502,13 +1504,29 @@ def _subscription_upsert_checkout_completed(
         "user_id": user_id,
         "stripe_customer_id": customer_id,
         "stripe_subscription_id": subscription_id,
-        "status": "active",
+        "status": status,
         "created_at": now_iso,
         "updated_at": now_iso,
     }
     with httpx.Client(timeout=20.0) as client:
         r = client.post(url, headers=headers, params=params, json=body)
         r.raise_for_status()
+
+
+async def _upsert_subscription(
+    *,
+    user_id: str,
+    customer_id: Optional[str],
+    subscription_id: str,
+    status: str = "active",
+) -> None:
+    await asyncio.to_thread(
+        _upsert_subscription_impl,
+        user_id,
+        customer_id,
+        subscription_id,
+        status,
+    )
 
 
 def _subscription_patch_by_stripe_subscription_id(
@@ -1635,10 +1653,23 @@ async def stripe_webhook(request: Request):
             customer_id = obj.get("customer")
             subscription_id = obj.get("subscription")
             if user_id and customer_id and subscription_id:
-                _subscription_upsert_checkout_completed(
-                    str(user_id),
-                    str(customer_id),
-                    str(subscription_id),
+                await _upsert_subscription(
+                    user_id=str(user_id),
+                    customer_id=str(customer_id),
+                    subscription_id=str(subscription_id),
+                    status="active",
+                )
+        elif etype == "checkout.session.async_payment_succeeded":
+            session = obj
+            user_id = session.get("client_reference_id")
+            customer_id = session.get("customer")
+            subscription_id = session.get("subscription")
+            if user_id and subscription_id:
+                await _upsert_subscription(
+                    user_id=str(user_id),
+                    customer_id=str(customer_id) if customer_id else None,
+                    subscription_id=str(subscription_id),
+                    status="active",
                 )
         elif etype == "customer.subscription.deleted":
             subscription_id = obj.get("id")
