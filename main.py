@@ -1646,8 +1646,9 @@ async def stripe_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid signature")
 
     try:
-        etype = event.get("type")
-        obj = (event.get("data") or {}).get("object") or {}
+        etype = event["type"]
+        session = dict(event["data"]["object"])
+        obj = session
         if etype == "checkout.session.completed":
             user_id = obj.get("client_reference_id")
             customer_id = obj.get("customer")
@@ -1660,10 +1661,9 @@ async def stripe_webhook(request: Request):
                     status="active",
                 )
         elif etype == "checkout.session.async_payment_succeeded":
-            session = obj
-            user_id = session.get("client_reference_id")
-            customer_id = session.get("customer")
-            subscription_id = session.get("subscription")
+            user_id = obj.get("client_reference_id")
+            customer_id = obj.get("customer")
+            subscription_id = obj.get("subscription")
             if user_id and subscription_id:
                 await _upsert_subscription(
                     user_id=str(user_id),
