@@ -1653,29 +1653,58 @@ async def _send_welcome_email_resend(
             "to": [email],
             "subject": "Welkom bij Eco Metric",
             "html": f"""
-<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#f4f1eb;border-radius:12px;">
-  <h2 style="color:#0a0f1a;font-size:1.4rem;margin-bottom:8px;">
-    Welkom bij Eco Metric{", " + naam if naam != "je" else ""}!
+<div style="font-family:sans-serif;max-width:560px;
+            margin:0 auto;padding:32px 24px;
+            background:#f4f1eb;border-radius:12px;">
+
+  <h2 style="font-family:sans-serif;color:#0a0f1a;
+             font-size:1.4rem;margin-bottom:8px;">
+    Welkom bij Eco Metric
   </h2>
-  <p style="color:#4b5563;font-size:0.95rem;line-height:1.6;margin-bottom:16px;">
-    Bedankt voor je aanmelding. Je abonnement van
-    <strong>€99/maand</strong> is actief.
+
+  <p style="color:#4b5563;font-size:0.95rem;
+            line-height:1.6;margin-bottom:16px;">
+    Gefeliciteerd! Je abonnement is actief en 
+    je account staat klaar!
   </p>
-  <p style="color:#4b5563;font-size:0.95rem;line-height:1.6;margin-bottom:24px;">
-    Je kunt direct inloggen en aan de slag:
+
+  <p style="color:#4b5563;font-size:0.95rem;
+            line-height:1.6;margin-bottom:24px;">
+    Klik op de knop hieronder om je e-mailadres 
+    te bevestigen en direct in te loggen:
   </p>
+
   <a href="https://app.ecometric.nl"
-     style="display:inline-block;background:#e8622a;color:#ffffff;font-size:1rem;font-weight:600;padding:14px 28px;border-radius:100px;text-decoration:none;margin-bottom:24px;">
-    Inloggen bij Eco Metric
+     style="display:inline-block;
+            background:#e8622a;color:#ffffff;
+            font-size:1rem;font-weight:600;
+            padding:14px 28px;border-radius:100px;
+            text-decoration:none;
+            margin-bottom:16px;">
+    Account bevestigen en inloggen
   </a>
-  <hr style="border:none;border-top:1px solid #e5e0d8;margin:24px 0;">
-  <p style="color:#9ca3af;font-size:0.8rem;line-height:1.5;">
-    Vragen? Mail naar
-    <a href="mailto:info@ecometric.nl"
-       style="color:#e8622a;">info@ecometric.nl</a>
+
+  <p style="color:#4b5563;font-size:0.95rem;
+            line-height:1.6;margin-top:16px;">
+    Succes!
   </p>
+
+  <hr style="border:none;border-top:1px solid 
+             #e5e0d8;margin:24px 0;">
+
+  <p style="color:#9ca3af;font-size:0.8rem;
+            line-height:1.5;">
+    Je ontvangt deze mail omdat je je hebt 
+    aangemeld bij Eco Metric.<br>
+    Vragen? Mail naar 
+    <a href="mailto:info@ecometric.nl" 
+       style="color:#e8622a;">
+      info@ecometric.nl
+    </a>
+  </p>
+
 </div>
-            """,
+""",
         }
 
         resend.Emails.send(params)
