@@ -735,13 +735,35 @@ def compute_v3_profile(
                 else:
                     saldering_narrative = "minimal"
 
-                result["saldering_context"] = {
+                saldering_ctx_payload = {
                     "saldering_impact_eur": saldering_impact_eur,
                     "narrative": saldering_narrative,
                     "b1_cost_eur": b1_cost_num,
                     "a1_cost_eur": a1_cost_num,
                     "current_tariff": current_tariff,
                 }
+                if req.annual_load_kwh and req.annual_feedin_kwh is not None:
+                    pv = float(req.annual_pv_kwh or 0)
+                    feedin = float(req.annual_feedin_kwh)
+                    load = float(req.annual_load_kwh)
+                    directe_zc = max(0.0, pv - feedin)
+                    netto_import = max(0.0, load - directe_zc)
+                    p_imp = float(req.p_enkel_imp or 0.29)
+                    p_exp = float(req.p_enkel_exp or 0.07)
+                    saldering_ctx_payload.update(
+                        {
+                            "netto_import_kwh": round(netto_import, 1),
+                            "feedin_kwh": round(feedin, 1),
+                            "directe_zelfconsumptie_kwh": round(directe_zc, 1),
+                            "gesaldeerde_kwh": round(min(netto_import, feedin), 1),
+                            "import_tarief_enkel": round(p_imp, 4),
+                            "export_tarief_enkel": round(p_exp, 4),
+                            "tariefverschil_enkel": round(p_imp - p_exp, 4),
+                            "a1_cost_eur": round(a1_cost_num, 2),
+                            "b1_cost_eur": round(b1_cost_num, 2),
+                        }
+                    )
+                result["saldering_context"] = saldering_ctx_payload
             else:
                 result["saldering_context"] = None
 
@@ -1130,6 +1152,14 @@ def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
         if ctx.roi_per_tariff
         else None
     )
+    b1_cost_num = (
+        (ctx.saldering_context or {}).get("b1_cost_eur")
+        if ctx.saldering_context
+        else None
+    )
+    c1_cost_num = None
+    if b1_cost_num is not None and batterij_besparing_eur is not None:
+        c1_cost_num = round(float(b1_cost_num) - float(batterij_besparing_eur), 2)
 
     # Pre-berekende kernfeiten: de AI hoeft niet te gokken of te kiezen.
     ctx_dict["kernfeiten"] = {
@@ -1144,6 +1174,7 @@ def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
         ),
         "saldering_impact_eur": saldering_impact_eur,
         "batterij_besparing_eur": batterij_besparing_eur,
+        "c1_cost_eur": c1_cost_num,
         "saldering_verhaal": (
             f"Het wegvallen van saldering kost u "
             f"{round(saldering_impact_eur)} euro per jaar "
@@ -1167,6 +1198,99 @@ def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
             )
             if (ctx_dict.get("tariff_matrix") or {}).get("C1")
             else None
+        ),
+        # Energiestromen (voor Blok 1 en Blok 2 berekeningsuitleg)
+        "netto_import_kwh": round(
+            float((ctx_dict.get("saldering_context") or {}).get("netto_import_kwh", 0)),
+            1,
+        ),
+        "feedin_kwh": round(
+            float((ctx_dict.get("saldering_context") or {}).get("feedin_kwh", 0)),
+            1,
+        ),
+        "directe_zelfconsumptie_kwh": round(
+            float(
+                (ctx_dict.get("saldering_context") or {}).get(
+                    "directe_zelfconsumptie_kwh",
+                    (ctx_dict.get("saldering_context") or {}).get("directe_zc_kwh", 0),
+                )
+            ),
+            1,
+        ),
+        "gesaldeerde_kwh": round(
+            float((ctx_dict.get("saldering_context") or {}).get("gesaldeerde_kwh", 0)),
+            1,
+        ),
+        "a1_cost_eur": (ctx_dict.get("saldering_context") or {}).get("a1_cost_eur"),
+        "b1_cost_eur": (ctx_dict.get("saldering_context") or {}).get("b1_cost_eur"),
+        # Tarieven (voor berekeningsuitleg)
+        "import_tarief_enkel": (
+            (ctx_dict.get("saldering_context") or {}).get("import_tarief_enkel")
+            if (ctx_dict.get("saldering_context") or {}).get("import_tarief_enkel")
+            is not None
+            else (ctx_dict.get("cost_components") or {}).get("p_enkel_imp", None)
+        ),
+        "export_tarief_enkel": (
+            (ctx_dict.get("saldering_context") or {}).get("export_tarief_enkel")
+            if (ctx_dict.get("saldering_context") or {}).get("export_tarief_enkel")
+            is not None
+            else (ctx_dict.get("cost_components") or {}).get("p_enkel_exp", None)
+        ),
+        "tariefverschil_enkel": (
+            round(
+                float(
+                    (ctx_dict.get("saldering_context") or {}).get("tariefverschil_enkel")
+                ),
+                4,
+            )
+            if (ctx_dict.get("saldering_context") or {}).get("tariefverschil_enkel")
+            is not None
+            else round(
+                (
+                    (ctx_dict.get("cost_components") or {}).get("p_enkel_imp", 0) or 0
+                )
+                - (
+                    (ctx_dict.get("cost_components") or {}).get("p_enkel_exp", 0) or 0
+                ),
+                3,
+            )
+        ),
+        # A1 / B1 / C1 totalen per tarief (voor Blok 2 en Blok 3)
+        "A1_per_tariff": {
+            t: round(v.get("total_cost_eur", 0), 2)
+            for t, v in (ctx_dict.get("tariff_matrix") or {}).items()
+        },
+        "B1_per_tariff": {
+            t: round(v.get("total_cost_eur", 0), 2)
+            for t, v in (ctx_dict.get("roi_per_tariff") or {}).items()
+            if isinstance(v, dict) and "b1_cost_eur" in v
+        },
+        "C1_per_tariff": {
+            t: round(v.get("c1_cost_eur", 0), 2)
+            for t, v in (ctx_dict.get("roi_per_tariff") or {}).items()
+            if isinstance(v, dict) and "c1_cost_eur" in v
+        },
+        # ROI details per tarief (voor Blok 3 berekeningsuitleg)
+        "roi_details": {
+            t: {
+                "jaarlijkse_besparing_eur": round(v.get("yearly_saving_eur", 0), 2),
+                "terugverdientijd": v.get("payback_years", None),
+                "roi_percent": round(v.get("roi_percent", 0), 1),
+                "verschoven_kwh": round(v.get("shifted_kwh", 0), 1)
+                if "shifted_kwh" in v
+                else None,
+            }
+            for t, v in (ctx_dict.get("roi_per_tariff") or {}).items()
+            if isinstance(v, dict)
+        },
+        # Batterijgegevens (voor Blok 3 berekeningsuitleg)
+        "batterij_capaciteit_kwh": (ctx_dict.get("battery") or {}).get("E", None),
+        "batterij_vermogen_kw": (ctx_dict.get("battery") or {}).get("P", None),
+        "degradatie_per_jaar_pct": (ctx_dict.get("battery") or {}).get(
+            "degradation_pct", 2.0
+        ),
+        "levensduur_jaren": (ctx_dict.get("battery") or {}).get(
+            "lifetime_years", 15
         ),
     }
 
@@ -1459,8 +1583,8 @@ def generate_advice(
 ANALYSE_SYSTEM_PROMPT = (
     "U schrijft een technische uitleg in het Nederlands. "
     "Volg de instructies van de gebruiker exact. Gebruik consequent de beleefdheidsvorm \"u\". "
-    "Cijfers en bedragen uitsluitend uit het kernfeiten-JSON-blok en het berekenings-JSON-blok "
-    "in het gebruikersbericht; verzin niets."
+    "Cijfers en bedragen uitsluitend uit het kernfeiten-JSON-blok in het gebruikersbericht; "
+    "verzin niets."
 )
 
 
@@ -1477,54 +1601,54 @@ def generate_analyse(
         indent=2,
     )
     pythonprompt = f"""
-Je schrijft een uitgebreide analyse voor een klant over zijn thuisbatterij-investering.
-Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands.
-Geen inleiding, geen samenvatting, geen bijlagen, geen aanbeveling.
-Alleen deze drie blokken, elk met een kopje en daarna een "Hoe is dit berekend?" subkopje.
+Je schrijft een uitgebreide analyse voor een klant over zijn thuisbatterij-situatie.
+Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands. Geen inleiding, geen samenvatting, geen bijlagen, geen aanbeveling. Alleen de drie blokken hieronder.
 
-KERNFEITEN (gebruik deze exacte cijfers, verzin niets):
+KERNFEITEN (gebruik uitsluitend deze cijfers, verzin niets):
 {kernfeiten_tekst}
 
-BLOK 1 — De situatie van uw huishouden
-Beschrijf het energieprofiel op basis van de invoer: jaarverbruik, zonnepanelen, teruglevering, tarieftype, warmtepomp en EV indien aanwezig.
-Daarna subkopje "Hoe is dit berekend?": leg uit hoe A1 (huidige jaarkosten met saldering) tot stand komt. Noem het verbruik van het net, de teruglevering, het gehanteerde tarief en de vaste kosten.
+Schrijf nu de drie blokken in deze volgorde en exacte structuur:
 
-BLOK 2 — Wat het wegvallen van de saldering betekent
-Leg uit wat de overgang van A1 naar B1 financieel betekent. Noem de exacte bedragen uit de kernfeiten.
-Daarna subkopje "Hoe is dit berekend?": leg uit hoe B1 berekend is. Noem de kWh teruglevering, het verschil tussen het import- en teruglevertarief, en hoe dat het eindgetal verklaart.
+---
 
-BLOK 3 — Wat de batterij voor u doet
-Vergelijk B1 met C1. Leg uit wat de batterij concreet doet en zet de terugverdientijd en ROI in context.
-Daarna subkopje "Hoe is dit berekend?": leg uit hoe C1 berekend is. Noem de batterijabsorptie in kWh, de toename in zelfverbruik, de afname van netimport, en hoe ROI en terugverdientijd berekend zijn inclusief jaarlijkse degradatie.
+Blok 1 — De situatie van uw huishouden
+
+Schrijf 3-4 zinnen die het energieprofiel van deze klant beschrijven: jaarverbruik in kWh, zonnepanelenopwek in kWh, hoeveel kWh er wordt teruggeleverd, welk tarieftype, en of er een warmtepomp of EV aanwezig is. Wees specifiek met de cijfers uit de kernfeiten.
+
+Hoe is dit berekend?
+
+Leg uit hoe het huidige jaarkostentotaal (A1) tot stand komt. Gebruik deze formule als leidraad: het jaarverbruik min de directe zelfconsumptie geeft de netto-import. Van die netto-import wordt de gesaldeerde hoeveelheid verrekend tegen het importtarief. Het overschot boven de netto-import wordt vergoed tegen het lage exporttarief. Tel daar de vaste kosten bij op. Noem de exacte kWh-waarden en tarieven uit de kernfeiten.
+
+---
+
+Blok 2 — Wat het wegvallen van de saldering betekent
+
+Schrijf 3-4 zinnen die uitleggen wat de overgang van A1 naar B1 financieel betekent voor deze klant. Noem A1, B1 en het verschil in euro's. Benoem dat de saldering verdwijnt en wat dat concreet voor het maandbedrag betekent.
+
+Hoe is dit berekend?
+
+Leg uit hoe B1 berekend is: bij het wegvallen van saldering wordt dezelfde hoeveelheid teruggeleverde kWh niet meer verrekend tegen het importtarief, maar vergoed tegen het lagere exporttarief. Het tariefverschil per kWh maal de teruggeleverde kWh verklaart het verschil. Noem de exacte bedragen: feedin_kwh, import_tarief_enkel, export_tarief_enkel, tariefverschil_enkel, a1_cost_eur, b1_cost_eur en saldering_impact_eur uit de kernfeiten.
+
+---
+
+Blok 3 — Wat de batterij voor u doet
+
+Schrijf 3-4 zinnen over wat de batterij concreet verandert voor dit profiel: C1 versus B1, de jaarlijkse besparing, en de terugverdientijd en ROI in context. Zet de terugverdientijd in perspectief: is dit lang of normaal voor dit type investering en profiel.
+
+Hoe is dit berekend?
+
+Leg uit hoe C1 berekend is: de batterij absorbeert teruggeleverde zonnestroom en zet die om in zelfverbruik. Daardoor daalt de netto-import en stijgt de zelfconsumptie. De jaarlijkse besparing is het tariefverschil maal de verschoven kWh. De ROI is berekend over de volledige levensduur inclusief jaarlijkse degradatie. Noem batterij_capaciteit_kwh, de jaarlijkse besparing, c1_cost_eur, b1_cost_eur, roi_percent, terugverdientijd en degradatie_per_jaar_pct uit de kernfeiten.
+
+---
+
+Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Alleen de kopjes exact zoals hierboven geschreven, gevolgd door lopende tekst.
 """
-    berekening_json = json.dumps(
-        {
-            "country": ctx_dict.get("country"),
-            "current_tariff": ctx_dict.get("current_tariff"),
-            "profile_inputs": ctx_dict.get("profile_inputs"),
-            "extra_consumers": ctx_dict.get("extra_consumers"),
-            "saldering_context": ctx_dict.get("saldering_context"),
-            "tariff_matrix": ctx_dict.get("tariff_matrix"),
-            "roi_per_tariff": ctx_dict.get("roi_per_tariff"),
-            "battery": ctx_dict.get("battery"),
-            "battery_assessment": ctx_dict.get("battery_assessment"),
-        },
-        ensure_ascii=False,
-        indent=2,
-    )
-    user_content = (
-        pythonprompt
-        + "\n\n---\nBerekeningsuitkomsten (JSON). Gebruik dit voor uitleg van A1, B1, C1, "
-        "tarieven, ROI, terugverdientijd en batterijmetrieken. "
-        "Het kernfeiten-blok hierboven heeft voorrang waar dezelfde grootheid in beide staat.\n"
-        + berekening_json
-    )
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": ANALYSE_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
+                {"role": "user", "content": pythonprompt},
             ],
             max_tokens=4000,
             temperature=0.3,
