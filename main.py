@@ -1105,13 +1105,8 @@ def format_advice_text(raw: str) -> str:
 
     return "\n".join(out).strip()
 
-@app.post("/generate_advice")
-def generate_advice(
-    req: AdviceRequest,
-    request: Request,
-    _device_track: Annotated[None, Depends(track_user_device)],
-):
-    ctx = req.context
+
+def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
     ctx_dict = ctx.model_dump()
     ctx_dict["saldering_context"] = ctx.saldering_context
     ctx_dict["profile_inputs"] = (
@@ -1346,7 +1341,18 @@ def generate_advice(
             "persoonlijk advies van een installateur, leverancier of energieadviseur."
         ),
     }
-    
+
+    return ctx_dict
+
+
+@app.post("/generate_advice")
+def generate_advice(
+    req: AdviceRequest,
+    request: Request,
+    _device_track: Annotated[None, Depends(track_user_device)],
+):
+    ctx_dict = _build_advice_request_context_dict(req.context)
+
     prompt = (
         "Schrijf het volledige energieadviesrapport.\n\n"
         "JE MOET JE STRIKT HOUDEN AAN DE STRUCTUUR EN REGELS UIT DE SYSTEM PROMPT.\n\n"
@@ -1438,6 +1444,93 @@ def generate_advice(
 
         content = format_advice_text(content)
 
+        return _attach_device_tracking(request, {"advice": content.strip()})
+
+    except Exception as e:
+        return _attach_device_tracking(
+            request,
+            {
+                "error": str(e),
+                "advice": "",
+            },
+        )
+
+
+ANALYSE_SYSTEM_PROMPT = (
+    "U schrijft een technische uitleg in het Nederlands. "
+    "Volg de instructies van de gebruiker exact. Gebruik consequent de beleefdheidsvorm \"u\". "
+    "Cijfers en bedragen uitsluitend uit het kernfeiten-JSON-blok en het berekenings-JSON-blok "
+    "in het gebruikersbericht; verzin niets."
+)
+
+
+@app.post("/generate_analyse")
+def generate_analyse(
+    req: AdviceRequest,
+    request: Request,
+    _device_track: Annotated[None, Depends(track_user_device)],
+):
+    ctx_dict = _build_advice_request_context_dict(req.context)
+    kernfeiten_tekst = json.dumps(
+        ctx_dict["kernfeiten"],
+        ensure_ascii=False,
+        indent=2,
+    )
+    pythonprompt = f"""
+Je schrijft een uitgebreide analyse voor een klant over zijn thuisbatterij-investering.
+Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands.
+Geen inleiding, geen samenvatting, geen bijlagen, geen aanbeveling.
+Alleen deze drie blokken, elk met een kopje en daarna een "Hoe is dit berekend?" subkopje.
+
+KERNFEITEN (gebruik deze exacte cijfers, verzin niets):
+{kernfeiten_tekst}
+
+BLOK 1 — De situatie van uw huishouden
+Beschrijf het energieprofiel op basis van de invoer: jaarverbruik, zonnepanelen, teruglevering, tarieftype, warmtepomp en EV indien aanwezig.
+Daarna subkopje "Hoe is dit berekend?": leg uit hoe A1 (huidige jaarkosten met saldering) tot stand komt. Noem het verbruik van het net, de teruglevering, het gehanteerde tarief en de vaste kosten.
+
+BLOK 2 — Wat het wegvallen van de saldering betekent
+Leg uit wat de overgang van A1 naar B1 financieel betekent. Noem de exacte bedragen uit de kernfeiten.
+Daarna subkopje "Hoe is dit berekend?": leg uit hoe B1 berekend is. Noem de kWh teruglevering, het verschil tussen het import- en teruglevertarief, en hoe dat het eindgetal verklaart.
+
+BLOK 3 — Wat de batterij voor u doet
+Vergelijk B1 met C1. Leg uit wat de batterij concreet doet en zet de terugverdientijd en ROI in context.
+Daarna subkopje "Hoe is dit berekend?": leg uit hoe C1 berekend is. Noem de batterijabsorptie in kWh, de toename in zelfverbruik, de afname van netimport, en hoe ROI en terugverdientijd berekend zijn inclusief jaarlijkse degradatie.
+"""
+    berekening_json = json.dumps(
+        {
+            "country": ctx_dict.get("country"),
+            "current_tariff": ctx_dict.get("current_tariff"),
+            "profile_inputs": ctx_dict.get("profile_inputs"),
+            "extra_consumers": ctx_dict.get("extra_consumers"),
+            "saldering_context": ctx_dict.get("saldering_context"),
+            "tariff_matrix": ctx_dict.get("tariff_matrix"),
+            "roi_per_tariff": ctx_dict.get("roi_per_tariff"),
+            "battery": ctx_dict.get("battery"),
+            "battery_assessment": ctx_dict.get("battery_assessment"),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    user_content = (
+        pythonprompt
+        + "\n\n---\nBerekeningsuitkomsten (JSON). Gebruik dit voor uitleg van A1, B1, C1, "
+        "tarieven, ROI, terugverdientijd en batterijmetrieken. "
+        "Het kernfeiten-blok hierboven heeft voorrang waar dezelfde grootheid in beide staat.\n"
+        + berekening_json
+    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": ANALYSE_SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=4000,
+            temperature=0.3,
+        )
+
+        content = response.choices[0].message.content
         return _attach_device_tracking(request, {"advice": content.strip()})
 
     except Exception as e:
