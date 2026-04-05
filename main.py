@@ -1610,6 +1610,7 @@ def generate_analyse(
         ensure_ascii=False,
         indent=2,
     )
+    logging.warning(f"KERNFEITEN DEBUG: {kernfeiten_tekst}")
     pythonprompt = f"""
 Je schrijft een uitgebreide analyse voor een klant over zijn thuisbatterij-situatie.
 Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands. Geen inleiding, geen samenvatting, geen bijlagen, geen aanbeveling. Alleen de drie blokken hieronder.
