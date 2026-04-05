@@ -1292,6 +1292,10 @@ def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
         "levensduur_jaren": (ctx_dict.get("battery") or {}).get(
             "lifetime_years", 15
         ),
+        "heeft_warmtepomp": bool(
+            (ctx_dict.get("extra_consumers") or {}).get("heat_pump", False)
+        ),
+        "heeft_ev": bool((ctx_dict.get("extra_consumers") or {}).get("ev", False)),
     }
 
     # ============================
@@ -1606,6 +1610,14 @@ Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands. Geen inleiding,
 
 KERNFEITEN (gebruik uitsluitend deze cijfers, verzin niets):
 {kernfeiten_tekst}
+
+KRITIEKE DEFINITIES — nooit verwarren:
+- a1_cost_eur = huidige jaarkostentotaal MET saldering
+- b1_cost_eur = toekomstig jaarkostentotaal ZONDER saldering, ZONDER batterij
+- c1_cost_eur = toekomstig jaarkostentotaal ZONDER saldering, MET batterij
+- import_tarief_enkel, export_tarief_enkel, tariefverschil_enkel = tarieven in €/kWh, GEEN jaarbedragen
+- roi_percent en terugverdientijd staan in roi_details in de kernfeiten, gebruik alleen die waarden
+- Verzin NOOIT ROI-percentages of terugverdientijden die niet in de kernfeiten staan
 
 Schrijf nu de drie blokken in deze volgorde en exacte structuur.
 
