@@ -1675,7 +1675,13 @@ Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de
         )
 
         content = response.choices[0].message.content
-        return _attach_device_tracking(request, {"advice": content.strip()})
+        return _attach_device_tracking(
+            request,
+            {
+                "advice": content.strip(),
+                "kernfeiten_debug": json.loads(kernfeiten_tekst),
+            },
+        )
 
     except Exception as e:
         return _attach_device_tracking(
