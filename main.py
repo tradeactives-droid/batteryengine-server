@@ -1607,41 +1607,42 @@ Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands. Geen inleiding,
 KERNFEITEN (gebruik uitsluitend deze cijfers, verzin niets):
 {kernfeiten_tekst}
 
-Schrijf nu de drie blokken in deze volgorde en exacte structuur:
+Schrijf nu de drie blokken in deze volgorde en exacte structuur.
+
+Voor elk blok (1, 2 en 3) geldt VERPLICHT:
+Schrijf voor elk blok VERPLICHT twee delen:
+Deel A: de persoonlijke uitleg in 3-4 zinnen met exacte cijfers.
+Deel B: begin ALTIJD met de exacte tekst "Hoe is dit berekend?" op een nieuwe regel, gevolgd door de berekeningsuitleg in 3-4 zinnen.
+
+Sla "Hoe is dit berekend?" NOOIT over, ook niet als een getal ontbreekt. Schrijf in dat geval wat er wel bekend is.
 
 ---
 
 Blok 1 — De situatie van uw huishouden
 
-Schrijf 3-4 zinnen die het energieprofiel van deze klant beschrijven: jaarverbruik in kWh, zonnepanelenopwek in kWh, hoeveel kWh er wordt teruggeleverd, welk tarieftype, en of er een warmtepomp of EV aanwezig is. Wees specifiek met de cijfers uit de kernfeiten.
+Deel A: schrijf 3-4 zinnen die het energieprofiel van deze klant beschrijven: jaarverbruik in kWh, zonnepanelenopwek in kWh, hoeveel kWh er wordt teruggeleverd, welk tarieftype, en of er een warmtepomp of EV aanwezig is. Wees specifiek met de cijfers uit de kernfeiten.
 
-Hoe is dit berekend?
-
-Leg uit hoe het huidige jaarkostentotaal (A1) tot stand komt. Gebruik deze formule als leidraad: het jaarverbruik min de directe zelfconsumptie geeft de netto-import. Van die netto-import wordt de gesaldeerde hoeveelheid verrekend tegen het importtarief. Het overschot boven de netto-import wordt vergoed tegen het lage exporttarief. Tel daar de vaste kosten bij op. Noem de exacte kWh-waarden en tarieven uit de kernfeiten.
+Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe het huidige jaarkostentotaal (A1) tot stand komt. Gebruik deze formule als leidraad: het jaarverbruik min de directe zelfconsumptie geeft de netto-import. Van die netto-import wordt de gesaldeerde hoeveelheid verrekend tegen het importtarief. Het overschot boven de netto-import wordt vergoed tegen het lage exporttarief. Tel daar de vaste kosten bij op. Noem de exacte kWh-waarden en tarieven uit de kernfeiten voor zover ze daar staan.
 
 ---
 
 Blok 2 — Wat het wegvallen van de saldering betekent
 
-Schrijf 3-4 zinnen die uitleggen wat de overgang van A1 naar B1 financieel betekent voor deze klant. Noem A1, B1 en het verschil in euro's. Benoem dat de saldering verdwijnt en wat dat concreet voor het maandbedrag betekent.
+Deel A: schrijf 3-4 zinnen die uitleggen wat de overgang van A1 naar B1 financieel betekent voor deze klant. Noem A1, B1 en het verschil in euro's. Benoem dat de saldering verdwijnt en wat dat concreet voor het maandbedrag betekent.
 
-Hoe is dit berekend?
-
-Leg uit hoe B1 berekend is: bij het wegvallen van saldering wordt dezelfde hoeveelheid teruggeleverde kWh niet meer verrekend tegen het importtarief, maar vergoed tegen het lagere exporttarief. Het tariefverschil per kWh maal de teruggeleverde kWh verklaart het verschil. Noem de exacte bedragen: feedin_kwh, import_tarief_enkel, export_tarief_enkel, tariefverschil_enkel, a1_cost_eur, b1_cost_eur en saldering_impact_eur uit de kernfeiten.
+Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe B1 berekend is: bij het wegvallen van saldering wordt dezelfde hoeveelheid teruggeleverde kWh niet meer verrekend tegen het importtarief, maar vergoed tegen het lagere exporttarief. Het tariefverschil per kWh maal de teruggeleverde kWh verklaart het verschil. Noem import_tarief_enkel als het importtarief per kWh (in €/kWh), export_tarief_enkel als het exporttarief per kWh (in €/kWh), en tariefverschil_enkel als het verschil daartussen. Noem a1_cost_eur als het huidige jaarkostentotaal en b1_cost_eur als het toekomstige jaarkostentotaal. Verwar tarieven (€/kWh) nooit met kostentotalen (€/jaar). Noem ook feedin_kwh en saldering_impact_eur uit de kernfeiten voor zover ze daar staan.
 
 ---
 
 Blok 3 — Wat de batterij voor u doet
 
-Schrijf 3-4 zinnen over wat de batterij concreet verandert voor dit profiel: C1 versus B1, de jaarlijkse besparing, en de terugverdientijd en ROI in context. Zet de terugverdientijd in perspectief: is dit lang of normaal voor dit type investering en profiel.
+Deel A: schrijf 3-4 zinnen over wat de batterij concreet verandert voor dit profiel: C1 versus B1, de jaarlijkse besparing, en de terugverdientijd en ROI in context. Zet de terugverdientijd in perspectief: is dit lang of normaal voor dit type investering en profiel.
 
-Hoe is dit berekend?
-
-Leg uit hoe C1 berekend is: de batterij absorbeert teruggeleverde zonnestroom en zet die om in zelfverbruik. Daardoor daalt de netto-import en stijgt de zelfconsumptie. De jaarlijkse besparing is het tariefverschil maal de verschoven kWh. De ROI is berekend over de volledige levensduur inclusief jaarlijkse degradatie. Noem batterij_capaciteit_kwh, de jaarlijkse besparing, c1_cost_eur, b1_cost_eur, roi_percent, terugverdientijd en degradatie_per_jaar_pct uit de kernfeiten.
+Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe C1 berekend is: de batterij absorbeert teruggeleverde zonnestroom en zet die om in zelfverbruik. Daardoor daalt de netto-import en stijgt de zelfconsumptie. De jaarlijkse besparing is het tariefverschil maal de verschoven kWh. De ROI is berekend over de volledige levensduur inclusief jaarlijkse degradatie. Noem batterij_capaciteit_kwh, de jaarlijkse besparing, c1_cost_eur, b1_cost_eur, roi_percent, terugverdientijd en degradatie_per_jaar_pct uit de kernfeiten voor zover ze daar staan.
 
 ---
 
-Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Alleen de kopjes exact zoals hierboven geschreven, gevolgd door lopende tekst.
+Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de bloktitels en de verplichte regel "Hoe is dit berekend?" exact zoals hierboven; daarbij alleen lopende tekst.
 """
     try:
         response = client.chat.completions.create(
