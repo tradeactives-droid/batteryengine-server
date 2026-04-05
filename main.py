@@ -735,12 +735,14 @@ def compute_v3_profile(
                 else:
                     saldering_narrative = "minimal"
 
+                fixed = float(req.vastrecht_year or 0)
                 saldering_ctx_payload = {
                     "saldering_impact_eur": saldering_impact_eur,
                     "narrative": saldering_narrative,
                     "b1_cost_eur": b1_cost_num,
                     "a1_cost_eur": a1_cost_num,
                     "current_tariff": current_tariff,
+                    "vastrecht_year": fixed,
                 }
                 if req.annual_load_kwh and req.annual_feedin_kwh is not None:
                     pv = float(req.annual_pv_kwh or 0)
@@ -1222,6 +1224,10 @@ def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
             1,
         ),
         "a1_cost_eur": (ctx_dict.get("saldering_context") or {}).get("a1_cost_eur"),
+        "vastrecht_eur": round(
+            float((ctx_dict.get("saldering_context") or {}).get("vastrecht_year", 0) or 0),
+            2,
+        ),
         "b1_cost_eur": (ctx_dict.get("saldering_context") or {}).get("b1_cost_eur"),
         # Tarieven (voor berekeningsuitleg)
         "import_tarief_enkel": (
@@ -1634,7 +1640,7 @@ Blok 1 — De situatie van uw huishouden
 
 Deel A: Beschrijf het energieprofiel met deze exacte velden uit de kernfeiten: jaarverbruik_kwh, jaaropwek_kwh en feedin_kwh. Als feedin_kwh groter is dan 0, vermeld dan expliciet hoeveel kWh er wordt teruggeleverd. Noem ook het tarieftype, en of heeft_warmtepomp en heeft_ev true zijn.
 
-Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe het huidige jaarkostentotaal (A1) tot stand komt. Gebruik deze formule als leidraad: het jaarverbruik min de directe zelfconsumptie geeft de netto-import. Van die netto-import wordt de gesaldeerde hoeveelheid verrekend tegen het importtarief. Het overschot boven de netto-import wordt vergoed tegen het lage exporttarief. Tel daar de vaste kosten bij op. Noem de exacte kWh-waarden en tarieven uit de kernfeiten voor zover ze daar staan.
+Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe het huidige jaarkostentotaal (A1) tot stand komt. Gebruik deze formule als leidraad: het jaarverbruik min de directe zelfconsumptie geeft de netto-import. Van die netto-import wordt de gesaldeerde hoeveelheid verrekend tegen het importtarief. Het overschot boven de netto-import wordt vergoed tegen het lage exporttarief. Tel daar de vaste kosten bij op. Noem vastrecht_eur als de vaste contractkosten in euro per jaar. Verwar vastrecht_eur nooit met a1_cost_eur: a1_cost_eur is het volledige jaarkostentotaal inclusief vastrecht, a1_cost_eur is geen tarief en geen vastrecht. Noem de exacte kWh-waarden en tarieven uit de kernfeiten voor zover ze daar staan.
 
 ---
 
