@@ -1632,7 +1632,7 @@ Sla "Hoe is dit berekend?" NOOIT over, ook niet als een getal ontbreekt. Schrijf
 
 Blok 1 — De situatie van uw huishouden
 
-Deel A: schrijf 3-4 zinnen die het energieprofiel van deze klant beschrijven: jaarverbruik in kWh, zonnepanelenopwek in kWh, hoeveel kWh er wordt teruggeleverd, welk tarieftype, en of er een warmtepomp of EV aanwezig is. Wees specifiek met de cijfers uit de kernfeiten.
+Deel A: Beschrijf het energieprofiel met deze exacte velden uit de kernfeiten: jaarverbruik_kwh, jaaropwek_kwh en feedin_kwh. Als feedin_kwh groter is dan 0, vermeld dan expliciet hoeveel kWh er wordt teruggeleverd. Noem ook het tarieftype, en of heeft_warmtepomp en heeft_ev true zijn.
 
 Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe het huidige jaarkostentotaal (A1) tot stand komt. Gebruik deze formule als leidraad: het jaarverbruik min de directe zelfconsumptie geeft de netto-import. Van die netto-import wordt de gesaldeerde hoeveelheid verrekend tegen het importtarief. Het overschot boven de netto-import wordt vergoed tegen het lage exporttarief. Tel daar de vaste kosten bij op. Noem de exacte kWh-waarden en tarieven uit de kernfeiten voor zover ze daar staan.
 
