@@ -1675,11 +1675,19 @@ Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de
         )
 
         content = response.choices[0].message.content
+        kernfeiten_dict = json.loads(kernfeiten_tekst)
         return _attach_device_tracking(
             request,
             {
                 "advice": content.strip(),
-                "kernfeiten_debug": json.loads(kernfeiten_tekst),
+                "roi_details": kernfeiten_dict.get("roi_details"),
+                "roi_percent": kernfeiten_dict.get("roi_percent"),
+                "batterij_besparing_eur": kernfeiten_dict.get(
+                    "batterij_besparing_eur"
+                ),
+                "a1_cost_eur": kernfeiten_dict.get("a1_cost_eur"),
+                "b1_cost_eur": kernfeiten_dict.get("b1_cost_eur"),
+                "c1_cost_eur": kernfeiten_dict.get("c1_cost_eur"),
             },
         )
 
