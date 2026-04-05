@@ -1625,6 +1625,9 @@ KRITIEKE DEFINITIES — nooit verwarren:
 - import_tarief_enkel, export_tarief_enkel, tariefverschil_enkel = tarieven in €/kWh, GEEN jaarbedragen
 - roi_percent en terugverdientijd staan in roi_details in de kernfeiten, gebruik alleen die waarden
 - Verzin NOOIT ROI-percentages of terugverdientijden die niet in de kernfeiten staan
+- Het huidige jaarkostentotaal MET saldering is altijd a1_cost_eur. Dit is NOOIT gelijk aan c1_cost_eur.
+- c1_cost_eur is het toekomstige jaarkostentotaal MET batterij, dit is een ander getal dan a1_cost_eur.
+- Als a1_cost_eur en c1_cost_eur toevallig dicht bij elkaar liggen, is dat toeval in de berekening, niet een fout.
 
 Schrijf nu de drie blokken in deze volgorde en exacte structuur.
 
@@ -1647,7 +1650,7 @@ Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zi
 
 Blok 2 — Wat het wegvallen van de saldering betekent
 
-Deel A: schrijf 3-4 zinnen die uitleggen wat de overgang van A1 naar B1 financieel betekent voor deze klant. Noem A1, B1 en het verschil in euro's. Benoem dat de saldering verdwijnt en wat dat concreet voor het maandbedrag betekent.
+Deel A: Noem het huidige jaarkostentotaal MET saldering (a1_cost_eur in kernfeiten) en het toekomstige jaarkostentotaal ZONDER saldering en ZONDER batterij (b1_cost_eur in kernfeiten). Schrijf deze bedragen in gewone taal zonder variabelenamen. Noem het exacte verschil in euro per jaar en wat dit maandelijks betekent.
 
 Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe B1 berekend is: bij het wegvallen van saldering wordt dezelfde hoeveelheid teruggeleverde kWh niet meer verrekend tegen het importtarief, maar vergoed tegen het lagere exporttarief. Het tariefverschil per kWh maal de teruggeleverde kWh verklaart het verschil. Noem import_tarief_enkel als het importtarief per kWh (in €/kWh), export_tarief_enkel als het exporttarief per kWh (in €/kWh), en tariefverschil_enkel als het verschil daartussen. Noem a1_cost_eur als het huidige jaarkostentotaal en b1_cost_eur als het toekomstige jaarkostentotaal. Verwar tarieven (€/kWh) nooit met kostentotalen (€/jaar). Noem ook feedin_kwh en saldering_impact_eur uit de kernfeiten voor zover ze daar staan.
 
