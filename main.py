@@ -1661,7 +1661,7 @@ Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zi
 
 ---
 
-Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de bloktitels en de verplichte regel "Hoe is dit berekend?" exact zoals hierboven; daarbij alleen lopende tekst.
+Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de bloktitels en de verplichte regel "Hoe is dit berekend?" exact zoals hierboven; daarbij alleen lopende tekst. Schrijf NOOIT variabelenamen zoals a1_cost_eur, b1_cost_eur, c1_cost_eur, kernfeiten_tekst of andere technische veldnamen in de output. Vervang deze altijd door gewone Nederlandse termen: "het huidige jaarkostentotaal", "het toekomstige jaarkostentotaal zonder batterij", "het toekomstige jaarkostentotaal met batterij".
 """
     try:
         response = client.chat.completions.create(
