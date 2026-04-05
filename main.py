@@ -1302,6 +1302,99 @@ def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
             (ctx_dict.get("extra_consumers") or {}).get("heat_pump", False)
         ),
         "heeft_ev": bool((ctx_dict.get("extra_consumers") or {}).get("ev", False)),
+        "import_tarief_dag": round(
+            float((ctx_dict.get("cost_components") or {}).get("p_dag", 0) or 0),
+            4,
+        ),
+        "import_tarief_nacht": round(
+            float((ctx_dict.get("cost_components") or {}).get("p_nacht", 0) or 0),
+            4,
+        ),
+        "export_tarief_dn": round(
+            float((ctx_dict.get("cost_components") or {}).get("p_exp_dn", 0) or 0),
+            4,
+        ),
+        "import_tarief_dynamisch": round(
+            float((ctx_dict.get("cost_components") or {}).get("p_dyn_imp", 0) or 0),
+            4,
+        ),
+        "export_tarief_dynamisch": round(
+            float((ctx_dict.get("cost_components") or {}).get("p_export_dyn", 0) or 0),
+            4,
+        ),
+        "A1_enkel": round(
+            float(
+                (
+                    (ctx_dict.get("tariff_matrix") or {}).get("enkel") or {}
+                ).get("total_cost_eur", 0)
+                or 0
+            ),
+            2,
+        ),
+        "A1_dag_nacht": round(
+            float(
+                (
+                    (ctx_dict.get("tariff_matrix") or {}).get("dag_nacht") or {}
+                ).get("total_cost_eur", 0)
+                or 0
+            ),
+            2,
+        ),
+        "A1_dynamisch": round(
+            float(
+                (
+                    (ctx_dict.get("tariff_matrix") or {}).get("dynamisch") or {}
+                ).get("total_cost_eur", 0)
+                or 0
+            ),
+            2,
+        ),
+        "B1_enkel": round(float(b1_cost_num or 0), 2),
+        "B1_dag_nacht": round(
+            float(
+                (
+                    ((ctx_dict.get("roi_per_tariff") or {}).get("dag_nacht") or {}).get(
+                        "b1_cost_eur", 0
+                    )
+                    or 0
+                )
+            ),
+            2,
+        ),
+        "B1_dynamisch": round(
+            float(
+                (
+                    ((ctx_dict.get("roi_per_tariff") or {}).get("dynamisch") or {}).get(
+                        "b1_cost_eur", 0
+                    )
+                    or 0
+                )
+            ),
+            2,
+        ),
+        "C1_enkel": round(float(c1_cost_num or 0), 2),
+        "C1_dag_nacht": round(
+            float(
+                (
+                    ((ctx_dict.get("roi_per_tariff") or {}).get("dag_nacht") or {}).get(
+                        "c1_cost_eur", 0
+                    )
+                    or 0
+                )
+            ),
+            2,
+        ),
+        "C1_dynamisch": round(
+            float(
+                (
+                    ((ctx_dict.get("roi_per_tariff") or {}).get("dynamisch") or {}).get(
+                        "c1_cost_eur", 0
+                    )
+                    or 0
+                )
+            ),
+            2,
+        ),
     }
 
     # ============================
@@ -1610,10 +1703,9 @@ def generate_analyse(
         ensure_ascii=False,
         indent=2,
     )
-    logging.warning(f"KERNFEITEN DEBUG: {kernfeiten_tekst}")
     pythonprompt = f"""
 Je schrijft een uitgebreide analyse voor een klant over zijn thuisbatterij-situatie.
-Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands. Geen inleiding, geen samenvatting, geen bijlagen, geen aanbeveling. Alleen de drie blokken hieronder.
+Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands. Geen inleiding, geen samenvatting, geen bijlagen, geen aanbeveling. Alleen de vier blokken hieronder.
 
 KERNFEITEN (gebruik uitsluitend deze cijfers, verzin niets):
 {kernfeiten_tekst}
@@ -1629,9 +1721,9 @@ KRITIEKE DEFINITIES — nooit verwarren:
 - c1_cost_eur is het toekomstige jaarkostentotaal MET batterij, dit is een ander getal dan a1_cost_eur.
 - Als a1_cost_eur en c1_cost_eur toevallig dicht bij elkaar liggen, is dat toeval in de berekening, niet een fout.
 
-Schrijf nu de drie blokken in deze volgorde en exacte structuur.
+Schrijf nu de vier blokken in deze volgorde en exacte structuur.
 
-Voor elk blok (1, 2 en 3) geldt VERPLICHT:
+Voor elk blok (1, 2, 3 en 4) geldt VERPLICHT:
 Schrijf voor elk blok VERPLICHT twee delen:
 Deel A: de persoonlijke uitleg in 3-4 zinnen met exacte cijfers.
 Deel B: begin ALTIJD met de exacte tekst "Hoe is dit berekend?" op een nieuwe regel, gevolgd door de berekeningsuitleg in 3-4 zinnen.
@@ -1661,6 +1753,14 @@ Blok 3 — Wat de batterij voor u doet
 Deel A: schrijf 3-4 zinnen over wat de batterij concreet verandert voor dit profiel: C1 versus B1, de jaarlijkse besparing, en de terugverdientijd en ROI in context. Zet de terugverdientijd in perspectief: is dit lang of normaal voor dit type investering en profiel.
 
 Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe C1 berekend is: de batterij absorbeert teruggeleverde zonnestroom en zet die om in zelfverbruik. Daardoor daalt de netto-import en stijgt de zelfconsumptie. De jaarlijkse besparing is het tariefverschil maal de verschoven kWh. De ROI is berekend over de volledige levensduur inclusief jaarlijkse degradatie. Noem batterij_capaciteit_kwh, de jaarlijkse besparing, c1_cost_eur, b1_cost_eur, roi_percent, terugverdientijd en degradatie_per_jaar_pct uit de kernfeiten voor zover ze daar staan.
+
+---
+
+Blok 4 — Vergelijking met andere tarieven
+
+Deel A: Vergelijk de drie tarieftypen op basis van de jaarbedragen uit de kernfeiten. Welk tarief is het voordeligst zonder batterij (vergelijk B1_enkel, B1_dag_nacht, B1_dynamisch)? Welk tarief is het voordeligst met batterij (vergelijk C1_enkel, C1_dag_nacht, C1_dynamisch)? Noem de exacte bedragen en benoem het verschil in euro's tussen het duurste en goedkoopste tarief. Geef een concrete aanbeveling welk tarief het beste past bij dit profiel.
+
+Deel B — "Hoe is dit berekend?": Leg per tarieftype uit hoe de berekening werkt voor dit huishouden. Enkeltarief: import tegen import_tarief_enkel €/kWh en export tegen export_tarief_enkel €/kWh, ongeacht tijdstip. Dag/nacht tarief: dagverbruik (07:00-23:00) verrekend tegen import_tarief_dag €/kWh, nachtverbruik (23:00-07:00) tegen import_tarief_nacht €/kWh, export tegen export_tarief_dn €/kWh. Dynamisch tarief: importprijs varieert per uur op basis van day-ahead marktprijzen, gemiddeld import_tarief_dynamisch €/kWh, export tegen export_tarief_dynamisch €/kWh. Bij dynamisch tarief kan de batterij ook arbitrage toepassen. Noem voor elk tarieftype A1, B1 en C1 in euro's.
 
 ---
 
