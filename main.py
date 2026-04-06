@@ -1739,6 +1739,12 @@ def generate_analyse(
     verschil_b1_tarieven = round(b1_duurste[0] - b1_goedkoopst[0], 2)
     verschil_c1_tarieven = round(c1_duurste[0] - c1_goedkoopst[0], 2)
 
+    def fmt(val):
+        if val is None:
+            return "0"
+        v = float(val)
+        return str(int(v)) if v == int(v) else str(round(v, 2))
+
     prompt = f"""
 Je schrijft een uitgebreide analyse voor een klant over zijn thuisbatterij-situatie.
 Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands.
@@ -1755,54 +1761,54 @@ Deel B: begin ALTIJD met de exacte zin "Hoe is dit berekend?" op een aparte rege
 Blok 1 — De situatie van uw huishouden
 
 Deel A: Schrijf 3-4 zinnen over het energieprofiel van deze klant. Gebruik exact deze gegevens:
-- Jaarverbruik: {jaarverbruik} kWh
-- Jaaropwek: {jaaropwek} kWh
-- Teruglevering: {feedin} kWh
+- Jaarverbruik: {fmt(jaarverbruik)} kWh
+- Jaaropwek: {fmt(jaaropwek)} kWh
+- Teruglevering: {fmt(feedin)} kWh
 - Tarieftype: {current_tariff}
 - Extra verbruikers: {consumenten_tekst}
-- Huidig jaarkostentotaal (A1): €{a1}
+- Huidig jaarkostentotaal (A1): €{fmt(a1)}
 
 Hoe is dit berekend?
-Leg uit hoe A1 van €{a1} tot stand komt:
-- Directe zelfconsumptie: {jaaropwek} minus {feedin} = {directe_zc} kWh
-- Netto-import: {jaarverbruik} minus {directe_zc} = {netto_import} kWh
-- Gesaldeerde kWh: {gesaldeerd} kWh verrekend tegen €{imp_enkel}/kWh importtarief
-- Vaste kosten: €{vastrecht}/jaar
-- Totaal A1: €{a1}
+Leg uit hoe A1 van €{fmt(a1)} tot stand komt:
+- Directe zelfconsumptie: {fmt(jaaropwek)} minus {fmt(feedin)} = {fmt(directe_zc)} kWh
+- Netto-import: {fmt(jaarverbruik)} minus {fmt(directe_zc)} = {fmt(netto_import)} kWh
+- Gesaldeerde kWh: {fmt(gesaldeerd)} kWh verrekend tegen €{fmt(imp_enkel)}/kWh importtarief
+- Vaste kosten: €{fmt(vastrecht)}/jaar
+- Totaal A1: €{fmt(a1)}
 
 ---
 
 Blok 2 — Wat het wegvallen van de saldering betekent
 
 Deel A: Schrijf 3-4 zinnen. Gebruik exact deze gegevens:
-- Huidig jaarkostentotaal MET saldering (A1): €{a1}
-- Toekomstig jaarkostentotaal ZONDER saldering, ZONDER batterij (B1): €{b1}
-- Verschil per jaar: €{verschil_b1}
-- Verschil per maand: €{maand_verschil}
+- Huidig jaarkostentotaal MET saldering (A1): €{fmt(a1)}
+- Toekomstig jaarkostentotaal ZONDER saldering, ZONDER batterij (B1): €{fmt(b1)}
+- Verschil per jaar: €{fmt(verschil_b1)}
+- Verschil per maand: €{fmt(maand_verschil)}
 
 Hoe is dit berekend?
-Leg uit hoe B1 van €{b1} tot stand komt:
-- Teruglevering van {feedin} kWh wordt niet meer vergoed tegen €{imp_enkel}/kWh maar tegen €{exp_enkel}/kWh
-- Tariefverschil: €{tariefverschil}/kWh
-- Impact: {feedin} kWh × €{tariefverschil} = €{sal_impact} extra per jaar
-- B1 = A1 (€{a1}) + salderingsimpact (€{sal_impact}) = €{b1}
+Leg uit hoe B1 van €{fmt(b1)} tot stand komt:
+- Teruglevering van {fmt(feedin)} kWh wordt niet meer vergoed tegen €{fmt(imp_enkel)}/kWh maar tegen €{fmt(exp_enkel)}/kWh
+- Tariefverschil: €{fmt(tariefverschil)}/kWh
+- Impact: {fmt(feedin)} kWh × €{fmt(tariefverschil)} = €{fmt(sal_impact)} extra per jaar
+- B1 = A1 (€{fmt(a1)}) + salderingsimpact (€{fmt(sal_impact)}) = €{fmt(b1)}
 
 ---
 
 Blok 3 — Wat de batterij voor u doet
 
 Deel A: Schrijf 3-4 zinnen. Gebruik exact deze gegevens:
-- Toekomstig jaarkostentotaal MET batterij (C1): €{c1}
-- Besparing per jaar (B1 minus C1): €{jaarlijkse_besparing}
+- Toekomstig jaarkostentotaal MET batterij (C1): €{fmt(c1)}
+- Besparing per jaar (B1 minus C1): €{fmt(jaarlijkse_besparing)}
 - Terugverdientijd: {terugverdientijd}
-- ROI over {bat_lifetime} jaar: {roi_pct}%
-- Batterijcapaciteit: {bat_cap} kWh
+- ROI over {fmt(bat_lifetime)} jaar: {fmt(roi_pct)}%
+- Batterijcapaciteit: {fmt(bat_cap)} kWh
 
 Hoe is dit berekend?
-Leg uit hoe C1 van €{c1} tot stand komt:
+Leg uit hoe C1 van €{fmt(c1)} tot stand komt:
 - Batterij absorbeert teruggeleverde zonnestroom en zet die om in zelfverbruik
-- Jaarlijkse besparing: €{jaarlijkse_besparing}
-- ROI van {roi_pct}% is berekend over {bat_lifetime} jaar met {bat_degradatie}% jaarlijkse degradatie
+- Jaarlijkse besparing: €{fmt(jaarlijkse_besparing)}
+- ROI van {fmt(roi_pct)}% is berekend over {fmt(bat_lifetime)} jaar met {fmt(bat_degradatie)}% jaarlijkse degradatie
 
 ---
 
@@ -1810,30 +1816,30 @@ Blok 4 — Vergelijking met andere tarieven
 
 Deel A: Schrijf 3-4 zinnen. Gebruik exact deze gegevens:
 Zonder batterij:
-- Enkeltarief (B1): €{b1_enkel}
-- Dag/nacht tarief (B1): €{b1_dn}
-- Dynamisch tarief (B1): €{b1_dyn}
-- Voordeligste tarief zonder batterij: {b1_goedkoopst[1]} met €{b1_goedkoopst[0]}
-- Duurste tarief zonder batterij: {b1_duurste[1]} met €{b1_duurste[0]}
-- Verschil: €{verschil_b1_tarieven}
+- Enkeltarief (B1): €{fmt(b1_enkel)}
+- Dag/nacht tarief (B1): €{fmt(b1_dn)}
+- Dynamisch tarief (B1): €{fmt(b1_dyn)}
+- Voordeligste tarief zonder batterij: {b1_goedkoopst[1]} met €{fmt(b1_goedkoopst[0])}
+- Duurste tarief zonder batterij: {b1_duurste[1]} met €{fmt(b1_duurste[0])}
+- Verschil: €{fmt(verschil_b1_tarieven)}
 
 Met batterij:
-- Enkeltarief (C1): €{c1_enkel}
-- Dag/nacht tarief (C1): €{c1_dn}
-- Dynamisch tarief (C1): €{c1_dyn}
-- Voordeligste tarief met batterij: {c1_goedkoopst[1]} met €{c1_goedkoopst[0]}
-- Duurste tarief met batterij: {c1_duurste[1]} met €{c1_duurste[0]}
-- Verschil: €{verschil_c1_tarieven}
+- Enkeltarief (C1): €{fmt(c1_enkel)}
+- Dag/nacht tarief (C1): €{fmt(c1_dn)}
+- Dynamisch tarief (C1): €{fmt(c1_dyn)}
+- Voordeligste tarief met batterij: {c1_goedkoopst[1]} met €{fmt(c1_goedkoopst[0])}
+- Duurste tarief met batterij: {c1_duurste[1]} met €{fmt(c1_duurste[0])}
+- Verschil: €{fmt(verschil_c1_tarieven)}
 
 Hoe is dit berekend?
 Leg per tarieftype uit hoe de berekening werkt:
-- Enkeltarief: import €{imp_enkel}/kWh, export €{exp_enkel}/kWh, ongeacht tijdstip
-- Dag/nacht tarief: dagimport (07:00-23:00) €{imp_dag}/kWh, nachtimport (23:00-07:00) €{imp_nacht}/kWh, export €{exp_dn}/kWh
-- Dynamisch tarief: gemiddeld importtarief €{imp_dyn}/kWh, export €{exp_dyn}/kWh, batterij kan arbitrage toepassen
+- Enkeltarief: import €{fmt(imp_enkel)}/kWh, export €{fmt(exp_enkel)}/kWh, ongeacht tijdstip
+- Dag/nacht tarief: dagimport (07:00-23:00) €{fmt(imp_dag)}/kWh, nachtimport (23:00-07:00) €{fmt(imp_nacht)}/kWh, export €{fmt(exp_dn)}/kWh
+- Dynamisch tarief: gemiddeld importtarief €{fmt(imp_dyn)}/kWh, export €{fmt(exp_dyn)}/kWh, batterij kan arbitrage toepassen
 Noem voor elk tarieftype A1, B1 en C1:
-- Enkeltarief: A1 €{a1_enkel}, B1 €{b1_enkel}, C1 €{c1_enkel}
-- Dag/nacht: A1 €{a1_dn}, B1 €{b1_dn}, C1 €{c1_dn}
-- Dynamisch: A1 €{a1_dyn}, B1 €{b1_dyn}, C1 €{c1_dyn}
+- Enkeltarief: A1 €{fmt(a1_enkel)}, B1 €{fmt(b1_enkel)}, C1 €{fmt(c1_enkel)}
+- Dag/nacht: A1 €{fmt(a1_dn)}, B1 €{fmt(b1_dn)}, C1 €{fmt(c1_dn)}
+- Dynamisch: A1 €{fmt(a1_dyn)}, B1 €{fmt(b1_dyn)}, C1 €{fmt(c1_dyn)}
 """
     try:
         response = client.chat.completions.create(
