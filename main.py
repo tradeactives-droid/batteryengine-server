@@ -1187,6 +1187,7 @@ def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
 
     # Pre-berekende kernfeiten: de AI hoeft niet te gokken of te kiezen.
     ctx_dict["kernfeiten"] = {
+        "current_tariff": ctx_dict.get("current_tariff") or "enkel",
         "jaarverbruik_kwh": (
             ctx.profile_inputs.annual_load_kwh if ctx.profile_inputs else None
         ),
@@ -1708,7 +1709,7 @@ Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zi
 
 Blok 3 — Wat de batterij voor u doet
 
-Deel A: schrijf 3-4 zinnen over wat de batterij concreet verandert voor dit profiel: C1 versus B1, de jaarlijkse besparing, en de terugverdientijd en ROI in context. Zet de terugverdientijd in perspectief: is dit lang of normaal voor dit type investering en profiel.
+Deel A: schrijf 3-4 zinnen over wat de batterij concreet verandert voor dit profiel: C1 versus B1, de jaarlijkse besparing, en de terugverdientijd en ROI in context. Zet de terugverdientijd in perspectief: is dit lang of normaal voor dit type investering en profiel. Gebruik voor de ROI alleen de roi_percent uit roi_details voor het huidige tarieftype (current_tariff uit de kernfeiten). Gebruik nooit de ROI van een ander tarieftype.
 
 Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe C1 berekend is: de batterij absorbeert teruggeleverde zonnestroom en zet die om in zelfverbruik. Daardoor daalt de netto-import en stijgt de zelfconsumptie. De jaarlijkse besparing is het tariefverschil maal de verschoven kWh. De ROI is berekend over de volledige levensduur inclusief jaarlijkse degradatie. Noem batterij_capaciteit_kwh, de jaarlijkse besparing, c1_cost_eur, b1_cost_eur, roi_percent, terugverdientijd en degradatie_per_jaar_pct uit de kernfeiten voor zover ze daar staan.
 
@@ -1718,22 +1719,12 @@ Blok 4 — Vergelijking met andere tarieven
 
 Deel A: Vergelijk de drie tarieftypen op basis van de jaarbedragen uit de kernfeiten. Welk tarief is het voordeligst zonder batterij (vergelijk B1_enkel, B1_dag_nacht, B1_dynamisch)? Welk tarief is het voordeligst met batterij (vergelijk C1_enkel, C1_dag_nacht, C1_dynamisch)? Noem de exacte bedragen en benoem het verschil in euro's tussen het duurste en goedkoopste tarief. Geef een concrete aanbeveling welk tarief het beste past bij dit profiel.
 
-Deel B — "Hoe is dit berekend?": Leg per tarieftype uit hoe de berekening werkt voor dit huishouden. Enkeltarief: import tegen import_tarief_enkel €/kWh en export tegen export_tarief_enkel €/kWh, ongeacht tijdstip. Dag/nacht tarief: dagverbruik (07:00-23:00) verrekend tegen import_tarief_dag €/kWh, nachtverbruik (23:00-07:00) tegen import_tarief_nacht €/kWh, export tegen export_tarief_dn €/kWh. Dynamisch tarief: importprijs varieert per uur op basis van day-ahead marktprijzen, gemiddeld import_tarief_dynamisch €/kWh, export tegen export_tarief_dynamisch €/kWh. Bij dynamisch tarief kan de batterij ook arbitrage toepassen. Noem voor elk tarieftype A1, B1 en C1 in euro's.
+Deel B — "Hoe is dit berekend?": Leg per tarieftype uit hoe de berekening werkt voor dit huishouden. Enkeltarief: import tegen import_tarief_enkel €/kWh en export tegen export_tarief_enkel €/kWh, ongeacht tijdstip. Dag/nacht tarief: dagverbruik (07:00-23:00) verrekend tegen import_tarief_dag €/kWh, nachtverbruik (23:00-07:00) tegen import_tarief_nacht €/kWh, export tegen export_tarief_dn €/kWh. Dynamisch tarief: importprijs varieert per uur op basis van day-ahead marktprijzen, gemiddeld import_tarief_dynamisch €/kWh, export tegen export_tarief_dynamisch €/kWh. Bij dynamisch tarief kan de batterij ook arbitrage toepassen. Noem voor elk tarieftype apart: A1 (huidig jaarkostentotaal met saldering), B1 (toekomstig zonder batterij) en C1 (toekomstig met batterij) in euro's. Gebruik A1_enkel/B1_enkel/C1_enkel voor enkeltarief, A1_dag_nacht/B1_dag_nacht/C1_dag_nacht voor dag/nacht, en A1_dynamisch/B1_dynamisch/C1_dynamisch voor dynamisch.
 
 ---
 
 Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de bloktitels en de verplichte regel "Hoe is dit berekend?" exact zoals hierboven; daarbij alleen lopende tekst. Schrijf NOOIT variabelenamen zoals a1_cost_eur, b1_cost_eur, c1_cost_eur, kernfeiten_tekst of andere technische veldnamen in de output. Vervang deze altijd door gewone Nederlandse termen: "het huidige jaarkostentotaal", "het toekomstige jaarkostentotaal zonder batterij", "het toekomstige jaarkostentotaal met batterij".
 """
-    logging.warning(f"BLOK4 ctx keys: {list(ctx_dict.keys())}")
-    logging.warning(
-        f"BLOK4 cost_components: {json.dumps(ctx_dict.get('cost_components') or {})}"
-    )
-    logging.warning(
-        f"BLOK4 saldering_context: {json.dumps(ctx_dict.get('saldering_context') or {})}"
-    )
-    logging.warning(
-        f"BLOK4 tariff_matrix: {json.dumps(ctx_dict.get('tariff_matrix') or {})}"
-    )
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
