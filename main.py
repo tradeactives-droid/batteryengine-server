@@ -1163,6 +1163,28 @@ def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
     if b1_cost_num is not None and batterij_besparing_eur is not None:
         c1_cost_num = round(float(b1_cost_num) - float(batterij_besparing_eur), 2)
 
+    # A1 per tarief — uit tariff_matrix
+    tm = ctx_dict.get("tariff_matrix") or {}
+    a1_enkel = round(float((tm.get("enkel") or {}).get("total_cost_eur", 0) or 0), 2)
+    a1_dn = round(float((tm.get("dag_nacht") or {}).get("total_cost_eur", 0) or 0), 2)
+    a1_dyn = round(float((tm.get("dynamisch") or {}).get("total_cost_eur", 0) or 0), 2)
+
+    # B1 per tarief — A1 + saldering_impact_eur
+    sal = float(saldering_impact_eur or 0)
+    b1_enkel_calc = round(a1_enkel + sal, 2)
+    b1_dn_calc = round(a1_dn + sal, 2)
+    b1_dyn_calc = round(a1_dyn + sal, 2)
+
+    # C1 per tarief — B1 - yearly_saving_eur per tarief
+    rpt = ctx_dict.get("roi_per_tariff") or {}
+    save_enkel = float((rpt.get("enkel") or {}).get("yearly_saving_eur", 0) or 0)
+    save_dn = float((rpt.get("dag_nacht") or {}).get("yearly_saving_eur", 0) or 0)
+    save_dyn = float((rpt.get("dynamisch") or {}).get("yearly_saving_eur", 0) or 0)
+
+    c1_enkel_calc = round(b1_enkel_calc - save_enkel, 2)
+    c1_dn_calc = round(b1_dn_calc - save_dn, 2)
+    c1_dyn_calc = round(b1_dyn_calc - save_dyn, 2)
+
     # Pre-berekende kernfeiten: de AI hoeft niet te gokken of te kiezen.
     ctx_dict["kernfeiten"] = {
         "jaarverbruik_kwh": (
@@ -1322,79 +1344,15 @@ def _build_advice_request_context_dict(ctx: AdviceContext) -> dict:
             float((ctx_dict.get("cost_components") or {}).get("p_export_dyn", 0) or 0),
             4,
         ),
-        "A1_enkel": round(
-            float(
-                (
-                    (ctx_dict.get("tariff_matrix") or {}).get("enkel") or {}
-                ).get("total_cost_eur", 0)
-                or 0
-            ),
-            2,
-        ),
-        "A1_dag_nacht": round(
-            float(
-                (
-                    (ctx_dict.get("tariff_matrix") or {}).get("dag_nacht") or {}
-                ).get("total_cost_eur", 0)
-                or 0
-            ),
-            2,
-        ),
-        "A1_dynamisch": round(
-            float(
-                (
-                    (ctx_dict.get("tariff_matrix") or {}).get("dynamisch") or {}
-                ).get("total_cost_eur", 0)
-                or 0
-            ),
-            2,
-        ),
-        "B1_enkel": round(float(b1_cost_num or 0), 2),
-        "B1_dag_nacht": round(
-            float(
-                (
-                    ((ctx_dict.get("roi_per_tariff") or {}).get("dag_nacht") or {}).get(
-                        "b1_cost_eur", 0
-                    )
-                    or 0
-                )
-            ),
-            2,
-        ),
-        "B1_dynamisch": round(
-            float(
-                (
-                    ((ctx_dict.get("roi_per_tariff") or {}).get("dynamisch") or {}).get(
-                        "b1_cost_eur", 0
-                    )
-                    or 0
-                )
-            ),
-            2,
-        ),
-        "C1_enkel": round(float(c1_cost_num or 0), 2),
-        "C1_dag_nacht": round(
-            float(
-                (
-                    ((ctx_dict.get("roi_per_tariff") or {}).get("dag_nacht") or {}).get(
-                        "c1_cost_eur", 0
-                    )
-                    or 0
-                )
-            ),
-            2,
-        ),
-        "C1_dynamisch": round(
-            float(
-                (
-                    ((ctx_dict.get("roi_per_tariff") or {}).get("dynamisch") or {}).get(
-                        "c1_cost_eur", 0
-                    )
-                    or 0
-                )
-            ),
-            2,
-        ),
+        "A1_enkel": a1_enkel,
+        "A1_dag_nacht": a1_dn,
+        "A1_dynamisch": a1_dyn,
+        "B1_enkel": b1_enkel_calc,
+        "B1_dag_nacht": b1_dn_calc,
+        "B1_dynamisch": b1_dyn_calc,
+        "C1_enkel": c1_enkel_calc,
+        "C1_dag_nacht": c1_dn_calc,
+        "C1_dynamisch": c1_dyn_calc,
     }
 
     # ============================
@@ -1766,17 +1724,6 @@ Deel B — "Hoe is dit berekend?": Leg per tarieftype uit hoe de berekening werk
 
 Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de bloktitels en de verplichte regel "Hoe is dit berekend?" exact zoals hierboven; daarbij alleen lopende tekst. Schrijf NOOIT variabelenamen zoals a1_cost_eur, b1_cost_eur, c1_cost_eur, kernfeiten_tekst of andere technische veldnamen in de output. Vervang deze altijd door gewone Nederlandse termen: "het huidige jaarkostentotaal", "het toekomstige jaarkostentotaal zonder batterij", "het toekomstige jaarkostentotaal met batterij".
 """
-    import logging
-
-    logging.warning(
-        f"BLOK4 DEBUG roi_per_tariff: {json.dumps(ctx_dict.get('roi_per_tariff') or {})}"
-    )
-    logging.warning(
-        f"BLOK4 DEBUG tariff_matrix: {json.dumps(ctx_dict.get('tariff_matrix') or {})}"
-    )
-    logging.warning(
-        f"BLOK4 DEBUG A1_per_tariff: {json.dumps(ctx_dict.get('A1_per_tariff') or {})}"
-    )
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
