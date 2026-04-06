@@ -1725,7 +1725,7 @@ Deel B — "Hoe is dit berekend?": Leg per tarieftype uit hoe de berekening werk
 
 Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de bloktitels en de verplichte regel "Hoe is dit berekend?" exact zoals hierboven; daarbij alleen lopende tekst. Schrijf NOOIT variabelenamen zoals a1_cost_eur, b1_cost_eur, c1_cost_eur, kernfeiten_tekst of andere technische veldnamen in de output. Vervang deze altijd door gewone Nederlandse termen: "het huidige jaarkostentotaal", "het toekomstige jaarkostentotaal zonder batterij", "het toekomstige jaarkostentotaal met batterij".
 """
-    logging.warning(
+    logging.error(
         f"ROI CHECK: current_tariff={ctx_dict.get('current_tariff')}, "
         f"roi_details={json.dumps((ctx_dict.get('roi_per_tariff') or {}))}, "
         f"kernfeiten_roi={json.dumps({k: v for k, v in json.loads(kernfeiten_tekst).items() if 'roi' in k.lower() or 'tariff' in k.lower()})}"
