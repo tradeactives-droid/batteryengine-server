@@ -1742,7 +1742,26 @@ Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de
         )
 
         content = response.choices[0].message.content
-        return _attach_device_tracking(request, {"advice": content.strip()})
+        kf = json.loads(kernfeiten_tekst)
+        return _attach_device_tracking(
+            request,
+            {
+                "advice": content.strip(),
+                "debug": {
+                    "current_tariff": kf.get("current_tariff"),
+                    "a1_cost_eur": kf.get("a1_cost_eur"),
+                    "b1_cost_eur": kf.get("b1_cost_eur"),
+                    "c1_cost_eur": kf.get("c1_cost_eur"),
+                    "roi_details": kf.get("roi_details"),
+                    "A1_enkel": kf.get("A1_enkel"),
+                    "B1_enkel": kf.get("B1_enkel"),
+                    "C1_enkel": kf.get("C1_enkel"),
+                    "A1_dag_nacht": kf.get("A1_dag_nacht"),
+                    "B1_dag_nacht": kf.get("B1_dag_nacht"),
+                    "C1_dag_nacht": kf.get("C1_dag_nacht"),
+                },
+            },
+        )
 
     except Exception as e:
         return _attach_device_tracking(
