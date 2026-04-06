@@ -1662,80 +1662,185 @@ def generate_analyse(
         ensure_ascii=False,
         indent=2,
     )
-    pythonprompt = f"""
+    # Haal alle benodigde waarden op uit kernfeiten
+    kf = json.loads(kernfeiten_tekst)
+
+    a1 = kf.get("a1_cost_eur", 0)
+    b1 = kf.get("b1_cost_eur", 0)
+    c1 = kf.get("c1_cost_eur", 0)
+    sal_impact = kf.get("saldering_impact_eur", 0)
+    batterij_besparing = kf.get("batterij_besparing_eur", 0)
+    jaarverbruik = kf.get("jaarverbruik_kwh", 0)
+    jaaropwek = kf.get("jaaropwek_kwh", 0)
+    feedin = kf.get("feedin_kwh", 0)
+    netto_import = kf.get("netto_import_kwh", 0)
+    directe_zc = kf.get("directe_zelfconsumptie_kwh", 0)
+    gesaldeerd = kf.get("gesaldeerde_kwh", 0)
+    imp_enkel = kf.get("import_tarief_enkel", 0)
+    exp_enkel = kf.get("export_tarief_enkel", 0)
+    tariefverschil = kf.get("tariefverschil_enkel", 0)
+    vastrecht = kf.get("vastrecht_eur", 0)
+    current_tariff = kf.get("current_tariff", "enkel")
+    heeft_wp = kf.get("heeft_warmtepomp", False)
+    heeft_ev = kf.get("heeft_ev", False)
+    bat_cap = kf.get("batterij_capaciteit_kwh", 0)
+    bat_invest = kf.get("batterij_investering_eur", 0)
+    bat_lifetime = kf.get("levensduur_jaren", 15)
+    bat_degradatie = kf.get("degradatie_per_jaar_pct", 2.0)
+    roi_details = kf.get("roi_details", {})
+    roi_current = roi_details.get(current_tariff, {})
+    roi_pct = roi_current.get("roi_percent", 0)
+    terugverdientijd = roi_current.get("terugverdientijd", "> 10 jaar")
+    jaarlijkse_besparing = roi_current.get("jaarlijkse_besparing_eur", batterij_besparing)
+
+    a1_enkel = kf.get("A1_enkel", 0)
+    a1_dn = kf.get("A1_dag_nacht", 0)
+    a1_dyn = kf.get("A1_dynamisch", 0)
+    b1_enkel = kf.get("B1_enkel", 0)
+    b1_dn = kf.get("B1_dag_nacht", 0)
+    b1_dyn = kf.get("B1_dynamisch", 0)
+    c1_enkel = kf.get("C1_enkel", 0)
+    c1_dn = kf.get("C1_dag_nacht", 0)
+    c1_dyn = kf.get("C1_dynamisch", 0)
+
+    imp_dag = kf.get("import_tarief_dag", 0)
+    imp_nacht = kf.get("import_tarief_nacht", 0)
+    exp_dn = kf.get("export_tarief_dn", 0)
+    imp_dyn = kf.get("import_tarief_dynamisch", 0)
+    exp_dyn = kf.get("export_tarief_dynamisch", 0)
+
+    verschil_b1 = round(b1 - a1, 2)
+    maand_verschil = round(verschil_b1 / 12, 2)
+
+    consumenten = []
+    if heeft_wp:
+        consumenten.append("een warmtepomp")
+    if heeft_ev:
+        consumenten.append("een elektrische auto")
+    consumenten_tekst = " en ".join(consumenten) if consumenten else "geen grote extra verbruikers"
+
+    b1_goedkoopst = min(
+        [(b1_enkel, "enkeltarief"), (b1_dn, "dag/nacht tarief"), (b1_dyn, "dynamisch tarief")],
+        key=lambda x: x[0],
+    )
+    b1_duurste = max(
+        [(b1_enkel, "enkeltarief"), (b1_dn, "dag/nacht tarief"), (b1_dyn, "dynamisch tarief")],
+        key=lambda x: x[0],
+    )
+    c1_goedkoopst = min(
+        [(c1_enkel, "enkeltarief"), (c1_dn, "dag/nacht tarief"), (c1_dyn, "dynamisch tarief")],
+        key=lambda x: x[0],
+    )
+    c1_duurste = max(
+        [(c1_enkel, "enkeltarief"), (c1_dn, "dag/nacht tarief"), (c1_dyn, "dynamisch tarief")],
+        key=lambda x: x[0],
+    )
+
+    verschil_b1_tarieven = round(b1_duurste[0] - b1_goedkoopst[0], 2)
+    verschil_c1_tarieven = round(c1_duurste[0] - c1_goedkoopst[0], 2)
+
+    prompt = f"""
 Je schrijft een uitgebreide analyse voor een klant over zijn thuisbatterij-situatie.
-Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands. Geen inleiding, geen samenvatting, geen bijlagen, geen aanbeveling. Alleen de vier blokken hieronder.
+Gebruik altijd "u" als aanspreekvorm. Schrijf in het Nederlands.
+Geen inleiding, geen samenvatting, geen bijlagen, geen aanbeveling. Alleen de vier blokken hieronder.
+Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst.
+Schrijf de blok-kopjes exact zoals hieronder. Schrijf "Hoe is dit berekend?" exact zo, op een aparte regel.
 
-KERNFEITEN (gebruik uitsluitend deze cijfers, verzin niets):
-{kernfeiten_tekst}
-
-KRITIEKE DEFINITIES — nooit verwarren:
-- a1_cost_eur = huidige jaarkostentotaal MET saldering
-- b1_cost_eur = toekomstig jaarkostentotaal ZONDER saldering, ZONDER batterij
-- c1_cost_eur = toekomstig jaarkostentotaal ZONDER saldering, MET batterij
-- import_tarief_enkel, export_tarief_enkel, tariefverschil_enkel = tarieven in €/kWh, GEEN jaarbedragen
-- roi_percent en terugverdientijd staan in roi_details in de kernfeiten, gebruik alleen die waarden
-- Verzin NOOIT ROI-percentages of terugverdientijden die niet in de kernfeiten staan
-- Het huidige jaarkostentotaal MET saldering is altijd a1_cost_eur. Dit is NOOIT gelijk aan c1_cost_eur.
-- c1_cost_eur is het toekomstige jaarkostentotaal MET batterij, dit is een ander getal dan a1_cost_eur.
-- Als a1_cost_eur en c1_cost_eur toevallig dicht bij elkaar liggen, is dat toeval in de berekening, niet een fout.
-
-Schrijf nu de vier blokken in deze volgorde en exacte structuur.
-
-Voor elk blok (1, 2, 3 en 4) geldt VERPLICHT:
-Schrijf voor elk blok VERPLICHT twee delen:
-Deel A: de persoonlijke uitleg in 3-4 zinnen met exacte cijfers.
-Deel B: begin ALTIJD met de exacte tekst "Hoe is dit berekend?" op een nieuwe regel, gevolgd door de berekeningsuitleg in 3-4 zinnen.
-
-Sla "Hoe is dit berekend?" NOOIT over, ook niet als een getal ontbreekt. Schrijf in dat geval wat er wel bekend is.
+Elk blok bestaat uit EXACT twee delen:
+Deel A: persoonlijke uitleg in 3-4 zinnen. Alle getallen zijn hieronder al ingevuld — gebruik ze exact.
+Deel B: begin ALTIJD met de exacte zin "Hoe is dit berekend?" op een aparte regel, gevolgd door 3-4 zinnen berekeningsuitleg.
 
 ---
 
 Blok 1 — De situatie van uw huishouden
 
-Deel A: Beschrijf het energieprofiel met deze exacte velden uit de kernfeiten: jaarverbruik_kwh, jaaropwek_kwh en feedin_kwh. Als feedin_kwh groter is dan 0, vermeld dan expliciet hoeveel kWh er wordt teruggeleverd. Noem ook het tarieftype, en of heeft_warmtepomp en heeft_ev true zijn.
+Deel A: Schrijf 3-4 zinnen over het energieprofiel van deze klant. Gebruik exact deze gegevens:
+- Jaarverbruik: {jaarverbruik} kWh
+- Jaaropwek: {jaaropwek} kWh
+- Teruglevering: {feedin} kWh
+- Tarieftype: {current_tariff}
+- Extra verbruikers: {consumenten_tekst}
+- Huidig jaarkostentotaal (A1): €{a1}
 
-Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe het huidige jaarkostentotaal (A1) tot stand komt. Gebruik deze formule als leidraad: het jaarverbruik min de directe zelfconsumptie geeft de netto-import. Van die netto-import wordt de gesaldeerde hoeveelheid verrekend tegen het importtarief. Het overschot boven de netto-import wordt vergoed tegen het lage exporttarief. Tel daar de vaste kosten bij op. Noem vastrecht_eur als de vaste contractkosten in euro per jaar. Verwar vastrecht_eur nooit met a1_cost_eur: a1_cost_eur is het volledige jaarkostentotaal inclusief vastrecht, a1_cost_eur is geen tarief en geen vastrecht. Noem de exacte kWh-waarden en tarieven uit de kernfeiten voor zover ze daar staan.
+Hoe is dit berekend?
+Leg uit hoe A1 van €{a1} tot stand komt:
+- Directe zelfconsumptie: {jaaropwek} minus {feedin} = {directe_zc} kWh
+- Netto-import: {jaarverbruik} minus {directe_zc} = {netto_import} kWh
+- Gesaldeerde kWh: {gesaldeerd} kWh verrekend tegen €{imp_enkel}/kWh importtarief
+- Vaste kosten: €{vastrecht}/jaar
+- Totaal A1: €{a1}
 
 ---
 
 Blok 2 — Wat het wegvallen van de saldering betekent
 
-Deel A: Noem het huidige jaarkostentotaal MET saldering: dit is exact het getal dat in de kernfeiten staat als a1_cost_eur. Noem het toekomstige jaarkostentotaal ZONDER saldering en ZONDER batterij: dit is exact het getal dat in de kernfeiten staat als b1_cost_eur. Bereken het verschil als b1_cost_eur minus a1_cost_eur en noem dit als het jaarlijkse extra bedrag. Noem ook wat dit maandelijks betekent. Gebruik NOOIT c1_cost_eur in dit blok.
+Deel A: Schrijf 3-4 zinnen. Gebruik exact deze gegevens:
+- Huidig jaarkostentotaal MET saldering (A1): €{a1}
+- Toekomstig jaarkostentotaal ZONDER saldering, ZONDER batterij (B1): €{b1}
+- Verschil per jaar: €{verschil_b1}
+- Verschil per maand: €{maand_verschil}
 
-Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe B1 berekend is: bij het wegvallen van saldering wordt dezelfde hoeveelheid teruggeleverde kWh niet meer verrekend tegen het importtarief, maar vergoed tegen het lagere exporttarief. Het tariefverschil per kWh maal de teruggeleverde kWh verklaart het verschil. Noem import_tarief_enkel als het importtarief per kWh (in €/kWh), export_tarief_enkel als het exporttarief per kWh (in €/kWh), en tariefverschil_enkel als het verschil daartussen. Noem a1_cost_eur als het huidige jaarkostentotaal en b1_cost_eur als het toekomstige jaarkostentotaal. Verwar tarieven (€/kWh) nooit met kostentotalen (€/jaar). Noem ook feedin_kwh en saldering_impact_eur uit de kernfeiten voor zover ze daar staan.
+Hoe is dit berekend?
+Leg uit hoe B1 van €{b1} tot stand komt:
+- Teruglevering van {feedin} kWh wordt niet meer vergoed tegen €{imp_enkel}/kWh maar tegen €{exp_enkel}/kWh
+- Tariefverschil: €{tariefverschil}/kWh
+- Impact: {feedin} kWh × €{tariefverschil} = €{sal_impact} extra per jaar
+- B1 = A1 (€{a1}) + salderingsimpact (€{sal_impact}) = €{b1}
 
 ---
 
 Blok 3 — Wat de batterij voor u doet
 
-Deel A: schrijf 3-4 zinnen over wat de batterij concreet verandert voor dit profiel: C1 versus B1, de jaarlijkse besparing, en de terugverdientijd en ROI in context. Zet de terugverdientijd in perspectief: is dit lang of normaal voor dit type investering en profiel. Gebruik voor de ROI alleen de roi_percent uit roi_details voor het huidige tarieftype (current_tariff uit de kernfeiten). Gebruik nooit de ROI van een ander tarieftype.
+Deel A: Schrijf 3-4 zinnen. Gebruik exact deze gegevens:
+- Toekomstig jaarkostentotaal MET batterij (C1): €{c1}
+- Besparing per jaar (B1 minus C1): €{jaarlijkse_besparing}
+- Terugverdientijd: {terugverdientijd}
+- ROI over {bat_lifetime} jaar: {roi_pct}%
+- Batterijcapaciteit: {bat_cap} kWh
 
-Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe C1 berekend is: de batterij absorbeert teruggeleverde zonnestroom en zet die om in zelfverbruik. Daardoor daalt de netto-import en stijgt de zelfconsumptie. De jaarlijkse besparing is het tariefverschil maal de verschoven kWh. De ROI is berekend over de volledige levensduur inclusief jaarlijkse degradatie. Noem batterij_capaciteit_kwh, de jaarlijkse besparing, c1_cost_eur, b1_cost_eur, roi_percent, terugverdientijd en degradatie_per_jaar_pct uit de kernfeiten voor zover ze daar staan.
+Hoe is dit berekend?
+Leg uit hoe C1 van €{c1} tot stand komt:
+- Batterij absorbeert teruggeleverde zonnestroom en zet die om in zelfverbruik
+- Jaarlijkse besparing: €{jaarlijkse_besparing}
+- ROI van {roi_pct}% is berekend over {bat_lifetime} jaar met {bat_degradatie}% jaarlijkse degradatie
 
 ---
 
 Blok 4 — Vergelijking met andere tarieven
 
-Deel A: Vergelijk de drie tarieftypen op basis van de jaarbedragen uit de kernfeiten. Welk tarief is het voordeligst zonder batterij (vergelijk B1_enkel, B1_dag_nacht, B1_dynamisch)? Welk tarief is het voordeligst met batterij (vergelijk C1_enkel, C1_dag_nacht, C1_dynamisch)? Noem de exacte bedragen en benoem het verschil in euro's tussen het duurste en goedkoopste tarief. Geef een concrete aanbeveling welk tarief het beste past bij dit profiel.
+Deel A: Schrijf 3-4 zinnen. Gebruik exact deze gegevens:
+Zonder batterij:
+- Enkeltarief (B1): €{b1_enkel}
+- Dag/nacht tarief (B1): €{b1_dn}
+- Dynamisch tarief (B1): €{b1_dyn}
+- Voordeligste tarief zonder batterij: {b1_goedkoopst[1]} met €{b1_goedkoopst[0]}
+- Duurste tarief zonder batterij: {b1_duurste[1]} met €{b1_duurste[0]}
+- Verschil: €{verschil_b1_tarieven}
 
-Deel B — "Hoe is dit berekend?": Leg per tarieftype uit hoe de berekening werkt voor dit huishouden. Enkeltarief: import tegen import_tarief_enkel €/kWh en export tegen export_tarief_enkel €/kWh, ongeacht tijdstip. Dag/nacht tarief: dagverbruik (07:00-23:00) verrekend tegen import_tarief_dag €/kWh, nachtverbruik (23:00-07:00) tegen import_tarief_nacht €/kWh, export tegen export_tarief_dn €/kWh. Dynamisch tarief: importprijs varieert per uur op basis van day-ahead marktprijzen, gemiddeld import_tarief_dynamisch €/kWh, export tegen export_tarief_dynamisch €/kWh. Bij dynamisch tarief kan de batterij ook arbitrage toepassen. Noem voor elk tarieftype apart: A1 (huidig jaarkostentotaal met saldering), B1 (toekomstig zonder batterij) en C1 (toekomstig met batterij) in euro's. Gebruik A1_enkel/B1_enkel/C1_enkel voor enkeltarief, A1_dag_nacht/B1_dag_nacht/C1_dag_nacht voor dag/nacht, en A1_dynamisch/B1_dynamisch/C1_dynamisch voor dynamisch.
+Met batterij:
+- Enkeltarief (C1): €{c1_enkel}
+- Dag/nacht tarief (C1): €{c1_dn}
+- Dynamisch tarief (C1): €{c1_dyn}
+- Voordeligste tarief met batterij: {c1_goedkoopst[1]} met €{c1_goedkoopst[0]}
+- Duurste tarief met batterij: {c1_duurste[1]} met €{c1_duurste[0]}
+- Verschil: €{verschil_c1_tarieven}
 
----
-
-Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de bloktitels en de verplichte regel "Hoe is dit berekend?" exact zoals hierboven; daarbij alleen lopende tekst. Schrijf NOOIT variabelenamen zoals a1_cost_eur, b1_cost_eur, c1_cost_eur, kernfeiten_tekst of andere technische veldnamen in de output. Vervang deze altijd door gewone Nederlandse termen: "het huidige jaarkostentotaal", "het toekomstige jaarkostentotaal zonder batterij", "het toekomstige jaarkostentotaal met batterij".
+Hoe is dit berekend?
+Leg per tarieftype uit hoe de berekening werkt:
+- Enkeltarief: import €{imp_enkel}/kWh, export €{exp_enkel}/kWh, ongeacht tijdstip
+- Dag/nacht tarief: dagimport (07:00-23:00) €{imp_dag}/kWh, nachtimport (23:00-07:00) €{imp_nacht}/kWh, export €{exp_dn}/kWh
+- Dynamisch tarief: gemiddeld importtarief €{imp_dyn}/kWh, export €{exp_dyn}/kWh, batterij kan arbitrage toepassen
+Noem voor elk tarieftype A1, B1 en C1:
+- Enkeltarief: A1 €{a1_enkel}, B1 €{b1_enkel}, C1 €{c1_enkel}
+- Dag/nacht: A1 €{a1_dn}, B1 €{b1_dn}, C1 €{c1_dn}
+- Dynamisch: A1 €{a1_dyn}, B1 €{b1_dyn}, C1 €{c1_dyn}
 """
-    logging.error(
-        f"ROI CHECK: current_tariff={ctx_dict.get('current_tariff')}, "
-        f"roi_details={json.dumps((ctx_dict.get('roi_per_tariff') or {}))}, "
-        f"kernfeiten_roi={json.dumps({k: v for k, v in json.loads(kernfeiten_tekst).items() if 'roi' in k.lower() or 'tariff' in k.lower()})}"
-    )
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": ANALYSE_SYSTEM_PROMPT},
-                {"role": "user", "content": pythonprompt},
+                {"role": "user", "content": prompt},
             ],
             max_tokens=4000,
             temperature=0.3,
