@@ -1766,6 +1766,17 @@ Deel B — "Hoe is dit berekend?": Leg per tarieftype uit hoe de berekening werk
 
 Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de bloktitels en de verplichte regel "Hoe is dit berekend?" exact zoals hierboven; daarbij alleen lopende tekst. Schrijf NOOIT variabelenamen zoals a1_cost_eur, b1_cost_eur, c1_cost_eur, kernfeiten_tekst of andere technische veldnamen in de output. Vervang deze altijd door gewone Nederlandse termen: "het huidige jaarkostentotaal", "het toekomstige jaarkostentotaal zonder batterij", "het toekomstige jaarkostentotaal met batterij".
 """
+    import logging
+
+    logging.warning(
+        f"BLOK4 DEBUG roi_per_tariff: {json.dumps(ctx_dict.get('roi_per_tariff') or {})}"
+    )
+    logging.warning(
+        f"BLOK4 DEBUG tariff_matrix: {json.dumps(ctx_dict.get('tariff_matrix') or {})}"
+    )
+    logging.warning(
+        f"BLOK4 DEBUG A1_per_tariff: {json.dumps(ctx_dict.get('A1_per_tariff') or {})}"
+    )
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
