@@ -1701,7 +1701,7 @@ Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zi
 
 Blok 2 — Wat het wegvallen van de saldering betekent
 
-Deel A: Noem het huidige jaarkostentotaal MET saldering (a1_cost_eur in kernfeiten) en het toekomstige jaarkostentotaal ZONDER saldering en ZONDER batterij (b1_cost_eur in kernfeiten). Schrijf deze bedragen in gewone taal zonder variabelenamen. Noem het exacte verschil in euro per jaar en wat dit maandelijks betekent.
+Deel A: Noem het huidige jaarkostentotaal MET saldering: dit is exact het getal dat in de kernfeiten staat als a1_cost_eur. Noem het toekomstige jaarkostentotaal ZONDER saldering en ZONDER batterij: dit is exact het getal dat in de kernfeiten staat als b1_cost_eur. Bereken het verschil als b1_cost_eur minus a1_cost_eur en noem dit als het jaarlijkse extra bedrag. Noem ook wat dit maandelijks betekent. Gebruik NOOIT c1_cost_eur in dit blok.
 
 Deel B: begin met de exacte regel "Hoe is dit berekend?" en leg daarna in 3-4 zinnen uit hoe B1 berekend is: bij het wegvallen van saldering wordt dezelfde hoeveelheid teruggeleverde kWh niet meer verrekend tegen het importtarief, maar vergoed tegen het lagere exporttarief. Het tariefverschil per kWh maal de teruggeleverde kWh verklaart het verschil. Noem import_tarief_enkel als het importtarief per kWh (in €/kWh), export_tarief_enkel als het exporttarief per kWh (in €/kWh), en tariefverschil_enkel als het verschil daartussen. Noem a1_cost_eur als het huidige jaarkostentotaal en b1_cost_eur als het toekomstige jaarkostentotaal. Verwar tarieven (€/kWh) nooit met kostentotalen (€/jaar). Noem ook feedin_kwh en saldering_impact_eur uit de kernfeiten voor zover ze daar staan.
 
@@ -1742,26 +1742,7 @@ Gebruik geen markdown, geen bulletpoints, geen vetgedrukte tekst. Gebruik wel de
         )
 
         content = response.choices[0].message.content
-        kf = json.loads(kernfeiten_tekst)
-        return _attach_device_tracking(
-            request,
-            {
-                "advice": content.strip(),
-                "debug": {
-                    "current_tariff": kf.get("current_tariff"),
-                    "a1_cost_eur": kf.get("a1_cost_eur"),
-                    "b1_cost_eur": kf.get("b1_cost_eur"),
-                    "c1_cost_eur": kf.get("c1_cost_eur"),
-                    "roi_details": kf.get("roi_details"),
-                    "A1_enkel": kf.get("A1_enkel"),
-                    "B1_enkel": kf.get("B1_enkel"),
-                    "C1_enkel": kf.get("C1_enkel"),
-                    "A1_dag_nacht": kf.get("A1_dag_nacht"),
-                    "B1_dag_nacht": kf.get("B1_dag_nacht"),
-                    "C1_dag_nacht": kf.get("C1_dag_nacht"),
-                },
-            },
-        )
+        return _attach_device_tracking(request, {"advice": content.strip()})
 
     except Exception as e:
         return _attach_device_tracking(
