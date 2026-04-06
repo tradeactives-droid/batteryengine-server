@@ -1688,8 +1688,10 @@ def generate_analyse(
     bat_lifetime = kf.get("levensduur_jaren", 15)
     bat_degradatie = kf.get("degradatie_per_jaar_pct", 2.0)
     roi_details = kf.get("roi_details", {})
-    roi_current = roi_details.get(current_tariff, {})
-    roi_pct = roi_current.get("roi_percent", 0)
+    roi_current = roi_details.get(str(current_tariff), {})
+    if not roi_current and roi_details:
+        roi_current = next(iter(roi_details.values()), {})
+    roi_pct = round(float(roi_current.get("roi_percent", 0) or 0), 1)
     terugverdientijd = roi_current.get("terugverdientijd", "> 10 jaar")
     jaarlijkse_besparing = roi_current.get("jaarlijkse_besparing_eur", batterij_besparing)
 
@@ -1742,8 +1744,11 @@ def generate_analyse(
     def fmt(val):
         if val is None:
             return "0"
-        v = float(val)
-        return str(int(v)) if v == int(v) else str(round(v, 2))
+        try:
+            v = float(val)
+            return str(int(v)) if v == int(v) else str(round(v, 2))
+        except (TypeError, ValueError):
+            return str(val)
 
     prompt = f"""
 Je schrijft een uitgebreide analyse voor een klant over zijn thuisbatterij-situatie.
