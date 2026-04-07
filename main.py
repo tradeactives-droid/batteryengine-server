@@ -455,6 +455,19 @@ def compute_v3(
             details={"reason": str(e)},
         )
 
+
+def _daytime_fraction_from_profile(load_vals: list) -> float:
+    """Bereken daytime_fraction uit gesimuleerd uurprofiel (07:00-23:00 / totaal)."""
+    if not load_vals:
+        return 0.60
+    n = len(load_vals)
+    dag = sum(load_vals[i] for i in range(n) if 7 <= (i % 24) < 23)
+    totaal = sum(load_vals)
+    if totaal <= 0:
+        return 0.60
+    return min(0.95, max(0.05, dag / totaal))
+
+
 @app.post("/compute_v3_profile")
 def compute_v3_profile(
     req: ComputeV3ProfileRequest,
@@ -629,7 +642,11 @@ def compute_v3_profile(
             annual_load_kwh=req.annual_load_kwh,
             annual_pv_kwh=req.annual_pv_kwh,
             annual_feedin_kwh=req.annual_feedin_kwh,
-            daytime_fraction=req.daytime_fraction,
+            daytime_fraction=(
+                req.daytime_fraction
+                if req.daytime_fraction is not None
+                else _daytime_fraction_from_profile(load_vals)
+            ),
             p_dyn_imp=req.p_dyn_imp,
         )
 
