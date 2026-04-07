@@ -432,63 +432,79 @@ class ScenarioRunner:
             feedin = direct_ctx["feedin"]
             p_dyn_imp = direct_ctx["p_dyn_imp"]
 
-            batt = self.batt_cfg
-            E = float(getattr(batt, "E", 0.0) or 0.0)
-            dod = float(getattr(batt, "DoD", 0.9) or 0.9)
-            eta_rt = float(getattr(batt, "eta_rt", 1.0) or 1.0)
+            battery_model = BatteryModel(
+                E_cap=self.batt_cfg.E,
+                P_max=self.batt_cfg.P,
+                dod=self.batt_cfg.DoD,
+                eta=self.batt_cfg.eta_rt,
+                initial_soc_frac=0.5,
+            )
 
-            bruikbare_cap = E * dod
-            if bruikbare_cap > 0 and feedin > 0:
-                cycli_per_jaar = min(365.0, feedin / bruikbare_cap)
-            else:
-                cycli_per_jaar = 0.0
+            sim_batt_pv_only = BatterySimulator(
+                self.load,
+                self.pv,
+                battery_model,
+                prices_dyn=None,
+                timestamps=self.load.timestamps,
+            )
+            sim_res_pv_only = sim_batt_pv_only.simulate_with_battery(simulation_year=0)
 
-            max_batterij_kwh = bruikbare_cap * cycli_per_jaar
+            prices_dyn, price_source = build_dynamic_prices_hybrid(
+                n_steps=len(self.load.values),
+                dt_hours=self.load.dt_hours,
+                avg_import_price=self.tariff_cfg.p_enkel_imp
+                if self.tariff_cfg.current_tariff != "dynamisch"
+                else self.tariff_cfg.p_export_dyn + (
+                    self.tariff_cfg.p_enkel_imp - self.tariff_cfg.p_export_dyn
+                ),
+                historic_prices=self.tariff_cfg.dynamic_prices,
+            )
 
-            max_verschuiving = min(feedin, netto_import, max_batterij_kwh)
-            verschoven_kwh = max_verschuiving * eta_rt * 0.85
+            sim_batt_dyn = BatterySimulator(
+                self.load,
+                self.pv,
+                battery_model,
+                prices_dyn=prices_dyn,
+                allow_grid_charge=getattr(self.tariff_cfg, "allow_grid_charge", False),
+                timestamps=self.load.timestamps,
+            )
+            sim_res_dyn = sim_batt_dyn.simulate_with_battery(simulation_year=0)
 
-            besp_enkel = verschoven_kwh * (cfg.p_enkel_imp - cfg.p_enkel_exp)
-            besp_dn = verschoven_kwh * (cfg.p_nacht - cfg.p_exp_dn)
-            # Bij netladen: extra arbitrage mogelijk op goedkope uren
+            # C1 via simulatie zodat WP, EV, huishoudprofiel doorwerken
+            # sim_batt_pv_only en sim_batt_dyn draaien al — gebruik hun profielen
+            c1_res_pv = cost_engine.compute_cost(
+                sim_res_pv_only.import_profile,
+                sim_res_pv_only.export_profile,
+                "enkel",
+                dt_hours=self.load.dt_hours,
+            )
+            c1_res_dn = cost_engine.compute_cost(
+                sim_res_pv_only.import_profile,
+                sim_res_pv_only.export_profile,
+                "dag_nacht",
+                dt_hours=self.load.dt_hours,
+            )
+
+            # Dynamisch: met of zonder arbitrage afhankelijk van allow_grid_charge
             if getattr(cfg, "allow_grid_charge", False):
-                # Realistisch: ~200 kWh arbitrage per jaar bij 10 kWh batterij
-                # Gebaseerd op ~250 cycli/jaar * spread ~0.10/kWh industrie benchmark
-                arbitrage_kwh = min(
-                    bruikbare_cap * 0.06 * 365,  # ~6% van capaciteit per dag = ~200 kWh/jaar
-                    netto_import * 0.15  # maximaal 15% van netto-import
+                c1_res_dyn = cost_engine.compute_cost(
+                    sim_res_dyn.import_profile,
+                    sim_res_dyn.export_profile,
+                    "dynamisch",
+                    dt_hours=self.load.dt_hours,
                 )
-                verschoven_kwh_dyn = min(verschoven_kwh + arbitrage_kwh, netto_import)
             else:
-                verschoven_kwh_dyn = verschoven_kwh
-
-            besp_dyn = verschoven_kwh_dyn * (p_dyn_imp - cfg.p_export_dyn)
+                c1_res_dyn = cost_engine.compute_cost(
+                    sim_res_pv_only.import_profile,
+                    sim_res_pv_only.export_profile,
+                    "dynamisch",
+                    dt_hours=self.load.dt_hours,
+                )
 
             C1 = {
-                "enkel": ScenarioResult(
-                    import_kwh=round(netto_import - verschoven_kwh, 1),
-                    export_kwh=round(feedin - verschoven_kwh, 1),
-                    total_cost_eur=round(
-                        B1["enkel"].total_cost_eur - besp_enkel,
-                        2,
-                    ),
-                ),
-                "dag_nacht": ScenarioResult(
-                    import_kwh=round(netto_import - verschoven_kwh, 1),
-                    export_kwh=round(feedin - verschoven_kwh, 1),
-                    total_cost_eur=round(
-                        B1["dag_nacht"].total_cost_eur - besp_dn,
-                        2,
-                    ),
-                ),
-                "dynamisch": ScenarioResult(
-                    import_kwh=round(netto_import - verschoven_kwh_dyn, 1),
-                    export_kwh=round(feedin - verschoven_kwh_dyn, 1),
-                    total_cost_eur=round(
-                        B1["dynamisch"].total_cost_eur - besp_dyn,
-                        2,
-                    ),
-                ),
+                "enkel": c1_res_pv,
+                "dag_nacht": c1_res_dn,
+                "dynamisch": c1_res_dyn,
             }
 
             C1_monthly = {}
@@ -502,14 +518,6 @@ class ScenarioRunner:
                     ]
                 else:
                     C1_monthly[tariff] = list(B1_monthly[tariff])
-
-            battery_model = BatteryModel(
-                E_cap=self.batt_cfg.E,
-                P_max=self.batt_cfg.P,
-                dod=self.batt_cfg.DoD,
-                eta=self.batt_cfg.eta_rt,
-                initial_soc_frac=0.5,
-            )
 
             if self.tariff_cfg.country == "BE":
                 monthly_before = PeakOptimizer.compute_monthly_peaks(self.load, self.pv)
