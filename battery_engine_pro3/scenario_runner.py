@@ -470,34 +470,46 @@ class ScenarioRunner:
             )
             sim_res_dyn = sim_batt_dyn.simulate_with_battery(simulation_year=0)
 
+            # Schaal simulatieprofielen naar opgegeven feedin voor consistentie met A1/B1
+            _sim_feedin_pv = sum(sim_res_pv_only.export_profile)
+            _opgegeven_feedin = float(self.annual_feedin_kwh) if self.annual_feedin_kwh else _sim_feedin_pv
+            _schaal_pv = _opgegeven_feedin / _sim_feedin_pv if _sim_feedin_pv > 0 else 1.0
+            _imp_pv_scaled = [v * _schaal_pv for v in sim_res_pv_only.import_profile]
+            _exp_pv_scaled = [v * _schaal_pv for v in sim_res_pv_only.export_profile]
+
+            _sim_feedin_dyn = sum(sim_res_dyn.export_profile)
+            _schaal_dyn = _opgegeven_feedin / _sim_feedin_dyn if _sim_feedin_dyn > 0 else 1.0
+            _imp_dyn_scaled = [v * _schaal_dyn for v in sim_res_dyn.import_profile]
+            _exp_dyn_scaled = [v * _schaal_dyn for v in sim_res_dyn.export_profile]
+
             # C1 via simulatie zodat WP, EV, huishoudprofiel doorwerken
             # sim_batt_pv_only en sim_batt_dyn draaien al — gebruik hun profielen
             c1_res_pv = cost_engine.compute_cost(
-                sim_res_pv_only.import_profile,
-                sim_res_pv_only.export_profile,
-                "enkel",
+                import_profile_kwh=_imp_pv_scaled,
+                export_profile_kwh=_exp_pv_scaled,
+                tariff_type="enkel",
                 dt_hours=self.load.dt_hours,
             )
             c1_res_dn = cost_engine.compute_cost(
-                sim_res_pv_only.import_profile,
-                sim_res_pv_only.export_profile,
-                "dag_nacht",
+                import_profile_kwh=_imp_pv_scaled,
+                export_profile_kwh=_exp_pv_scaled,
+                tariff_type="dag_nacht",
                 dt_hours=self.load.dt_hours,
             )
 
             # Dynamisch: met of zonder arbitrage afhankelijk van allow_grid_charge
             if getattr(cfg, "allow_grid_charge", False):
                 c1_res_dyn = cost_engine.compute_cost(
-                    sim_res_dyn.import_profile,
-                    sim_res_dyn.export_profile,
-                    "dynamisch",
+                    import_profile_kwh=_imp_dyn_scaled,
+                    export_profile_kwh=_exp_dyn_scaled,
+                    tariff_type="dynamisch",
                     dt_hours=self.load.dt_hours,
                 )
             else:
                 c1_res_dyn = cost_engine.compute_cost(
-                    sim_res_pv_only.import_profile,
-                    sim_res_pv_only.export_profile,
-                    "dynamisch",
+                    import_profile_kwh=_imp_pv_scaled,
+                    export_profile_kwh=_exp_pv_scaled,
+                    tariff_type="dynamisch",
                     dt_hours=self.load.dt_hours,
                 )
 
