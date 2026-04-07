@@ -451,11 +451,12 @@ class ScenarioRunner:
             besp_enkel = verschoven_kwh * (cfg.p_enkel_imp - cfg.p_enkel_exp)
             besp_dn = verschoven_kwh * (cfg.p_nacht - cfg.p_exp_dn)
             # Bij netladen: extra arbitrage mogelijk op goedkope uren
-            # Geschatte extra verschuiving: 20% van bruikbare capaciteit per dag * 365
             if getattr(cfg, "allow_grid_charge", False):
+                # Realistisch: ~200 kWh arbitrage per jaar bij 10 kWh batterij
+                # Gebaseerd op ~250 cycli/jaar * spread ~0.10/kWh industrie benchmark
                 arbitrage_kwh = min(
-                    bruikbare_cap * 0.20 * 365,
-                    netto_import * 0.30
+                    bruikbare_cap * 0.06 * 365,  # ~6% van capaciteit per dag = ~200 kWh/jaar
+                    netto_import * 0.15  # maximaal 15% van netto-import
                 )
                 verschoven_kwh_dyn = min(verschoven_kwh + arbitrage_kwh, netto_import)
             else:
