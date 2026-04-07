@@ -593,7 +593,7 @@ def compute_v3_profile(
             load_kwh=load_vals,
             pv_kwh=pv_vals,
             prices_dyn=prices_dyn,
-            allow_grid_charge=req.allow_grid_charge,
+            allow_grid_charge=req.allow_grid_charge or False,
 
             p_enkel_imp=req.p_enkel_imp,
             p_enkel_exp=req.p_enkel_exp,
