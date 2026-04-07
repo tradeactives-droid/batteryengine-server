@@ -213,14 +213,7 @@ class ScenarioRunner:
         )
         A1_sim = sim_no.simulate_no_battery()
 
-        use_direct = (
-            self.annual_load_kwh is not None
-            and self.annual_load_kwh > 0
-            and self.annual_pv_kwh is not None
-            and self.annual_pv_kwh >= 0
-            and self.annual_feedin_kwh is not None
-            and self.annual_feedin_kwh >= 0
-        )
+        use_direct = False
 
         direct_ctx: Optional[Dict[str, float]] = None
 
