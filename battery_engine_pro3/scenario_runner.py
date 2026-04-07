@@ -366,21 +366,13 @@ class ScenarioRunner:
             self.tariff_cfg.saldering = True
 
             A1_per_tariff = {
-                "enkel": ScenarioResult(
-                    import_kwh=_netto_import,
-                    export_kwh=_feedin,
-                    total_cost_eur=round(_e_a1_enkel + _fixed, 2),
-                ),
-                "dag_nacht": ScenarioResult(
-                    import_kwh=_netto_import,
-                    export_kwh=_feedin,
-                    total_cost_eur=round(_e_a1_dn + _fixed, 2),
-                ),
-                "dynamisch": ScenarioResult(
-                    import_kwh=_netto_import,
-                    export_kwh=_feedin,
-                    total_cost_eur=round(_e_a1_dyn + _fixed, 2),
-                ),
+                tariff: cost_engine.compute_cost(
+                    A1_sim.import_profile,
+                    A1_sim.export_profile,
+                    tariff,
+                    dt_hours=self.load.dt_hours,
+                )
+                for tariff in ["enkel", "dag_nacht", "dynamisch"]
             }
 
             A1 = A1_per_tariff.get(current_tariff, A1_per_tariff["enkel"])
@@ -458,7 +450,18 @@ class ScenarioRunner:
 
             besp_enkel = verschoven_kwh * (cfg.p_enkel_imp - cfg.p_enkel_exp)
             besp_dn = verschoven_kwh * (cfg.p_nacht - cfg.p_exp_dn)
-            besp_dyn = verschoven_kwh * (p_dyn_imp - cfg.p_export_dyn)
+            # Bij netladen: extra arbitrage mogelijk op goedkope uren
+            # Geschatte extra verschuiving: 20% van bruikbare capaciteit per dag * 365
+            if getattr(cfg, "allow_grid_charge", False):
+                arbitrage_kwh = min(
+                    bruikbare_cap * 0.20 * 365,
+                    netto_import * 0.30
+                )
+                verschoven_kwh_dyn = min(verschoven_kwh + arbitrage_kwh, netto_import)
+            else:
+                verschoven_kwh_dyn = verschoven_kwh
+
+            besp_dyn = verschoven_kwh_dyn * (p_dyn_imp - cfg.p_export_dyn)
 
             C1 = {
                 "enkel": ScenarioResult(
@@ -478,8 +481,8 @@ class ScenarioRunner:
                     ),
                 ),
                 "dynamisch": ScenarioResult(
-                    import_kwh=round(netto_import - verschoven_kwh, 1),
-                    export_kwh=round(feedin - verschoven_kwh, 1),
+                    import_kwh=round(netto_import - verschoven_kwh_dyn, 1),
+                    export_kwh=round(feedin - verschoven_kwh_dyn, 1),
                     total_cost_eur=round(
                         B1["dynamisch"].total_cost_eur - besp_dyn,
                         2,
