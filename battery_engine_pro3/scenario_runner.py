@@ -518,7 +518,24 @@ class ScenarioRunner:
 
             max_batterij_kwh = bruikbare_cap * cycli_per_jaar
 
-            max_verschuiving = min(feedin, netto_import, max_batterij_kwh)
+            # Gebruik gesimuleerde directe zelfconsumptie uit het uurprofiel
+            # Dit verschilt per huishoudprofiel (altijd thuis = meer directe ZC)
+            sim_total_load = sum(self.load.values)
+            sim_total_pv = sum(self.pv.values)
+            sim_export = sum(A1_sim.export_profile)
+            sim_import = sum(A1_sim.import_profile)
+
+            # Directe zelfconsumptie uit simulatie (wat het profiel werkelijk laat zien)
+            sim_directe_zc = sim_total_pv - sim_export if sim_total_pv > sim_export else 0.0
+
+            # Schaal naar opgegeven feedin (calibratie correctie)
+            feedin_schaal = feedin / sim_export if sim_export > 0 else 1.0
+            gecorrigeerde_directe_zc = sim_directe_zc * feedin_schaal
+            load = float(self.annual_load_kwh) if self.annual_load_kwh else sim_total_load
+            gecorrigeerde_netto_import = max(0.0, load - gecorrigeerde_directe_zc)
+
+            # Batterij kan alleen verschuiven wat er daadwerkelijk teruggeleverd wordt
+            max_verschuiving = min(feedin, gecorrigeerde_netto_import, max_batterij_kwh)
             verschoven_kwh = max_verschuiving * eta_rt * 0.85
 
             besp_enkel = verschoven_kwh * (cfg.p_enkel_imp - cfg.p_enkel_exp)
