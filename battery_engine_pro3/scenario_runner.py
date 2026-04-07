@@ -6,7 +6,7 @@ from typing import Dict, Optional, List
 from .types import ScenarioResult, PeakInfo, ROIResult
 from .battery_simulator import BatterySimulator
 from .battery_model import BatteryModel
-from .cost_engine import CostEngine
+from .cost_engine import CostEngine, _is_night_hour
 from .peak_optimizer import PeakOptimizer
 from .roi_engine import ROIEngine, ROIConfig, ROI_MIN_REALISTIC_INVESTMENT_EUR
 from .dynamic_prices import build_dynamic_prices_hybrid
@@ -362,16 +362,90 @@ class ScenarioRunner:
             self.tariff_cfg.saldering = False
 
         else:
+            cfg = self.tariff_cfg
             self.tariff_cfg.saldering = True
 
-            A1_per_tariff = {
-                tariff: cost_engine.compute_cost(
-                    A1_sim.import_profile,
-                    A1_sim.export_profile,
-                    tariff,
-                    dt_hours=self.load.dt_hours,
+            # A1 via directe jaarformule (jaarlijkse saldering — correct voor NL-wet)
+            _load = sum(self.load.values)
+            _pv = sum(self.pv.values)
+            _feedin = (
+                float(self.annual_feedin_kwh)
+                if self.annual_feedin_kwh
+                else sum(A1_sim.export_profile)
+            )
+            _directe_zc = max(0.0, _pv - _feedin)
+            _netto_import = max(0.0, _load - _directe_zc)
+            _gesaldeerd = min(_netto_import, _feedin)
+            _overschot = max(0.0, _feedin - _netto_import)
+            _fixed = cfg.vastrecht_year + cfg.inverter_power_kw * cfg.inverter_cost_per_kw
+
+            # Dag/nacht split op basis van gesimuleerd profiel
+            _imp_profile = A1_sim.import_profile
+            _exp_profile = A1_sim.export_profile
+            _n = len(_imp_profile)
+            _dag_import = sum(
+                _imp_profile[i]
+                for i in range(_n)
+                if not _is_night_hour(
+                    int(i * self.load.dt_hours) % 24,
+                    cfg.night_start_hour,
+                    cfg.night_end_hour,
                 )
-                for tariff in ["enkel", "dag_nacht", "dynamisch"]
+            )
+            _nacht_import = sum(
+                _imp_profile[i]
+                for i in range(_n)
+                if _is_night_hour(
+                    int(i * self.load.dt_hours) % 24,
+                    cfg.night_start_hour,
+                    cfg.night_end_hour,
+                )
+            )
+            _total_imp = _dag_import + _nacht_import
+            _dag_frac = _dag_import / _total_imp if _total_imp > 0 else 0.6
+            _nacht_frac = 1.0 - _dag_frac
+
+            _dag_sal = _gesaldeerd * _dag_frac
+            _nacht_sal = _gesaldeerd * _nacht_frac
+
+            _p_dyn = cfg.p_dyn_imp if cfg.p_dyn_imp else cfg.p_enkel_imp
+
+            _e_a1_enkel = (
+                _netto_import * cfg.p_enkel_imp
+                - _gesaldeerd * cfg.p_enkel_imp
+                - _overschot * cfg.p_enkel_exp
+            )
+            _e_a1_dn = (
+                _dag_sal * cfg.p_dag
+                + _nacht_sal * cfg.p_nacht
+                - _dag_sal * cfg.p_dag
+                - _nacht_sal * cfg.p_nacht
+                + (_netto_import - _gesaldeerd)
+                * (cfg.p_dag * _dag_frac + cfg.p_nacht * _nacht_frac)
+                - _overschot * cfg.p_exp_dn
+            )
+            _e_a1_dyn = (
+                _netto_import * _p_dyn
+                - _gesaldeerd * _p_dyn
+                - _overschot * cfg.p_export_dyn
+            )
+
+            A1_per_tariff = {
+                "enkel": ScenarioResult(
+                    import_kwh=_netto_import,
+                    export_kwh=_feedin,
+                    total_cost_eur=round(_e_a1_enkel + _fixed, 2),
+                ),
+                "dag_nacht": ScenarioResult(
+                    import_kwh=_netto_import,
+                    export_kwh=_feedin,
+                    total_cost_eur=round(_e_a1_dn + _fixed, 2),
+                ),
+                "dynamisch": ScenarioResult(
+                    import_kwh=_netto_import,
+                    export_kwh=_feedin,
+                    total_cost_eur=round(_e_a1_dyn + _fixed, 2),
+                ),
             }
 
             A1 = A1_per_tariff.get(current_tariff, A1_per_tariff["enkel"])
